@@ -1,0 +1,337 @@
+"use client";
+
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Check, Lock, Sparkles, X } from "lucide-react";
+import { asset } from "@/lib/asset";
+import { formatNumber } from "../shared/ui";
+import { findItem, HEROES, ITEMS, SKINS, WORLDS, type ShopItem, type ShopKind, type WorldDef } from "./content";
+
+/**
+ * The shop: heroes, skins and worlds, bought with the coins saved after every stage. Picking an item
+ * previews it on the 3D hero behind the panel (the panel slides the 3D view aside).
+ */
+
+export interface Owned {
+  bank: number;
+  owned: string[];
+  hero: string;
+  skin: string;
+  world: string;
+}
+
+export const TABS: { kind: ShopKind; label: string }[] = [
+  { kind: "hero", label: "Heroes" },
+  { kind: "skin", label: "Skins" },
+  { kind: "world", label: "Worlds" },
+];
+
+export const ownedKey = (kind: ShopKind, id: string) => `${kind}:${id}`;
+export const isOwned = (save: Owned, kind: ShopKind, item: ShopItem) => item.price === 0 || save.owned.includes(ownedKey(kind, item.id));
+
+export function CoinIcon({ className = "size-3.5" }: { className?: string }) {
+  return <span aria-hidden className={`inline-block shrink-0 rounded-full border-2 border-[#1c1917] bg-gradient-to-br from-yellow-200 via-amber-400 to-orange-500 ${className}`} />;
+}
+
+export function Shop({
+  save,
+  tab,
+  selected,
+  busy,
+  gate,
+  onTab,
+  onSelect,
+  onBuy,
+  onEquip,
+  onClose,
+  onLayout,
+}: {
+  save: Owned;
+  tab: ShopKind;
+  selected: string;
+  /** Downloading the previewed hero (0..1), null when nothing is loading. */
+  busy: number | null;
+  /** Why an item can't be bought yet (null = it can). */
+  gate: (kind: ShopKind, item: ShopItem) => string | null;
+  onTab: (tab: ShopKind) => void;
+  onSelect: (id: string) => void;
+  onBuy: (kind: ShopKind, item: ShopItem) => void;
+  onEquip: (kind: ShopKind, id: string) => void;
+  onClose: () => void;
+  /** How much of the screen the panel covers: the 3D view is moved into the rest. */
+  onLayout: (shift: { x: number; y: number }) => void;
+}) {
+  const panel = useRef<HTMLElement>(null);
+  const items = ITEMS[tab];
+  const item = items.find((i) => i.id === selected) ?? items[0];
+  const owned = isOwned(save, tab, item);
+  const equipped = save[tab] === item.id;
+  const short = item.price - save.bank;
+  const reason = owned ? null : gate(tab, item);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  // Report the panel's footprint: a bottom sheet pushes the hero up, a side panel pushes it left.
+  useLayoutEffect(() => {
+    const el = panel.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+      if (r.width > W * 0.9) onLayout({ x: 0, y: r.height / H / 2 });
+      else onLayout({ x: -r.width / W / 2, y: 0 });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [onLayout]);
+
+  const act = () => {
+    if (owned) {
+      if (!equipped) onEquip(tab, item.id);
+      return;
+    }
+    if (short > 0 || reason) return;
+    onBuy(tab, item);
+    setFlash(item.id);
+  };
+
+  // Keys: ← → pick, ↑ ↓ tabs, Enter buy / equip, Esc or S close.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const i = items.findIndex((x) => x.id === item.id);
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        onSelect(items[(i + (e.key === "ArrowRight" ? 1 : -1) + items.length) % items.length].id);
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const t = TABS.findIndex((x) => x.kind === tab);
+        onTab(TABS[(t + (e.key === "ArrowDown" ? 1 : -1) + TABS.length) % TABS.length].kind);
+      } else if (e.key === "Enter" && !(e.target instanceof HTMLButtonElement)) {
+        e.preventDefault();
+        act();
+      } else if (e.key === "Escape" || e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  });
+
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 1600);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  const world = tab === "world" ? findItem(WORLDS, item.id) : null;
+  const detail = tab === "hero" ? findItem(HEROES, item.id).perk : world ? `${world.blurb} · ×${world.coinMult} coins` : "Works on every hero";
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end sm:flex-row sm:items-stretch sm:justify-end land:flex-row land:items-stretch land:justify-end">
+      <section
+        ref={panel}
+        role="dialog"
+        aria-label="Shop"
+        onPointerDown={(e) => e.stopPropagation()}
+        className="g-panel pointer-events-auto flex max-h-[56%] w-full flex-col overflow-hidden rounded-b-none p-2.5 pb-[max(env(safe-area-inset-bottom),10px)] sm:m-3 sm:max-h-none sm:w-[min(430px,46vw)] sm:rounded-b-[var(--g-panel-radius)] sm:p-4 land:m-2 land:max-h-none land:w-[min(400px,50vw)] land:p-2.5 land:pb-2.5"
+      >
+        {/* Header: title, coins, close; then the tabs. */}
+        <div className="flex items-center gap-1.5">
+          <h2 className="g-panel-title min-w-0 flex-1 truncate text-xl leading-none sm:text-2xl land:text-lg">Shop</h2>
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border-[3px] border-[#1c1917] bg-white px-2 py-1 text-xs font-black tabular-nums land:py-0.5">
+            <CoinIcon /> {formatNumber(save.bank)}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close shop (Esc)"
+            title="Close shop (Esc)"
+            className="grid size-8 shrink-0 place-items-center rounded-full border-[3px] border-[#1c1917] bg-white hover:bg-[var(--accent)] focus-visible:outline-2 focus-visible:outline-[var(--accent)] land:size-7"
+          >
+            <X className="size-4" strokeWidth={3} />
+          </button>
+        </div>
+        <div className="mt-2 flex gap-1 land:mt-1.5" role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.kind}
+              type="button"
+              role="tab"
+              aria-selected={t.kind === tab}
+              onClick={() => onTab(t.kind)}
+              className={`g-display min-w-0 flex-1 truncate rounded-full border-[3px] border-[#1c1917] px-1 py-1 text-[11px] uppercase transition sm:text-xs land:py-0.5 ${t.kind === tab ? "bg-[var(--accent)] shadow-[0_3px_0_#1c1917]" : "bg-white hover:bg-amber-50"}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Items. */}
+        <div className="-mx-1 mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pt-0.5 pb-1 land:mt-1.5">
+          <ul className="grid grid-cols-3 gap-1.5 sm:gap-2 land:grid-cols-4">
+            {items.map((it, n) => {
+              const have = isOwned(save, tab, it);
+              const gated = !have && gate(tab, it) !== null;
+              const on = save[tab] === it.id;
+              const picked = it.id === item.id;
+              return (
+                <li key={it.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(it.id)}
+                    aria-pressed={picked}
+                    className={`relative flex w-full flex-col items-center gap-0.5 overflow-hidden rounded-2xl border-[3px] border-[#1c1917] p-1 pb-1.5 text-center transition ${
+                      picked ? "-translate-y-0.5 bg-[#fde68a] shadow-[0_4px_0_#1c1917]" : "bg-white hover:bg-amber-50"
+                    }`}
+                  >
+                    <Thumb kind={tab} id={it.id} hero={save.hero} n={n} />
+                    <span className="w-full truncate text-[11px] leading-tight font-extrabold">{it.name}</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold tabular-nums">
+                      {on ? (
+                        <span className="text-[#b45309]">Equipped</span>
+                      ) : have ? (
+                        <span className="inline-flex items-center gap-0.5 text-emerald-700">
+                          <Check className="size-3" strokeWidth={3} /> Owned
+                        </span>
+                      ) : gated ? (
+                        <span className="inline-flex items-center gap-0.5 opacity-70">
+                          <Lock className="size-3" /> Locked
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center gap-1 ${it.price > save.bank ? "opacity-55" : ""}`}>
+                          <CoinIcon className="size-3" /> {formatNumber(it.price)}
+                        </span>
+                      )}
+                    </span>
+                    {!have && <Lock className="absolute top-1 right-1 size-3 opacity-70" aria-hidden />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        {/* The picked item and what you can do with it. */}
+        <div className="mt-2 flex items-center gap-2 border-t-[3px] border-[#1c1917]/15 pt-2 land:mt-1.5 land:pt-1.5">
+          <div className="min-w-0 flex-1">
+            <p className="g-display truncate text-sm leading-tight sm:text-base">{item.name}</p>
+            <p className="g-muted truncate text-[11px] leading-tight font-bold">{busy !== null ? `Hopping in… ${Math.round(busy * 100)}%` : (reason ?? detail)}</p>
+          </div>
+          {flash === item.id ? (
+            <span className="g-display inline-flex animate-[game-fade_0.2s_ease] items-center gap-1 rounded-full border-[3px] border-[#1c1917] bg-emerald-400 px-3 py-1.5 text-xs">
+              <Sparkles className="size-4" /> Unlocked!
+            </span>
+          ) : (
+            <ActionButton onClick={act} disabled={(owned && equipped) || (!owned && (short > 0 || reason !== null))}>
+              {reason ? (
+                <span className="inline-flex items-center gap-1">
+                  <Lock className="size-3.5" /> Locked
+                </span>
+              ) : owned ? (
+                equipped ? (
+                  <>
+                    <Check className="size-4" strokeWidth={3} /> Equipped
+                  </>
+                ) : (
+                  "Equip"
+                )
+              ) : short > 0 ? (
+                <span className="inline-flex items-center gap-1">
+                  <Lock className="size-3.5" /> {formatNumber(short)} more
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  Buy <CoinIcon /> {formatNumber(item.price)}
+                </span>
+              )}
+            </ActionButton>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ActionButton({ onClick, disabled, children }: { onClick: () => void; disabled: boolean; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="g-btn shrink-0 px-3.5 py-1.5 text-sm focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] disabled:opacity-55 land:py-1"
+    >
+      <span className="g-unskew gap-1.5 whitespace-nowrap">{children}</span>
+    </button>
+  );
+}
+
+const thumbBox = "relative grid h-14 w-full place-items-center overflow-hidden rounded-xl sm:h-16 land:h-12";
+
+/** The picture on a shop card. */
+function Thumb({ kind, id, hero, n }: { kind: ShopKind; id: string; hero: string; n: number }) {
+  if (kind === "hero") {
+    return (
+      <span className={`${thumbBox} bg-gradient-to-b from-sky-300 to-sky-100`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={asset(`/library/${findItem(HEROES, id).key}.webp`)} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-contain" />
+      </span>
+    );
+  }
+  if (kind === "skin") return <SkinThumb id={id} hero={hero} />;
+  return <WorldThumb world={findItem(WORLDS, id)} n={n} />;
+}
+
+/** A little floating island in the world's sky and colours. */
+export function WorldThumb({ world, n, className = thumbBox }: { world: WorldDef; n?: number; className?: string }) {
+  const { look } = world;
+  const top = look.top ?? (world.theme === "snow" ? "#f4f8ff" : "#6cc36a");
+  const earth = look.earth ?? (world.theme === "snow" ? "#9fb0c8" : "#b8704a");
+  return (
+    <span className={className} style={{ background: `linear-gradient(${look.sky[0]}, ${look.sky[1]})` }}>
+      <span aria-hidden className="absolute top-[42%] left-1/2 h-[30%] w-[64%] -translate-x-1/2">
+        <span className="absolute inset-x-0 top-0 h-[38%] rounded-t-md border-2 border-[#1c1917]" style={{ background: top }} />
+        <span className="absolute inset-x-[6%] top-[34%] bottom-0 rounded-b-[40%] border-2 border-t-0 border-[#1c1917]" style={{ background: earth }} />
+      </span>
+      {look.weather && (
+        <span
+          aria-hidden
+          className="absolute inset-0 opacity-80"
+          style={{ backgroundImage: `radial-gradient(circle, ${look.weather.color} 0 1.5px, transparent 2px)`, backgroundSize: "11px 13px" }}
+        />
+      )}
+      {n !== undefined && <span className="g-display absolute top-0.5 left-1.5 text-[11px] text-white [text-shadow:1px_1px_0_#1c1917]">{n + 1}</span>}
+    </span>
+  );
+}
+
+/** The equipped hero's picture, recoloured with the skin's colours (keeps the light and shade). */
+function SkinThumb({ id, hero }: { id: string; hero: string }) {
+  const skin = findItem(SKINS, id);
+  const src = asset(`/library/${findItem(HEROES, hero).key}.webp`);
+  const mask: CSSProperties = {
+    WebkitMaskImage: `url(${src})`,
+    maskImage: `url(${src})`,
+    WebkitMaskSize: "contain",
+    maskSize: "contain",
+    WebkitMaskRepeat: "no-repeat",
+    maskRepeat: "no-repeat",
+    WebkitMaskPosition: "center",
+    maskPosition: "center",
+  };
+  return (
+    <span className={`${thumbBox} bg-gradient-to-b from-sky-300 to-sky-100`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" loading="lazy" decoding="async" className={`absolute inset-0 h-full w-full object-contain ${skin.look === "classic" ? "" : "grayscale"}`} />
+      {skin.look !== "classic" && <span className="absolute inset-0 mix-blend-color" style={{ ...mask, background: skin.swatch }} />}
+      {skin.look !== "classic" && <span className="absolute inset-0 opacity-35 mix-blend-overlay" style={{ ...mask, background: skin.swatch }} />}
+    </span>
+  );
+}

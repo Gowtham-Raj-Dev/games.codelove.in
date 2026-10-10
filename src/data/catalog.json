@@ -1,0 +1,4513 @@
+{
+  "license": {
+    "spdx": "MIT",
+    "holder": "Microsoft",
+    "year": 2020,
+    "text": "MIT License\n\nCopyright (c) 2020 Microsoft\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE."
+  },
+  "textureSize": 1024,
+  "animations": [
+    {
+      "id": "f_idle_neutral_01",
+      "label": "Idle",
+      "set": "f",
+      "file": "/animations/f_idle_neutral_01.glb",
+      "duration": 15.533,
+      "bytes": 110432
+    },
+    {
+      "id": "m_idle_neutral_01",
+      "label": "Idle",
+      "set": "m",
+      "file": "/animations/m_idle_neutral_01.glb",
+      "duration": 11.667,
+      "bytes": 113152
+    },
+    {
+      "id": "f_idle_look_around_01",
+      "label": "Look around",
+      "set": "f",
+      "file": "/animations/f_idle_look_around_01.glb",
+      "duration": 4.467,
+      "bytes": 89792
+    },
+    {
+      "id": "m_idle_look_around_01",
+      "label": "Look around",
+      "set": "m",
+      "file": "/animations/m_idle_look_around_01.glb",
+      "duration": 4.633,
+      "bytes": 98180
+    },
+    {
+      "id": "f_gestic_talk_neutral_01",
+      "label": "Talk",
+      "set": "f",
+      "file": "/animations/f_gestic_talk_neutral_01.glb",
+      "duration": 27.333,
+      "bytes": 454908
+    },
+    {
+      "id": "m_gestic_talk_neutral_01",
+      "label": "Talk",
+      "set": "m",
+      "file": "/animations/m_gestic_talk_neutral_01.glb",
+      "duration": 35.567,
+      "bytes": 549084
+    },
+    {
+      "id": "f_gestic_thoughtful_01",
+      "label": "Thoughtful",
+      "set": "f",
+      "file": "/animations/f_gestic_thoughtful_01.glb",
+      "duration": 9.433,
+      "bytes": 165912
+    },
+    {
+      "id": "m_gestic_thoughtful_01",
+      "label": "Thoughtful",
+      "set": "m",
+      "file": "/animations/m_gestic_thoughtful_01.glb",
+      "duration": 13.5,
+      "bytes": 173144
+    },
+    {
+      "id": "f_wave_01",
+      "label": "Wave",
+      "set": "f",
+      "file": "/animations/f_wave_01.glb",
+      "duration": 5.533,
+      "bytes": 108096
+    },
+    {
+      "id": "m_wave_01",
+      "label": "Wave",
+      "set": "m",
+      "file": "/animations/m_wave_01.glb",
+      "duration": 2.833,
+      "bytes": 98788
+    },
+    {
+      "id": "f_cheer_01",
+      "label": "Cheer",
+      "set": "f",
+      "file": "/animations/f_cheer_01.glb",
+      "duration": 15.3,
+      "bytes": 346924
+    },
+    {
+      "id": "m_cheer_01",
+      "label": "Cheer",
+      "set": "m",
+      "file": "/animations/m_cheer_01.glb",
+      "duration": 24.633,
+      "bytes": 496912
+    },
+    {
+      "id": "f_claphands_01",
+      "label": "Clap",
+      "set": "f",
+      "file": "/animations/f_claphands_01.glb",
+      "duration": 15.933,
+      "bytes": 298420
+    },
+    {
+      "id": "m_claphands_01",
+      "label": "Clap",
+      "set": "m",
+      "file": "/animations/m_claphands_01.glb",
+      "duration": 7,
+      "bytes": 187924
+    },
+    {
+      "id": "f_dancing_neutral",
+      "label": "Dance",
+      "set": "f",
+      "file": "/animations/f_dancing_neutral.glb",
+      "duration": 24.967,
+      "bytes": 401732
+    },
+    {
+      "id": "m_dancing_neutral",
+      "label": "Dance",
+      "set": "m",
+      "file": "/animations/m_dancing_neutral.glb",
+      "duration": 21.5,
+      "bytes": 384456
+    },
+    {
+      "id": "f_walk_neutral_01",
+      "label": "Walk",
+      "set": "f",
+      "file": "/animations/f_walk_neutral_01.glb",
+      "duration": 1.2,
+      "bytes": 46748
+    },
+    {
+      "id": "m_walk_neutral_01",
+      "label": "Walk",
+      "set": "m",
+      "file": "/animations/m_walk_neutral_01.glb",
+      "duration": 1.2,
+      "bytes": 44344
+    },
+    {
+      "id": "f_run_neutral_01",
+      "label": "Run",
+      "set": "f",
+      "file": "/animations/f_run_neutral_01.glb",
+      "duration": 0.767,
+      "bytes": 56444
+    },
+    {
+      "id": "m_run_neutral_01",
+      "label": "Run",
+      "set": "m",
+      "file": "/animations/m_run_neutral_01.glb",
+      "duration": 0.733,
+      "bytes": 54548
+    }
+  ],
+  "models": [
+    {
+      "id": "Bird_Chicken_Brown_01",
+      "slug": "bird-chicken-brown-01",
+      "title": "Chicken",
+      "subtitle": "Bird · Brown",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Chicken",
+      "animationSet": null,
+      "glb": "/models/bird-chicken-brown-01.glb",
+      "glbBytes": 266552,
+      "thumb": {
+        "src": "/thumbs/bird-chicken-brown-01.webp",
+        "width": 560,
+        "height": 605
+      },
+      "stats": {
+        "triangles": 1658,
+        "vertices": 1072,
+        "bones": 28,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.17,
+          0.412,
+          0.431
+        ]
+      }
+    },
+    {
+      "id": "Bird_Chicken_White_01",
+      "slug": "bird-chicken-white-01",
+      "title": "Chicken",
+      "subtitle": "Bird · White",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Chicken",
+      "animationSet": null,
+      "glb": "/models/bird-chicken-white-01.glb",
+      "glbBytes": 215912,
+      "thumb": {
+        "src": "/thumbs/bird-chicken-white-01.webp",
+        "width": 542,
+        "height": 617
+      },
+      "stats": {
+        "triangles": 1658,
+        "vertices": 1072,
+        "bones": 28,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.17,
+          0.412,
+          0.431
+        ]
+      }
+    },
+    {
+      "id": "Bird_Duck_Female_01",
+      "slug": "bird-duck-female-01",
+      "title": "Duck",
+      "subtitle": "Bird · Female",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Duck",
+      "animationSet": null,
+      "glb": "/models/bird-duck-female-01.glb",
+      "glbBytes": 352008,
+      "thumb": {
+        "src": "/thumbs/bird-duck-female-01.webp",
+        "width": 560,
+        "height": 583
+      },
+      "stats": {
+        "triangles": 906,
+        "vertices": 605,
+        "bones": 17,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.186,
+          0.366,
+          0.44
+        ]
+      }
+    },
+    {
+      "id": "Bird_Duck_Male_01",
+      "slug": "bird-duck-male-01",
+      "title": "Duck",
+      "subtitle": "Bird · Male",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Duck",
+      "animationSet": null,
+      "glb": "/models/bird-duck-male-01.glb",
+      "glbBytes": 253288,
+      "thumb": {
+        "src": "/thumbs/bird-duck-male-01.webp",
+        "width": 560,
+        "height": 617
+      },
+      "stats": {
+        "triangles": 906,
+        "vertices": 608,
+        "bones": 17,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.186,
+          0.366,
+          0.44
+        ]
+      }
+    },
+    {
+      "id": "Bird_Goose_Grey_01",
+      "slug": "bird-goose-grey-01",
+      "title": "Goose",
+      "subtitle": "Bird · Grey",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Goose",
+      "animationSet": null,
+      "glb": "/models/bird-goose-grey-01.glb",
+      "glbBytes": 281904,
+      "thumb": {
+        "src": "/thumbs/bird-goose-grey-01.webp",
+        "width": 483,
+        "height": 604
+      },
+      "stats": {
+        "triangles": 1246,
+        "vertices": 826,
+        "bones": 17,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.303,
+          0.696,
+          0.723
+        ]
+      }
+    },
+    {
+      "id": "Bird_Goose_White_01",
+      "slug": "bird-goose-white-01",
+      "title": "Goose",
+      "subtitle": "Bird · White",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Goose",
+      "animationSet": null,
+      "glb": "/models/bird-goose-white-01.glb",
+      "glbBytes": 208196,
+      "thumb": {
+        "src": "/thumbs/bird-goose-white-01.webp",
+        "width": 406,
+        "height": 550
+      },
+      "stats": {
+        "triangles": 1000,
+        "vertices": 669,
+        "bones": 17,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.281,
+          0.692,
+          0.71
+        ]
+      }
+    },
+    {
+      "id": "Bird_Rooster_Brown_01",
+      "slug": "bird-rooster-brown-01",
+      "title": "Rooster",
+      "subtitle": "Bird · Brown",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Rooster",
+      "animationSet": null,
+      "glb": "/models/bird-rooster-brown-01.glb",
+      "glbBytes": 254624,
+      "thumb": {
+        "src": "/thumbs/bird-rooster-brown-01.webp",
+        "width": 448,
+        "height": 606
+      },
+      "stats": {
+        "triangles": 1696,
+        "vertices": 1124,
+        "bones": 19,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.195,
+          0.541,
+          0.573
+        ]
+      }
+    },
+    {
+      "id": "Bird_Sparrow_01",
+      "slug": "bird-sparrow-01",
+      "title": "Sparrow",
+      "subtitle": "Bird",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Sparrow",
+      "animationSet": null,
+      "glb": "/models/bird-sparrow-01.glb",
+      "glbBytes": 436384,
+      "thumb": {
+        "src": "/thumbs/bird-sparrow-01.webp",
+        "width": 560,
+        "height": 437
+      },
+      "stats": {
+        "triangles": 1242,
+        "vertices": 889,
+        "bones": 39,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.06,
+          0.139,
+          0.246
+        ]
+      }
+    },
+    {
+      "id": "Bull_Brown_01",
+      "slug": "bull-brown-01",
+      "title": "Bull",
+      "subtitle": "Brown",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Bull",
+      "animationSet": null,
+      "glb": "/models/bull-brown-01.glb",
+      "glbBytes": 278572,
+      "thumb": {
+        "src": "/thumbs/bull-brown-01.webp",
+        "width": 560,
+        "height": 395
+      },
+      "stats": {
+        "triangles": 2840,
+        "vertices": 1755,
+        "bones": 39,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.731,
+          1.455,
+          2.357
+        ]
+      }
+    },
+    {
+      "id": "Business_Female_01",
+      "slug": "business-female-01",
+      "title": "Businesswoman 01",
+      "subtitle": "Female · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Business",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/business-female-01.glb",
+      "glbBytes": 924340,
+      "thumb": {
+        "src": "/thumbs/business-female-01.webp",
+        "width": 403,
+        "height": 626
+      },
+      "stats": {
+        "triangles": 8966,
+        "vertices": 6013,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.74,
+          0.305
+        ]
+      }
+    },
+    {
+      "id": "Business_Female_02",
+      "slug": "business-female-02",
+      "title": "Businesswoman 02",
+      "subtitle": "Female · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Business",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/business-female-02.glb",
+      "glbBytes": 1426860,
+      "thumb": {
+        "src": "/thumbs/business-female-02.webp",
+        "width": 409,
+        "height": 622
+      },
+      "stats": {
+        "triangles": 8640,
+        "vertices": 5683,
+        "bones": 80,
+        "materials": 4,
+        "textures": 7,
+        "size": [
+          1.217,
+          1.729,
+          0.305
+        ]
+      }
+    },
+    {
+      "id": "Business_Female_03",
+      "slug": "business-female-03",
+      "title": "Businesswoman 03",
+      "subtitle": "Female · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Business",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/business-female-03.glb",
+      "glbBytes": 845076,
+      "thumb": {
+        "src": "/thumbs/business-female-03.webp",
+        "width": 390,
+        "height": 633
+      },
+      "stats": {
+        "triangles": 8438,
+        "vertices": 5694,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.743,
+          0.315
+        ]
+      }
+    },
+    {
+      "id": "Business_Female_04",
+      "slug": "business-female-04",
+      "title": "Businesswoman 04",
+      "subtitle": "Female · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Business",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/business-female-04.glb",
+      "glbBytes": 607708,
+      "thumb": {
+        "src": "/thumbs/business-female-04.webp",
+        "width": 408,
+        "height": 627
+      },
+      "stats": {
+        "triangles": 8270,
+        "vertices": 5183,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.733,
+          0.34
+        ]
+      }
+    },
+    {
+      "id": "Business_Male_01",
+      "slug": "business-male-01",
+      "title": "Businessman 01",
+      "subtitle": "Male · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Business",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/business-male-01.glb",
+      "glbBytes": 811124,
+      "thumb": {
+        "src": "/thumbs/business-male-01.webp",
+        "width": 412,
+        "height": 626
+      },
+      "stats": {
+        "triangles": 7435,
+        "vertices": 4630,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.806,
+          0.351
+        ]
+      }
+    },
+    {
+      "id": "Business_Male_02",
+      "slug": "business-male-02",
+      "title": "Businessman 02",
+      "subtitle": "Male · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Business",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/business-male-02.glb",
+      "glbBytes": 774296,
+      "thumb": {
+        "src": "/thumbs/business-male-02.webp",
+        "width": 425,
+        "height": 636
+      },
+      "stats": {
+        "triangles": 7448,
+        "vertices": 4600,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.823,
+          0.351
+        ]
+      }
+    },
+    {
+      "id": "Business_Male_03",
+      "slug": "business-male-03",
+      "title": "Businessman 03",
+      "subtitle": "Male · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Business",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/business-male-03.glb",
+      "glbBytes": 844352,
+      "thumb": {
+        "src": "/thumbs/business-male-03.webp",
+        "width": 419,
+        "height": 643
+      },
+      "stats": {
+        "triangles": 7810,
+        "vertices": 4851,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.819,
+          0.344
+        ]
+      }
+    },
+    {
+      "id": "Business_Male_04",
+      "slug": "business-male-04",
+      "title": "Businessman 04",
+      "subtitle": "Male · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Business",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/business-male-04.glb",
+      "glbBytes": 586640,
+      "thumb": {
+        "src": "/thumbs/business-male-04.webp",
+        "width": 429,
+        "height": 631
+      },
+      "stats": {
+        "triangles": 7326,
+        "vertices": 4418,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.801,
+          0.363
+        ]
+      }
+    },
+    {
+      "id": "Business_Male_05",
+      "slug": "business-male-05",
+      "title": "Businessman 05",
+      "subtitle": "Male · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Business",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/business-male-05.glb",
+      "glbBytes": 582376,
+      "thumb": {
+        "src": "/thumbs/business-male-05.webp",
+        "width": 406,
+        "height": 608
+      },
+      "stats": {
+        "triangles": 7164,
+        "vertices": 4456,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.802,
+          0.35
+        ]
+      }
+    },
+    {
+      "id": "Business_Male_06",
+      "slug": "business-male-06",
+      "title": "Businessman 06",
+      "subtitle": "Male · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Business",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/business-male-06.glb",
+      "glbBytes": 502912,
+      "thumb": {
+        "src": "/thumbs/business-male-06.webp",
+        "width": 430,
+        "height": 630
+      },
+      "stats": {
+        "triangles": 6950,
+        "vertices": 4156,
+        "bones": 81,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.81,
+          0.337
+        ]
+      }
+    },
+    {
+      "id": "Business_Male_07",
+      "slug": "business-male-07",
+      "title": "Businessman 07",
+      "subtitle": "Male · Business",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Business",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/business-male-07.glb",
+      "glbBytes": 613108,
+      "thumb": {
+        "src": "/thumbs/business-male-07.webp",
+        "width": 443,
+        "height": 623
+      },
+      "stats": {
+        "triangles": 6722,
+        "vertices": 4016,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.796,
+          0.356
+        ]
+      }
+    },
+    {
+      "id": "Camel_OneHump_01",
+      "slug": "camel-onehump-01",
+      "title": "Dromedary Camel",
+      "subtitle": "One hump",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Camel",
+      "animationSet": null,
+      "glb": "/models/camel-onehump-01.glb",
+      "glbBytes": 358160,
+      "thumb": {
+        "src": "/thumbs/camel-onehump-01.webp",
+        "width": 560,
+        "height": 407
+      },
+      "stats": {
+        "triangles": 3092,
+        "vertices": 1858,
+        "bones": 39,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.642,
+          2.137,
+          3.239
+        ]
+      }
+    },
+    {
+      "id": "Camel_TwoHump_01",
+      "slug": "camel-twohump-01",
+      "title": "Bactrian Camel",
+      "subtitle": "Two humps",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Camel",
+      "animationSet": null,
+      "glb": "/models/camel-twohump-01.glb",
+      "glbBytes": 406748,
+      "thumb": {
+        "src": "/thumbs/camel-twohump-01.webp",
+        "width": 560,
+        "height": 452
+      },
+      "stats": {
+        "triangles": 3034,
+        "vertices": 1838,
+        "bones": 40,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.702,
+          2.195,
+          3.149
+        ]
+      }
+    },
+    {
+      "id": "Chef_Female_01",
+      "slug": "chef-female-01",
+      "title": "Female Chef 01",
+      "subtitle": "Female · Chef",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Chef",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/chef-female-01.glb",
+      "glbBytes": 527644,
+      "thumb": {
+        "src": "/thumbs/chef-female-01.webp",
+        "width": 382,
+        "height": 634
+      },
+      "stats": {
+        "triangles": 7460,
+        "vertices": 4891,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.217,
+          1.733,
+          0.327
+        ]
+      }
+    },
+    {
+      "id": "Construction_Female_01",
+      "slug": "construction-female-01",
+      "title": "Female Construction Worker 01",
+      "subtitle": "Female · Construction",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Construction",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/construction-female-01.glb",
+      "glbBytes": 624360,
+      "thumb": {
+        "src": "/thumbs/construction-female-01.webp",
+        "width": 384,
+        "height": 640
+      },
+      "stats": {
+        "triangles": 8662,
+        "vertices": 5550,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.217,
+          1.772,
+          0.349
+        ]
+      }
+    },
+    {
+      "id": "Construction_Male_01",
+      "slug": "construction-male-01",
+      "title": "Male Construction Worker 01",
+      "subtitle": "Male · Construction",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Construction",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/construction-male-01.glb",
+      "glbBytes": 1360588,
+      "thumb": {
+        "src": "/thumbs/construction-male-01.webp",
+        "width": 402,
+        "height": 624
+      },
+      "stats": {
+        "triangles": 10260,
+        "vertices": 7585,
+        "bones": 80,
+        "materials": 5,
+        "textures": 10,
+        "size": [
+          1.348,
+          1.849,
+          0.372
+        ]
+      }
+    },
+    {
+      "id": "Construction_Male_02",
+      "slug": "construction-male-02",
+      "title": "Male Construction Worker 02",
+      "subtitle": "Male · Construction",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Construction",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/construction-male-02.glb",
+      "glbBytes": 625736,
+      "thumb": {
+        "src": "/thumbs/construction-male-02.webp",
+        "width": 453,
+        "height": 643
+      },
+      "stats": {
+        "triangles": 8152,
+        "vertices": 5051,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.348,
+          1.842,
+          0.363
+        ]
+      }
+    },
+    {
+      "id": "Construction_Male_03",
+      "slug": "construction-male-03",
+      "title": "Male Construction Worker 03",
+      "subtitle": "Male · Construction",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Construction",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/construction-male-03.glb",
+      "glbBytes": 911528,
+      "thumb": {
+        "src": "/thumbs/construction-male-03.webp",
+        "width": 453,
+        "height": 637
+      },
+      "stats": {
+        "triangles": 9376,
+        "vertices": 6491,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.348,
+          1.848,
+          0.358
+        ]
+      }
+    },
+    {
+      "id": "Construction_Male_04",
+      "slug": "construction-male-04",
+      "title": "Male Construction Worker 04",
+      "subtitle": "Male · Construction",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Construction",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/construction-male-04.glb",
+      "glbBytes": 979420,
+      "thumb": {
+        "src": "/thumbs/construction-male-04.webp",
+        "width": 426,
+        "height": 641
+      },
+      "stats": {
+        "triangles": 9988,
+        "vertices": 6837,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.348,
+          1.847,
+          0.331
+        ]
+      }
+    },
+    {
+      "id": "Construction_Male_05",
+      "slug": "construction-male-05",
+      "title": "Male Construction Worker 05",
+      "subtitle": "Male · Construction",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Construction",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/construction-male-05.glb",
+      "glbBytes": 644748,
+      "thumb": {
+        "src": "/thumbs/construction-male-05.webp",
+        "width": 439,
+        "height": 641
+      },
+      "stats": {
+        "triangles": 7848,
+        "vertices": 4792,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.348,
+          1.842,
+          0.351
+        ]
+      }
+    },
+    {
+      "id": "Construction_Male_06",
+      "slug": "construction-male-06",
+      "title": "Male Construction Worker 06",
+      "subtitle": "Male · Construction",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Construction",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/construction-male-06.glb",
+      "glbBytes": 890044,
+      "thumb": {
+        "src": "/thumbs/construction-male-06.webp",
+        "width": 459,
+        "height": 638
+      },
+      "stats": {
+        "triangles": 9498,
+        "vertices": 6524,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.348,
+          1.852,
+          0.362
+        ]
+      }
+    },
+    {
+      "id": "Construction_Male_07",
+      "slug": "construction-male-07",
+      "title": "Male Construction Worker 07",
+      "subtitle": "Male · Construction",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Construction",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/construction-male-07.glb",
+      "glbBytes": 601784,
+      "thumb": {
+        "src": "/thumbs/construction-male-07.webp",
+        "width": 440,
+        "height": 631
+      },
+      "stats": {
+        "triangles": 8058,
+        "vertices": 4978,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.348,
+          1.839,
+          0.373
+        ]
+      }
+    },
+    {
+      "id": "Construction_Male_08",
+      "slug": "construction-male-08",
+      "title": "Male Construction Worker 08",
+      "subtitle": "Male · Construction",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Construction",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/construction-male-08.glb",
+      "glbBytes": 701084,
+      "thumb": {
+        "src": "/thumbs/construction-male-08.webp",
+        "width": 443,
+        "height": 637
+      },
+      "stats": {
+        "triangles": 8474,
+        "vertices": 5400,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.35,
+          1.833,
+          0.373
+        ]
+      }
+    },
+    {
+      "id": "Cow_Black_01",
+      "slug": "cow-black-01",
+      "title": "Cow",
+      "subtitle": "Black",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Cow",
+      "animationSet": null,
+      "glb": "/models/cow-black-01.glb",
+      "glbBytes": 228240,
+      "thumb": {
+        "src": "/thumbs/cow-black-01.webp",
+        "width": 560,
+        "height": 345
+      },
+      "stats": {
+        "triangles": 2564,
+        "vertices": 1543,
+        "bones": 41,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.705,
+          1.449,
+          2.358
+        ]
+      }
+    },
+    {
+      "id": "Cow_Brown_01",
+      "slug": "cow-brown-01",
+      "title": "Cow",
+      "subtitle": "Brown",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Cow",
+      "animationSet": null,
+      "glb": "/models/cow-brown-01.glb",
+      "glbBytes": 266872,
+      "thumb": {
+        "src": "/thumbs/cow-brown-01.webp",
+        "width": 560,
+        "height": 468
+      },
+      "stats": {
+        "triangles": 2564,
+        "vertices": 1543,
+        "bones": 41,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.687,
+          1.457,
+          2.358
+        ]
+      }
+    },
+    {
+      "id": "Deer_Roe_Tabby_01",
+      "slug": "deer-roe-tabby-01",
+      "title": "Roe Deer",
+      "subtitle": "Tabby",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Deer",
+      "animationSet": null,
+      "glb": "/models/deer-roe-tabby-01.glb",
+      "glbBytes": 243936,
+      "thumb": {
+        "src": "/thumbs/deer-roe-tabby-01.webp",
+        "width": 560,
+        "height": 361
+      },
+      "stats": {
+        "triangles": 2286,
+        "vertices": 1347,
+        "bones": 31,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.358,
+          0.906,
+          1.515
+        ]
+      }
+    },
+    {
+      "id": "Delivery_Male_01",
+      "slug": "delivery-male-01",
+      "title": "Male Delivery Courier 01",
+      "subtitle": "Male · Delivery",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Delivery",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/delivery-male-01.glb",
+      "glbBytes": 800404,
+      "thumb": {
+        "src": "/thumbs/delivery-male-01.webp",
+        "width": 440,
+        "height": 623
+      },
+      "stats": {
+        "triangles": 6800,
+        "vertices": 4171,
+        "bones": 81,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.816,
+          0.337
+        ]
+      }
+    },
+    {
+      "id": "Dog_Beagle_01",
+      "slug": "dog-beagle-01",
+      "title": "Beagle",
+      "subtitle": "Dog",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Dog",
+      "animationSet": null,
+      "glb": "/models/dog-beagle-01.glb",
+      "glbBytes": 470484,
+      "thumb": {
+        "src": "/thumbs/dog-beagle-01.webp",
+        "width": 560,
+        "height": 589
+      },
+      "stats": {
+        "triangles": 2902,
+        "vertices": 1845,
+        "bones": 34,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.218,
+          0.611,
+          0.674
+        ]
+      }
+    },
+    {
+      "id": "Dog_GermanShepard_01",
+      "slug": "dog-germanshepard-01",
+      "title": "German Shepherd",
+      "subtitle": "Dog",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Dog",
+      "animationSet": null,
+      "glb": "/models/dog-germanshepard-01.glb",
+      "glbBytes": 285716,
+      "thumb": {
+        "src": "/thumbs/dog-germanshepard-01.webp",
+        "width": 560,
+        "height": 528
+      },
+      "stats": {
+        "triangles": 2232,
+        "vertices": 1333,
+        "bones": 35,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.311,
+          0.877,
+          1.414
+        ]
+      }
+    },
+    {
+      "id": "Donkey_Grey_01",
+      "slug": "donkey-grey-01",
+      "title": "Donkey",
+      "subtitle": "Grey",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Donkey",
+      "animationSet": null,
+      "glb": "/models/donkey-grey-01.glb",
+      "glbBytes": 284568,
+      "thumb": {
+        "src": "/thumbs/donkey-grey-01.webp",
+        "width": 560,
+        "height": 454
+      },
+      "stats": {
+        "triangles": 2574,
+        "vertices": 1544,
+        "bones": 39,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.532,
+          1.506,
+          2.69
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_01",
+      "slug": "female-adult-01",
+      "title": "Female Adult 01",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-01.glb",
+      "glbBytes": 1028404,
+      "thumb": {
+        "src": "/thumbs/female-adult-01.webp",
+        "width": 409,
+        "height": 635
+      },
+      "stats": {
+        "triangles": 8732,
+        "vertices": 5438,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.743,
+          0.376
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_02",
+      "slug": "female-adult-02",
+      "title": "Female Adult 02",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-02.glb",
+      "glbBytes": 1034908,
+      "thumb": {
+        "src": "/thumbs/female-adult-02.webp",
+        "width": 358,
+        "height": 622
+      },
+      "stats": {
+        "triangles": 8940,
+        "vertices": 5600,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.735,
+          0.351
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_03",
+      "slug": "female-adult-03",
+      "title": "Female Adult 03",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-03.glb",
+      "glbBytes": 1094840,
+      "thumb": {
+        "src": "/thumbs/female-adult-03.webp",
+        "width": 351,
+        "height": 633
+      },
+      "stats": {
+        "triangles": 9208,
+        "vertices": 6123,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.739,
+          0.326
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_04",
+      "slug": "female-adult-04",
+      "title": "Female Adult 04",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-04.glb",
+      "glbBytes": 1028584,
+      "thumb": {
+        "src": "/thumbs/female-adult-04.webp",
+        "width": 417,
+        "height": 632
+      },
+      "stats": {
+        "triangles": 9284,
+        "vertices": 6032,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.766,
+          0.356
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_05",
+      "slug": "female-adult-05",
+      "title": "Female Adult 05",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-05.glb",
+      "glbBytes": 984948,
+      "thumb": {
+        "src": "/thumbs/female-adult-05.webp",
+        "width": 396,
+        "height": 618
+      },
+      "stats": {
+        "triangles": 8288,
+        "vertices": 5571,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.736,
+          0.286
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_06",
+      "slug": "female-adult-06",
+      "title": "Female Adult 06",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-06.glb",
+      "glbBytes": 631320,
+      "thumb": {
+        "src": "/thumbs/female-adult-06.webp",
+        "width": 420,
+        "height": 646
+      },
+      "stats": {
+        "triangles": 6992,
+        "vertices": 4399,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.736,
+          0.372
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_07",
+      "slug": "female-adult-07",
+      "title": "Female Adult 07",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-07.glb",
+      "glbBytes": 1083648,
+      "thumb": {
+        "src": "/thumbs/female-adult-07.webp",
+        "width": 388,
+        "height": 618
+      },
+      "stats": {
+        "triangles": 8308,
+        "vertices": 5321,
+        "bones": 81,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.723,
+          0.359
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_08",
+      "slug": "female-adult-08",
+      "title": "Female Adult 08",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-08.glb",
+      "glbBytes": 1035284,
+      "thumb": {
+        "src": "/thumbs/female-adult-08.webp",
+        "width": 368,
+        "height": 623
+      },
+      "stats": {
+        "triangles": 8276,
+        "vertices": 5284,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.735,
+          0.362
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_09",
+      "slug": "female-adult-09",
+      "title": "Female Adult 09",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-09.glb",
+      "glbBytes": 1057168,
+      "thumb": {
+        "src": "/thumbs/female-adult-09.webp",
+        "width": 395,
+        "height": 632
+      },
+      "stats": {
+        "triangles": 9032,
+        "vertices": 5718,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.735,
+          0.311
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_10",
+      "slug": "female-adult-10",
+      "title": "Female Adult 10",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-10.glb",
+      "glbBytes": 369004,
+      "thumb": {
+        "src": "/thumbs/female-adult-10.webp",
+        "width": 373,
+        "height": 633
+      },
+      "stats": {
+        "triangles": 6460,
+        "vertices": 4233,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.737,
+          0.396
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_11",
+      "slug": "female-adult-11",
+      "title": "Female Adult 11",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-11.glb",
+      "glbBytes": 991720,
+      "thumb": {
+        "src": "/thumbs/female-adult-11.webp",
+        "width": 408,
+        "height": 640
+      },
+      "stats": {
+        "triangles": 8896,
+        "vertices": 6199,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.736,
+          0.374
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_12",
+      "slug": "female-adult-12",
+      "title": "Female Adult 12",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-12.glb",
+      "glbBytes": 975948,
+      "thumb": {
+        "src": "/thumbs/female-adult-12.webp",
+        "width": 355,
+        "height": 631
+      },
+      "stats": {
+        "triangles": 8774,
+        "vertices": 5498,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.727,
+          0.372
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_13",
+      "slug": "female-adult-13",
+      "title": "Female Adult 13",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-13.glb",
+      "glbBytes": 1052744,
+      "thumb": {
+        "src": "/thumbs/female-adult-13.webp",
+        "width": 378,
+        "height": 634
+      },
+      "stats": {
+        "triangles": 8708,
+        "vertices": 5663,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.752,
+          0.292
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_14",
+      "slug": "female-adult-14",
+      "title": "Female Adult 14",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-14.glb",
+      "glbBytes": 1411852,
+      "thumb": {
+        "src": "/thumbs/female-adult-14.webp",
+        "width": 389,
+        "height": 629
+      },
+      "stats": {
+        "triangles": 8724,
+        "vertices": 5674,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.744,
+          0.304
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_15",
+      "slug": "female-adult-15",
+      "title": "Female Adult 15",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-15.glb",
+      "glbBytes": 988596,
+      "thumb": {
+        "src": "/thumbs/female-adult-15.webp",
+        "width": 392,
+        "height": 629
+      },
+      "stats": {
+        "triangles": 9832,
+        "vertices": 6541,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.739,
+          0.37
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_16",
+      "slug": "female-adult-16",
+      "title": "Female Adult 16",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-16.glb",
+      "glbBytes": 332792,
+      "thumb": {
+        "src": "/thumbs/female-adult-16.webp",
+        "width": 398,
+        "height": 627
+      },
+      "stats": {
+        "triangles": 4344,
+        "vertices": 2839,
+        "bones": 53,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          1.217,
+          1.737,
+          0.396
+        ]
+      }
+    },
+    {
+      "id": "Female_Adult_17",
+      "slug": "female-adult-17",
+      "title": "Female Adult 17",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-adult-17.glb",
+      "glbBytes": 1020020,
+      "thumb": {
+        "src": "/thumbs/female-adult-17.webp",
+        "width": 400,
+        "height": 644
+      },
+      "stats": {
+        "triangles": 8516,
+        "vertices": 5211,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.751,
+          0.321
+        ]
+      }
+    },
+    {
+      "id": "Female_Child_01",
+      "slug": "female-child-01",
+      "title": "Female Child 01",
+      "subtitle": "Female · Child",
+      "category": "Children",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-child-01.glb",
+      "glbBytes": 539348,
+      "thumb": {
+        "src": "/thumbs/female-child-01.webp",
+        "width": 324,
+        "height": 644
+      },
+      "stats": {
+        "triangles": 7102,
+        "vertices": 4233,
+        "bones": 81,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          0.991,
+          1.433,
+          0.3
+        ]
+      }
+    },
+    {
+      "id": "Female_Child_02",
+      "slug": "female-child-02",
+      "title": "Female Child 02",
+      "subtitle": "Female · Child",
+      "category": "Children",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-child-02.glb",
+      "glbBytes": 468032,
+      "thumb": {
+        "src": "/thumbs/female-child-02.webp",
+        "width": 371,
+        "height": 630
+      },
+      "stats": {
+        "triangles": 6870,
+        "vertices": 4210,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          0.991,
+          1.438,
+          0.271
+        ]
+      }
+    },
+    {
+      "id": "Female_Party_01",
+      "slug": "female-party-01",
+      "title": "Female Party 01",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-party-01.glb",
+      "glbBytes": 1169128,
+      "thumb": {
+        "src": "/thumbs/female-party-01.webp",
+        "width": 386,
+        "height": 631
+      },
+      "stats": {
+        "triangles": 10254,
+        "vertices": 7242,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.753,
+          0.318
+        ]
+      }
+    },
+    {
+      "id": "Female_Party_02",
+      "slug": "female-party-02",
+      "title": "Female Party 02",
+      "subtitle": "Female · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "female",
+      "role": null,
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/female-party-02.glb",
+      "glbBytes": 1233576,
+      "thumb": {
+        "src": "/thumbs/female-party-02.webp",
+        "width": 375,
+        "height": 644
+      },
+      "stats": {
+        "triangles": 9874,
+        "vertices": 6738,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.79,
+          0.353
+        ]
+      }
+    },
+    {
+      "id": "Fire_Female_01",
+      "slug": "fire-female-01",
+      "title": "Female Firefighter 01",
+      "subtitle": "Female · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/fire-female-01.glb",
+      "glbBytes": 1366224,
+      "thumb": {
+        "src": "/thumbs/fire-female-01.webp",
+        "width": 423,
+        "height": 627
+      },
+      "stats": {
+        "triangles": 11988,
+        "vertices": 9453,
+        "bones": 80,
+        "materials": 6,
+        "textures": 12,
+        "size": [
+          1.354,
+          1.874,
+          0.54
+        ]
+      }
+    },
+    {
+      "id": "Fire_Female_02",
+      "slug": "fire-female-02",
+      "title": "Female Firefighter 02",
+      "subtitle": "Female · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/fire-female-02.glb",
+      "glbBytes": 1406320,
+      "thumb": {
+        "src": "/thumbs/fire-female-02.webp",
+        "width": 443,
+        "height": 644
+      },
+      "stats": {
+        "triangles": 11932,
+        "vertices": 8945,
+        "bones": 81,
+        "materials": 6,
+        "textures": 12,
+        "size": [
+          1.354,
+          1.862,
+          0.54
+        ]
+      }
+    },
+    {
+      "id": "Fire_Female_03",
+      "slug": "fire-female-03",
+      "title": "Female Firefighter 03",
+      "subtitle": "Female · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/fire-female-03.glb",
+      "glbBytes": 1350296,
+      "thumb": {
+        "src": "/thumbs/fire-female-03.webp",
+        "width": 411,
+        "height": 609
+      },
+      "stats": {
+        "triangles": 11950,
+        "vertices": 9607,
+        "bones": 80,
+        "materials": 6,
+        "textures": 12,
+        "size": [
+          1.354,
+          1.856,
+          0.467
+        ]
+      }
+    },
+    {
+      "id": "Fire_Male_01",
+      "slug": "fire-male-01",
+      "title": "Male Firefighter 01",
+      "subtitle": "Male · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/fire-male-01.glb",
+      "glbBytes": 799152,
+      "thumb": {
+        "src": "/thumbs/fire-male-01.webp",
+        "width": 443,
+        "height": 636
+      },
+      "stats": {
+        "triangles": 8551,
+        "vertices": 5832,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.354,
+          1.858,
+          0.369
+        ]
+      }
+    },
+    {
+      "id": "Fire_Male_02",
+      "slug": "fire-male-02",
+      "title": "Male Firefighter 02",
+      "subtitle": "Male · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/fire-male-02.glb",
+      "glbBytes": 1061304,
+      "thumb": {
+        "src": "/thumbs/fire-male-02.webp",
+        "width": 400,
+        "height": 605
+      },
+      "stats": {
+        "triangles": 8084,
+        "vertices": 5430,
+        "bones": 81,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.354,
+          1.862,
+          0.382
+        ]
+      }
+    },
+    {
+      "id": "Fire_Male_03",
+      "slug": "fire-male-03",
+      "title": "Male Firefighter 03",
+      "subtitle": "Male · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/fire-male-03.glb",
+      "glbBytes": 961964,
+      "thumb": {
+        "src": "/thumbs/fire-male-03.webp",
+        "width": 438,
+        "height": 620
+      },
+      "stats": {
+        "triangles": 8645,
+        "vertices": 5657,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.354,
+          1.858,
+          0.369
+        ]
+      }
+    },
+    {
+      "id": "Fire_Male_04",
+      "slug": "fire-male-04",
+      "title": "Male Firefighter 04",
+      "subtitle": "Male · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/fire-male-04.glb",
+      "glbBytes": 1360944,
+      "thumb": {
+        "src": "/thumbs/fire-male-04.webp",
+        "width": 428,
+        "height": 631
+      },
+      "stats": {
+        "triangles": 13197,
+        "vertices": 9869,
+        "bones": 80,
+        "materials": 6,
+        "textures": 12,
+        "size": [
+          1.354,
+          1.858,
+          0.497
+        ]
+      }
+    },
+    {
+      "id": "Fire_Male_05",
+      "slug": "fire-male-05",
+      "title": "Male Firefighter 05",
+      "subtitle": "Male · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/fire-male-05.glb",
+      "glbBytes": 906592,
+      "thumb": {
+        "src": "/thumbs/fire-male-05.webp",
+        "width": 407,
+        "height": 635
+      },
+      "stats": {
+        "triangles": 7516,
+        "vertices": 5032,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.354,
+          1.845,
+          0.352
+        ]
+      }
+    },
+    {
+      "id": "Fire_Male_06",
+      "slug": "fire-male-06",
+      "title": "Male Firefighter 06",
+      "subtitle": "Male · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/fire-male-06.glb",
+      "glbBytes": 930068,
+      "thumb": {
+        "src": "/thumbs/fire-male-06.webp",
+        "width": 434,
+        "height": 633
+      },
+      "stats": {
+        "triangles": 7678,
+        "vertices": 4907,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.354,
+          1.874,
+          0.369
+        ]
+      }
+    },
+    {
+      "id": "Fire_Male_07",
+      "slug": "fire-male-07",
+      "title": "Male Firefighter 07",
+      "subtitle": "Male · Firefighter",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Firefighter",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/fire-male-07.glb",
+      "glbBytes": 1204244,
+      "thumb": {
+        "src": "/thumbs/fire-male-07.webp",
+        "width": 446,
+        "height": 661
+      },
+      "stats": {
+        "triangles": 13053,
+        "vertices": 10006,
+        "bones": 80,
+        "materials": 6,
+        "textures": 12,
+        "size": [
+          1.354,
+          1.858,
+          0.497
+        ]
+      }
+    },
+    {
+      "id": "Gardener_Male_01",
+      "slug": "gardener-male-01",
+      "title": "Male Gardener 01",
+      "subtitle": "Male · Gardener",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Gardener",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/gardener-male-01.glb",
+      "glbBytes": 981420,
+      "thumb": {
+        "src": "/thumbs/gardener-male-01.webp",
+        "width": 432,
+        "height": 631
+      },
+      "stats": {
+        "triangles": 7470,
+        "vertices": 4643,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.812,
+          0.36
+        ]
+      }
+    },
+    {
+      "id": "Goat_Brown_01",
+      "slug": "goat-brown-01",
+      "title": "Goat",
+      "subtitle": "Brown",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Goat",
+      "animationSet": null,
+      "glb": "/models/goat-brown-01.glb",
+      "glbBytes": 353896,
+      "thumb": {
+        "src": "/thumbs/goat-brown-01.webp",
+        "width": 560,
+        "height": 460
+      },
+      "stats": {
+        "triangles": 2536,
+        "vertices": 1623,
+        "bones": 32,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.327,
+          0.895,
+          1.323
+        ]
+      }
+    },
+    {
+      "id": "Goat_White_01",
+      "slug": "goat-white-01",
+      "title": "Goat",
+      "subtitle": "White",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Goat",
+      "animationSet": null,
+      "glb": "/models/goat-white-01.glb",
+      "glbBytes": 362100,
+      "thumb": {
+        "src": "/thumbs/goat-white-01.webp",
+        "width": 560,
+        "height": 523
+      },
+      "stats": {
+        "triangles": 2536,
+        "vertices": 1623,
+        "bones": 32,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.32,
+          0.936,
+          1.323
+        ]
+      }
+    },
+    {
+      "id": "Horse_Brown_01",
+      "slug": "horse-brown-01",
+      "title": "Horse",
+      "subtitle": "Brown",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Horse",
+      "animationSet": null,
+      "glb": "/models/horse-brown-01.glb",
+      "glbBytes": 153804,
+      "thumb": {
+        "src": "/thumbs/horse-brown-01.webp",
+        "width": 560,
+        "height": 462
+      },
+      "stats": {
+        "triangles": 3272,
+        "vertices": 1933,
+        "bones": 39,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.638,
+          2.042,
+          3.393
+        ]
+      }
+    },
+    {
+      "id": "Horse_Brown_Saddle_01",
+      "slug": "horse-brown-saddle-01",
+      "title": "Horse",
+      "subtitle": "Brown · Saddled",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Horse",
+      "animationSet": null,
+      "glb": "/models/horse-brown-saddle-01.glb",
+      "glbBytes": 335528,
+      "thumb": {
+        "src": "/thumbs/horse-brown-saddle-01.webp",
+        "width": 560,
+        "height": 535
+      },
+      "stats": {
+        "triangles": 4550,
+        "vertices": 2859,
+        "bones": 39,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          0.835,
+          2.042,
+          3.388
+        ]
+      }
+    },
+    {
+      "id": "Horse_LightBrown_01",
+      "slug": "horse-lightbrown-01",
+      "title": "Horse",
+      "subtitle": "Light brown",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Horse",
+      "animationSet": null,
+      "glb": "/models/horse-lightbrown-01.glb",
+      "glbBytes": 218192,
+      "thumb": {
+        "src": "/thumbs/horse-lightbrown-01.webp",
+        "width": 560,
+        "height": 477
+      },
+      "stats": {
+        "triangles": 3272,
+        "vertices": 1933,
+        "bones": 39,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.622,
+          2.042,
+          3.388
+        ]
+      }
+    },
+    {
+      "id": "Horse_LightBrown_Saddle_01",
+      "slug": "horse-lightbrown-saddle-01",
+      "title": "Horse",
+      "subtitle": "Light brown · Saddled",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Horse",
+      "animationSet": null,
+      "glb": "/models/horse-lightbrown-saddle-01.glb",
+      "glbBytes": 374624,
+      "thumb": {
+        "src": "/thumbs/horse-lightbrown-saddle-01.webp",
+        "width": 560,
+        "height": 480
+      },
+      "stats": {
+        "triangles": 4550,
+        "vertices": 2859,
+        "bones": 39,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          0.835,
+          2.042,
+          3.388
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_01",
+      "slug": "male-adult-01",
+      "title": "Male Adult 01",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-01.glb",
+      "glbBytes": 930664,
+      "thumb": {
+        "src": "/thumbs/male-adult-01.webp",
+        "width": 401,
+        "height": 630
+      },
+      "stats": {
+        "triangles": 7440,
+        "vertices": 4697,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.824,
+          0.34
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_02",
+      "slug": "male-adult-02",
+      "title": "Male Adult 02",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-02.glb",
+      "glbBytes": 866176,
+      "thumb": {
+        "src": "/thumbs/male-adult-02.webp",
+        "width": 432,
+        "height": 634
+      },
+      "stats": {
+        "triangles": 7312,
+        "vertices": 4444,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.823,
+          0.34
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_03",
+      "slug": "male-adult-03",
+      "title": "Male Adult 03",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-03.glb",
+      "glbBytes": 1187648,
+      "thumb": {
+        "src": "/thumbs/male-adult-03.webp",
+        "width": 442,
+        "height": 649
+      },
+      "stats": {
+        "triangles": 7200,
+        "vertices": 4427,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.807,
+          0.343
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_04",
+      "slug": "male-adult-04",
+      "title": "Male Adult 04",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-04.glb",
+      "glbBytes": 1071828,
+      "thumb": {
+        "src": "/thumbs/male-adult-04.webp",
+        "width": 416,
+        "height": 647
+      },
+      "stats": {
+        "triangles": 8684,
+        "vertices": 5448,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.869,
+          0.344
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_05",
+      "slug": "male-adult-05",
+      "title": "Male Adult 05",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-05.glb",
+      "glbBytes": 1111892,
+      "thumb": {
+        "src": "/thumbs/male-adult-05.webp",
+        "width": 407,
+        "height": 633
+      },
+      "stats": {
+        "triangles": 7836,
+        "vertices": 4889,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.812,
+          0.368
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_06",
+      "slug": "male-adult-06",
+      "title": "Male Adult 06",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-06.glb",
+      "glbBytes": 1221824,
+      "thumb": {
+        "src": "/thumbs/male-adult-06.webp",
+        "width": 436,
+        "height": 647
+      },
+      "stats": {
+        "triangles": 7456,
+        "vertices": 4585,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.831,
+          0.34
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_07",
+      "slug": "male-adult-07",
+      "title": "Male Adult 07",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-07.glb",
+      "glbBytes": 883880,
+      "thumb": {
+        "src": "/thumbs/male-adult-07.webp",
+        "width": 433,
+        "height": 629
+      },
+      "stats": {
+        "triangles": 7588,
+        "vertices": 4645,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.821,
+          0.345
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_08",
+      "slug": "male-adult-08",
+      "title": "Male Adult 08",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-08.glb",
+      "glbBytes": 949276,
+      "thumb": {
+        "src": "/thumbs/male-adult-08.webp",
+        "width": 439,
+        "height": 634
+      },
+      "stats": {
+        "triangles": 7364,
+        "vertices": 4491,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.826,
+          0.339
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_09",
+      "slug": "male-adult-09",
+      "title": "Male Adult 09",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-09.glb",
+      "glbBytes": 800008,
+      "thumb": {
+        "src": "/thumbs/male-adult-09.webp",
+        "width": 395,
+        "height": 640
+      },
+      "stats": {
+        "triangles": 7428,
+        "vertices": 4485,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.822,
+          0.362
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_10",
+      "slug": "male-adult-10",
+      "title": "Male Adult 10",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-10.glb",
+      "glbBytes": 920432,
+      "thumb": {
+        "src": "/thumbs/male-adult-10.webp",
+        "width": 419,
+        "height": 630
+      },
+      "stats": {
+        "triangles": 6732,
+        "vertices": 4115,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.831,
+          0.342
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_11",
+      "slug": "male-adult-11",
+      "title": "Male Adult 11",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-11.glb",
+      "glbBytes": 555968,
+      "thumb": {
+        "src": "/thumbs/male-adult-11.webp",
+        "width": 426,
+        "height": 612
+      },
+      "stats": {
+        "triangles": 6740,
+        "vertices": 4004,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.803,
+          0.324
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_12",
+      "slug": "male-adult-12",
+      "title": "Male Adult 12",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-12.glb",
+      "glbBytes": 718264,
+      "thumb": {
+        "src": "/thumbs/male-adult-12.webp",
+        "width": 441,
+        "height": 638
+      },
+      "stats": {
+        "triangles": 6722,
+        "vertices": 4065,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.807,
+          0.361
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_13",
+      "slug": "male-adult-13",
+      "title": "Male Adult 13",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-13.glb",
+      "glbBytes": 690532,
+      "thumb": {
+        "src": "/thumbs/male-adult-13.webp",
+        "width": 446,
+        "height": 623
+      },
+      "stats": {
+        "triangles": 6710,
+        "vertices": 3949,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.806,
+          0.345
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_14",
+      "slug": "male-adult-14",
+      "title": "Male Adult 14",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-14.glb",
+      "glbBytes": 656460,
+      "thumb": {
+        "src": "/thumbs/male-adult-14.webp",
+        "width": 445,
+        "height": 622
+      },
+      "stats": {
+        "triangles": 6842,
+        "vertices": 4096,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.796,
+          0.321
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_15",
+      "slug": "male-adult-15",
+      "title": "Male Adult 15",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-15.glb",
+      "glbBytes": 667804,
+      "thumb": {
+        "src": "/thumbs/male-adult-15.webp",
+        "width": 446,
+        "height": 626
+      },
+      "stats": {
+        "triangles": 7292,
+        "vertices": 4523,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.819,
+          0.358
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_16",
+      "slug": "male-adult-16",
+      "title": "Male Adult 16",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-16.glb",
+      "glbBytes": 565792,
+      "thumb": {
+        "src": "/thumbs/male-adult-16.webp",
+        "width": 432,
+        "height": 629
+      },
+      "stats": {
+        "triangles": 7064,
+        "vertices": 4243,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.809,
+          0.334
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_17",
+      "slug": "male-adult-17",
+      "title": "Male Adult 17",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-17.glb",
+      "glbBytes": 749212,
+      "thumb": {
+        "src": "/thumbs/male-adult-17.webp",
+        "width": 433,
+        "height": 637
+      },
+      "stats": {
+        "triangles": 7084,
+        "vertices": 4350,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.812,
+          0.348
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_18",
+      "slug": "male-adult-18",
+      "title": "Male Adult 18",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-18.glb",
+      "glbBytes": 533568,
+      "thumb": {
+        "src": "/thumbs/male-adult-18.webp",
+        "width": 431,
+        "height": 630
+      },
+      "stats": {
+        "triangles": 6434,
+        "vertices": 4043,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.813,
+          0.329
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_19",
+      "slug": "male-adult-19",
+      "title": "Male Adult 19",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-19.glb",
+      "glbBytes": 684156,
+      "thumb": {
+        "src": "/thumbs/male-adult-19.webp",
+        "width": 455,
+        "height": 634
+      },
+      "stats": {
+        "triangles": 6732,
+        "vertices": 4313,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.348,
+          1.811,
+          0.417
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_20",
+      "slug": "male-adult-20",
+      "title": "Male Adult 20",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-20.glb",
+      "glbBytes": 624000,
+      "thumb": {
+        "src": "/thumbs/male-adult-20.webp",
+        "width": 452,
+        "height": 627
+      },
+      "stats": {
+        "triangles": 7120,
+        "vertices": 4250,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.805,
+          0.349
+        ]
+      }
+    },
+    {
+      "id": "Male_Adult_21",
+      "slug": "male-adult-21",
+      "title": "Male Adult 21",
+      "subtitle": "Male · Adult",
+      "category": "Adults",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-adult-21.glb",
+      "glbBytes": 712024,
+      "thumb": {
+        "src": "/thumbs/male-adult-21.webp",
+        "width": 462,
+        "height": 639
+      },
+      "stats": {
+        "triangles": 6682,
+        "vertices": 4340,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.348,
+          1.817,
+          0.418
+        ]
+      }
+    },
+    {
+      "id": "Male_Child_01",
+      "slug": "male-child-01",
+      "title": "Male Child 01",
+      "subtitle": "Male · Child",
+      "category": "Children",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-child-01.glb",
+      "glbBytes": 562188,
+      "thumb": {
+        "src": "/thumbs/male-child-01.webp",
+        "width": 433,
+        "height": 634
+      },
+      "stats": {
+        "triangles": 6660,
+        "vertices": 3942,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.065,
+          1.433,
+          0.261
+        ]
+      }
+    },
+    {
+      "id": "Male_Child_02",
+      "slug": "male-child-02",
+      "title": "Male Child 02",
+      "subtitle": "Male · Child",
+      "category": "Children",
+      "kind": "human",
+      "gender": "male",
+      "role": null,
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/male-child-02.glb",
+      "glbBytes": 538408,
+      "thumb": {
+        "src": "/thumbs/male-child-02.webp",
+        "width": 447,
+        "height": 622
+      },
+      "stats": {
+        "triangles": 7310,
+        "vertices": 4469,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.065,
+          1.426,
+          0.254
+        ]
+      }
+    },
+    {
+      "id": "Medical_Female_01",
+      "slug": "medical-female-01",
+      "title": "Female Medical Worker 01",
+      "subtitle": "Female · Medical",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Medical",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/medical-female-01.glb",
+      "glbBytes": 810156,
+      "thumb": {
+        "src": "/thumbs/medical-female-01.webp",
+        "width": 402,
+        "height": 631
+      },
+      "stats": {
+        "triangles": 8328,
+        "vertices": 5280,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.739,
+          0.382
+        ]
+      }
+    },
+    {
+      "id": "Medical_Female_02",
+      "slug": "medical-female-02",
+      "title": "Female Medical Worker 02",
+      "subtitle": "Female · Medical",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Medical",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/medical-female-02.glb",
+      "glbBytes": 654172,
+      "thumb": {
+        "src": "/thumbs/medical-female-02.webp",
+        "width": 388,
+        "height": 625
+      },
+      "stats": {
+        "triangles": 9264,
+        "vertices": 5972,
+        "bones": 80,
+        "materials": 4,
+        "textures": 7,
+        "size": [
+          1.217,
+          1.733,
+          0.343
+        ]
+      }
+    },
+    {
+      "id": "Medical_Female_03",
+      "slug": "medical-female-03",
+      "title": "Female Medical Worker 03",
+      "subtitle": "Female · Medical",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Medical",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/medical-female-03.glb",
+      "glbBytes": 988248,
+      "thumb": {
+        "src": "/thumbs/medical-female-03.webp",
+        "width": 372,
+        "height": 631
+      },
+      "stats": {
+        "triangles": 7536,
+        "vertices": 4695,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.734,
+          0.333
+        ]
+      }
+    },
+    {
+      "id": "Medical_Male_01",
+      "slug": "medical-male-01",
+      "title": "Male Medical Worker 01",
+      "subtitle": "Male · Medical",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Medical",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/medical-male-01.glb",
+      "glbBytes": 896848,
+      "thumb": {
+        "src": "/thumbs/medical-male-01.webp",
+        "width": 430,
+        "height": 640
+      },
+      "stats": {
+        "triangles": 7581,
+        "vertices": 4782,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.806,
+          0.374
+        ]
+      }
+    },
+    {
+      "id": "Medical_Male_02",
+      "slug": "medical-male-02",
+      "title": "Male Medical Worker 02",
+      "subtitle": "Male · Medical",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Medical",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/medical-male-02.glb",
+      "glbBytes": 1241840,
+      "thumb": {
+        "src": "/thumbs/medical-male-02.webp",
+        "width": 424,
+        "height": 634
+      },
+      "stats": {
+        "triangles": 7514,
+        "vertices": 4635,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.831,
+          0.352
+        ]
+      }
+    },
+    {
+      "id": "Medical_Male_03",
+      "slug": "medical-male-03",
+      "title": "Male Medical Worker 03",
+      "subtitle": "Male · Medical",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Medical",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/medical-male-03.glb",
+      "glbBytes": 557316,
+      "thumb": {
+        "src": "/thumbs/medical-male-03.webp",
+        "width": 445,
+        "height": 621
+      },
+      "stats": {
+        "triangles": 8126,
+        "vertices": 5220,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.348,
+          1.796,
+          0.373
+        ]
+      }
+    },
+    {
+      "id": "Medical_Male_04",
+      "slug": "medical-male-04",
+      "title": "Male Medical Worker 04",
+      "subtitle": "Male · Medical",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Medical",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/medical-male-04.glb",
+      "glbBytes": 823300,
+      "thumb": {
+        "src": "/thumbs/medical-male-04.webp",
+        "width": 452,
+        "height": 630
+      },
+      "stats": {
+        "triangles": 8240,
+        "vertices": 4986,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.348,
+          1.82,
+          0.345
+        ]
+      }
+    },
+    {
+      "id": "Medical_Male_05",
+      "slug": "medical-male-05",
+      "title": "Male Medical Worker 05",
+      "subtitle": "Male · Medical",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Medical",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/medical-male-05.glb",
+      "glbBytes": 835980,
+      "thumb": {
+        "src": "/thumbs/medical-male-05.webp",
+        "width": 449,
+        "height": 625
+      },
+      "stats": {
+        "triangles": 9158,
+        "vertices": 5629,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.348,
+          1.817,
+          0.392
+        ]
+      }
+    },
+    {
+      "id": "Military_Female_01",
+      "slug": "military-female-01",
+      "title": "Female Soldier 01",
+      "subtitle": "Female · Military",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Military",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/military-female-01.glb",
+      "glbBytes": 1539248,
+      "thumb": {
+        "src": "/thumbs/military-female-01.webp",
+        "width": 401,
+        "height": 643
+      },
+      "stats": {
+        "triangles": 13015,
+        "vertices": 9571,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.218,
+          1.777,
+          0.405
+        ]
+      }
+    },
+    {
+      "id": "Military_Female_02",
+      "slug": "military-female-02",
+      "title": "Female Soldier 02",
+      "subtitle": "Female · Military",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Military",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/military-female-02.glb",
+      "glbBytes": 1548280,
+      "thumb": {
+        "src": "/thumbs/military-female-02.webp",
+        "width": 377,
+        "height": 635
+      },
+      "stats": {
+        "triangles": 12957,
+        "vertices": 9596,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.218,
+          1.777,
+          0.405
+        ]
+      }
+    },
+    {
+      "id": "Military_Male_01",
+      "slug": "military-male-01",
+      "title": "Male Soldier 01",
+      "subtitle": "Male · Military",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Military",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/military-male-01.glb",
+      "glbBytes": 1955320,
+      "thumb": {
+        "src": "/thumbs/military-male-01.webp",
+        "width": 432,
+        "height": 635
+      },
+      "stats": {
+        "triangles": 15387,
+        "vertices": 12406,
+        "bones": 80,
+        "materials": 5,
+        "textures": 10,
+        "size": [
+          1.356,
+          1.844,
+          0.454
+        ]
+      }
+    },
+    {
+      "id": "Military_Male_02",
+      "slug": "military-male-02",
+      "title": "Male Soldier 02",
+      "subtitle": "Male · Military",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Military",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/military-male-02.glb",
+      "glbBytes": 1106392,
+      "thumb": {
+        "src": "/thumbs/military-male-02.webp",
+        "width": 436,
+        "height": 630
+      },
+      "stats": {
+        "triangles": 8231,
+        "vertices": 5172,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.811,
+          0.419
+        ]
+      }
+    },
+    {
+      "id": "Military_Male_03",
+      "slug": "military-male-03",
+      "title": "Male Soldier 03",
+      "subtitle": "Male · Military",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Military",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/military-male-03.glb",
+      "glbBytes": 1789056,
+      "thumb": {
+        "src": "/thumbs/military-male-03.webp",
+        "width": 438,
+        "height": 637
+      },
+      "stats": {
+        "triangles": 15517,
+        "vertices": 12083,
+        "bones": 80,
+        "materials": 5,
+        "textures": 10,
+        "size": [
+          1.356,
+          1.85,
+          0.465
+        ]
+      }
+    },
+    {
+      "id": "Military_Male_04",
+      "slug": "military-male-04",
+      "title": "Male Soldier 04",
+      "subtitle": "Male · Military",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Military",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/military-male-04.glb",
+      "glbBytes": 1542864,
+      "thumb": {
+        "src": "/thumbs/military-male-04.webp",
+        "width": 423,
+        "height": 632
+      },
+      "stats": {
+        "triangles": 14907,
+        "vertices": 12125,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.356,
+          1.848,
+          0.494
+        ]
+      }
+    },
+    {
+      "id": "Military_Male_05",
+      "slug": "military-male-05",
+      "title": "Male Soldier 05",
+      "subtitle": "Male · Military",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Military",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/military-male-05.glb",
+      "glbBytes": 994060,
+      "thumb": {
+        "src": "/thumbs/military-male-05.webp",
+        "width": 425,
+        "height": 633
+      },
+      "stats": {
+        "triangles": 7510,
+        "vertices": 4673,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.826,
+          0.35
+        ]
+      }
+    },
+    {
+      "id": "Military_Male_06",
+      "slug": "military-male-06",
+      "title": "Male Soldier 06",
+      "subtitle": "Male · Military",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Military",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/military-male-06.glb",
+      "glbBytes": 996932,
+      "thumb": {
+        "src": "/thumbs/military-male-06.webp",
+        "width": 434,
+        "height": 629
+      },
+      "stats": {
+        "triangles": 7386,
+        "vertices": 4568,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.818,
+          0.332
+        ]
+      }
+    },
+    {
+      "id": "Pig_Pink_01",
+      "slug": "pig-pink-01",
+      "title": "Pig",
+      "subtitle": "Pink",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Pig",
+      "animationSet": null,
+      "glb": "/models/pig-pink-01.glb",
+      "glbBytes": 400148,
+      "thumb": {
+        "src": "/thumbs/pig-pink-01.webp",
+        "width": 560,
+        "height": 392
+      },
+      "stats": {
+        "triangles": 1646,
+        "vertices": 1058,
+        "bones": 31,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.455,
+          0.732,
+          1.363
+        ]
+      }
+    },
+    {
+      "id": "Pilot_Female_01",
+      "slug": "pilot-female-01",
+      "title": "Female Pilot 01",
+      "subtitle": "Female · Pilot",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Pilot",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/pilot-female-01.glb",
+      "glbBytes": 562044,
+      "thumb": {
+        "src": "/thumbs/pilot-female-01.webp",
+        "width": 394,
+        "height": 622
+      },
+      "stats": {
+        "triangles": 8288,
+        "vertices": 5142,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.217,
+          1.778,
+          0.337
+        ]
+      }
+    },
+    {
+      "id": "Pilot_Female_02",
+      "slug": "pilot-female-02",
+      "title": "Female Pilot 02",
+      "subtitle": "Female · Pilot",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Pilot",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/pilot-female-02.glb",
+      "glbBytes": 639692,
+      "thumb": {
+        "src": "/thumbs/pilot-female-02.webp",
+        "width": 374,
+        "height": 617
+      },
+      "stats": {
+        "triangles": 8458,
+        "vertices": 5300,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.217,
+          1.777,
+          0.343
+        ]
+      }
+    },
+    {
+      "id": "Pilot_Male_01",
+      "slug": "pilot-male-01",
+      "title": "Male Pilot 01",
+      "subtitle": "Male · Pilot",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Pilot",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/pilot-male-01.glb",
+      "glbBytes": 458964,
+      "thumb": {
+        "src": "/thumbs/pilot-male-01.webp",
+        "width": 443,
+        "height": 640
+      },
+      "stats": {
+        "triangles": 7664,
+        "vertices": 4972,
+        "bones": 81,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.837,
+          0.351
+        ]
+      }
+    },
+    {
+      "id": "Pilot_Male_02",
+      "slug": "pilot-male-02",
+      "title": "Male Pilot 02",
+      "subtitle": "Male · Pilot",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Pilot",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/pilot-male-02.glb",
+      "glbBytes": 467972,
+      "thumb": {
+        "src": "/thumbs/pilot-male-02.webp",
+        "width": 446,
+        "height": 645
+      },
+      "stats": {
+        "triangles": 7798,
+        "vertices": 5076,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.837,
+          0.351
+        ]
+      }
+    },
+    {
+      "id": "Pilot_Male_03",
+      "slug": "pilot-male-03",
+      "title": "Male Pilot 03",
+      "subtitle": "Male · Pilot",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Pilot",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/pilot-male-03.glb",
+      "glbBytes": 629580,
+      "thumb": {
+        "src": "/thumbs/pilot-male-03.webp",
+        "width": 457,
+        "height": 650
+      },
+      "stats": {
+        "triangles": 7816,
+        "vertices": 4887,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.855,
+          0.361
+        ]
+      }
+    },
+    {
+      "id": "Police_Female_01",
+      "slug": "police-female-01",
+      "title": "Female Police Officer 01",
+      "subtitle": "Female · Police",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Police",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/police-female-01.glb",
+      "glbBytes": 2016908,
+      "thumb": {
+        "src": "/thumbs/police-female-01.webp",
+        "width": 407,
+        "height": 636
+      },
+      "stats": {
+        "triangles": 13514,
+        "vertices": 12193,
+        "bones": 64,
+        "materials": 8,
+        "textures": 16,
+        "size": [
+          1.356,
+          1.853,
+          0.466
+        ]
+      }
+    },
+    {
+      "id": "Police_Male_01",
+      "slug": "police-male-01",
+      "title": "Male Police Officer 01",
+      "subtitle": "Male · Police",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Police",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/police-male-01.glb",
+      "glbBytes": 983888,
+      "thumb": {
+        "src": "/thumbs/police-male-01.webp",
+        "width": 462,
+        "height": 624
+      },
+      "stats": {
+        "triangles": 8687,
+        "vertices": 5724,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.348,
+          1.811,
+          0.333
+        ]
+      }
+    },
+    {
+      "id": "Police_Male_02",
+      "slug": "police-male-02",
+      "title": "Male Police Officer 02",
+      "subtitle": "Male · Police",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Police",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/police-male-02.glb",
+      "glbBytes": 1366928,
+      "thumb": {
+        "src": "/thumbs/police-male-02.webp",
+        "width": 423,
+        "height": 622
+      },
+      "stats": {
+        "triangles": 10881,
+        "vertices": 8350,
+        "bones": 64,
+        "materials": 6,
+        "textures": 12,
+        "size": [
+          1.352,
+          1.843,
+          0.385
+        ]
+      }
+    },
+    {
+      "id": "Police_Male_03",
+      "slug": "police-male-03",
+      "title": "Male Police Officer 03",
+      "subtitle": "Male · Police",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Police",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/police-male-03.glb",
+      "glbBytes": 1143512,
+      "thumb": {
+        "src": "/thumbs/police-male-03.webp",
+        "width": 449,
+        "height": 647
+      },
+      "stats": {
+        "triangles": 12445,
+        "vertices": 9155,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.348,
+          1.856,
+          0.366
+        ]
+      }
+    },
+    {
+      "id": "Police_Male_04",
+      "slug": "police-male-04",
+      "title": "Male Police Officer 04",
+      "subtitle": "Male · Police",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Police",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/police-male-04.glb",
+      "glbBytes": 1211976,
+      "thumb": {
+        "src": "/thumbs/police-male-04.webp",
+        "width": 444,
+        "height": 620
+      },
+      "stats": {
+        "triangles": 12858,
+        "vertices": 9592,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.348,
+          1.819,
+          0.333
+        ]
+      }
+    },
+    {
+      "id": "Police_Male_05",
+      "slug": "police-male-05",
+      "title": "Male Police Officer 05",
+      "subtitle": "Male · Police",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Police",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/police-male-05.glb",
+      "glbBytes": 565636,
+      "thumb": {
+        "src": "/thumbs/police-male-05.webp",
+        "width": 409,
+        "height": 651
+      },
+      "stats": {
+        "triangles": 7694,
+        "vertices": 4762,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.351,
+          1.855,
+          0.348
+        ]
+      }
+    },
+    {
+      "id": "Police_Male_06",
+      "slug": "police-male-06",
+      "title": "Male Police Officer 06",
+      "subtitle": "Male · Police",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Police",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/police-male-06.glb",
+      "glbBytes": 629460,
+      "thumb": {
+        "src": "/thumbs/police-male-06.webp",
+        "width": 449,
+        "height": 626
+      },
+      "stats": {
+        "triangles": 7492,
+        "vertices": 4526,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.811,
+          0.356
+        ]
+      }
+    },
+    {
+      "id": "Police_Male_07",
+      "slug": "police-male-07",
+      "title": "Male Police Officer 07",
+      "subtitle": "Male · Police",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Police",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/police-male-07.glb",
+      "glbBytes": 633016,
+      "thumb": {
+        "src": "/thumbs/police-male-07.webp",
+        "width": 454,
+        "height": 628
+      },
+      "stats": {
+        "triangles": 7598,
+        "vertices": 4677,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.818,
+          0.358
+        ]
+      }
+    },
+    {
+      "id": "Security_Female_01",
+      "slug": "security-female-01",
+      "title": "Female Security Guard 01",
+      "subtitle": "Female · Security",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Security",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/security-female-01.glb",
+      "glbBytes": 898112,
+      "thumb": {
+        "src": "/thumbs/security-female-01.webp",
+        "width": 414,
+        "height": 625
+      },
+      "stats": {
+        "triangles": 8973,
+        "vertices": 5940,
+        "bones": 80,
+        "materials": 4,
+        "textures": 8,
+        "size": [
+          1.217,
+          1.739,
+          0.339
+        ]
+      }
+    },
+    {
+      "id": "Security_Male_01",
+      "slug": "security-male-01",
+      "title": "Male Security Guard 01",
+      "subtitle": "Male · Security",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Security",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/security-male-01.glb",
+      "glbBytes": 902836,
+      "thumb": {
+        "src": "/thumbs/security-male-01.webp",
+        "width": 440,
+        "height": 628
+      },
+      "stats": {
+        "triangles": 9515,
+        "vertices": 6609,
+        "bones": 80,
+        "materials": 3,
+        "textures": 6,
+        "size": [
+          1.348,
+          1.832,
+          0.35
+        ]
+      }
+    },
+    {
+      "id": "Sheep_White_01",
+      "slug": "sheep-white-01",
+      "title": "Sheep",
+      "subtitle": "White",
+      "category": "Animals",
+      "kind": "animal",
+      "gender": null,
+      "role": null,
+      "species": "Sheep",
+      "animationSet": null,
+      "glb": "/models/sheep-white-01.glb",
+      "glbBytes": 388748,
+      "thumb": {
+        "src": "/thumbs/sheep-white-01.webp",
+        "width": 531,
+        "height": 538
+      },
+      "stats": {
+        "triangles": 2186,
+        "vertices": 1331,
+        "bones": 30,
+        "materials": 1,
+        "textures": 2,
+        "size": [
+          0.442,
+          1.035,
+          1.25
+        ]
+      }
+    },
+    {
+      "id": "Sports_Female_01",
+      "slug": "sports-female-01",
+      "title": "Female Athlete 01",
+      "subtitle": "Female · Sports",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Sports",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/sports-female-01.glb",
+      "glbBytes": 534468,
+      "thumb": {
+        "src": "/thumbs/sports-female-01.webp",
+        "width": 386,
+        "height": 641
+      },
+      "stats": {
+        "triangles": 8480,
+        "vertices": 5075,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.217,
+          1.733,
+          0.329
+        ]
+      }
+    },
+    {
+      "id": "Sports_Female_02",
+      "slug": "sports-female-02",
+      "title": "Female Athlete 02",
+      "subtitle": "Female · Sports",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "female",
+      "role": "Sports",
+      "species": null,
+      "animationSet": "f",
+      "glb": "/models/sports-female-02.glb",
+      "glbBytes": 939468,
+      "thumb": {
+        "src": "/thumbs/sports-female-02.webp",
+        "width": 373,
+        "height": 632
+      },
+      "stats": {
+        "triangles": 8580,
+        "vertices": 5369,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.217,
+          1.737,
+          0.347
+        ]
+      }
+    },
+    {
+      "id": "Sports_Male_01",
+      "slug": "sports-male-01",
+      "title": "Male Athlete 01",
+      "subtitle": "Male · Sports",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Sports",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/sports-male-01.glb",
+      "glbBytes": 551064,
+      "thumb": {
+        "src": "/thumbs/sports-male-01.webp",
+        "width": 434,
+        "height": 625
+      },
+      "stats": {
+        "triangles": 7358,
+        "vertices": 4241,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.804,
+          0.316
+        ]
+      }
+    },
+    {
+      "id": "Sports_Male_02",
+      "slug": "sports-male-02",
+      "title": "Male Athlete 02",
+      "subtitle": "Male · Sports",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Sports",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/sports-male-02.glb",
+      "glbBytes": 606872,
+      "thumb": {
+        "src": "/thumbs/sports-male-02.webp",
+        "width": 439,
+        "height": 619
+      },
+      "stats": {
+        "triangles": 8146,
+        "vertices": 5018,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.821,
+          0.338
+        ]
+      }
+    },
+    {
+      "id": "Sports_Male_03",
+      "slug": "sports-male-03",
+      "title": "Male Athlete 03",
+      "subtitle": "Male · Sports",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Sports",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/sports-male-03.glb",
+      "glbBytes": 803404,
+      "thumb": {
+        "src": "/thumbs/sports-male-03.webp",
+        "width": 437,
+        "height": 635
+      },
+      "stats": {
+        "triangles": 9534,
+        "vertices": 6471,
+        "bones": 80,
+        "materials": 3,
+        "textures": 5,
+        "size": [
+          1.348,
+          1.843,
+          0.353
+        ]
+      }
+    },
+    {
+      "id": "Sports_Male_04",
+      "slug": "sports-male-04",
+      "title": "Male Athlete 04",
+      "subtitle": "Male · Sports",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Sports",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/sports-male-04.glb",
+      "glbBytes": 621712,
+      "thumb": {
+        "src": "/thumbs/sports-male-04.webp",
+        "width": 444,
+        "height": 625
+      },
+      "stats": {
+        "triangles": 7520,
+        "vertices": 4483,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.348,
+          1.804,
+          0.322
+        ]
+      }
+    },
+    {
+      "id": "Wood_Male_01",
+      "slug": "wood-male-01",
+      "title": "Male Lumberjack 01",
+      "subtitle": "Male · Lumberjack",
+      "category": "Professions",
+      "kind": "human",
+      "gender": "male",
+      "role": "Lumberjack",
+      "species": null,
+      "animationSet": "m",
+      "glb": "/models/wood-male-01.glb",
+      "glbBytes": 732680,
+      "thumb": {
+        "src": "/thumbs/wood-male-01.webp",
+        "width": 447,
+        "height": 629
+      },
+      "stats": {
+        "triangles": 7108,
+        "vertices": 4288,
+        "bones": 80,
+        "materials": 2,
+        "textures": 4,
+        "size": [
+          1.35,
+          1.814,
+          0.332
+        ]
+      }
+    }
+  ]
+}

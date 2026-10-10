@@ -1,0 +1,430 @@
+/*
+ * Classes live only in src/. Without this Tailwind scans the whole project — out/ (the 2 GB export), public/ and
+ * android/ — which takes over a minute and runs the build out of memory.
+ */
+@import "tailwindcss" source("..");
+
+/* Phones held sideways (and the Android app, which is always landscape): `land:` utilities. Same query as PHONE_LANDSCAPE in src/components/games/shared/ui.tsx. */
+@custom-variant land (@media (orientation: landscape) and (max-height: 540px));
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+@theme {
+  --color-bg: #07070b;
+  --color-surface: #0d0d13;
+  --color-elevated: #14141c;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.14);
+  --color-fg: #ededf3;
+  --color-muted: #a0a0b2;
+  --color-subtle: #6e6e80;
+  --color-accent: #a78bfa;
+  --color-accent-2: #67e8f9;
+  --color-ok: #4ade80;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--color-bg);
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Soft aurora behind the whole site. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 36rem at 12% -8%, rgb(139 92 246 / 0.18), transparent 60%),
+    radial-gradient(48rem 30rem at 92% 4%, rgb(34 211 238 / 0.12), transparent 60%),
+    radial-gradient(50rem 40rem at 50% 110%, rgb(139 92 246 / 0.08), transparent 60%);
+}
+
+::selection {
+  background: rgb(167 139 250 / 0.35);
+}
+
+/* Tailwind v4 resets buttons to the default cursor; restore the pointer on everything clickable. */
+@layer base {
+  a[href],
+  button:not(:disabled),
+  [role="button"],
+  summary,
+  select,
+  label[for],
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* 3D viewers: orbit with a grab cursor. */
+  canvas {
+    cursor: grab;
+  }
+
+  canvas:active {
+    cursor: grabbing;
+  }
+}
+
+/* Leave room for the fixed mobile download bar on model pages. */
+@media (width < 64rem) {
+  body:has([data-mobile-dock]) {
+    padding-bottom: 4.5rem;
+  }
+}
+
+@utility glass {
+  background: rgb(255 255 255 / 0.035);
+  border: 1px solid var(--color-line);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+@utility text-gradient {
+  background: linear-gradient(100deg, #f5f3ff 0%, #c4b5fd 35%, #67e8f9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility grid-fade {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Games: padding that keeps a full-screen dialog beside a notch / camera cutout (vars set on .g-root). */
+@utility safe-pad {
+  padding: max(8px, var(--safe-t)) max(8px, var(--safe-r)) max(8px, var(--safe-b)) max(8px, var(--safe-l));
+}
+
+/*
+ * Games: every game sets its own theme variables on its root (src/components/games/themes.ts) and
+ * fonts (--game-display / --game-body, src/lib/game-fonts.ts). These classes turn them into a
+ * distinct look per game — panel material, button shape, HUD chips and title effects.
+ */
+@layer components {
+  .g-root {
+    font-family: var(--game-body), ui-sans-serif, system-ui, sans-serif;
+    /* Safe area beside a notch / camera cutout: env() in browsers (every play route has
+       viewport-fit=cover), and --app-safe-* from the Android app, which draws the game under the cutout. */
+    --cut-l: max(env(safe-area-inset-left, 0px), var(--app-safe-left, 0px));
+    --cut-r: max(env(safe-area-inset-right, 0px), var(--app-safe-right, 0px));
+    --safe-l: var(--cut-l);
+    --safe-r: var(--cut-r);
+    --safe-t: max(env(safe-area-inset-top, 0px), var(--app-safe-top, 0px));
+    --safe-b: max(env(safe-area-inset-bottom, 0px), var(--app-safe-bottom, 0px));
+  }
+  /*
+   * The 3D view fills the screen beside a cutout too (a phone held sideways); every other layer keeps
+   * its content clear of it. A transparent side border does that, so dims and backgrounds still reach
+   * the edge and the layer's own padding stays; inside it the sides count as safe already. Layers
+   * placed in screen coordinates opt out with data-bleed (and keep clear with .g-safe themselves);
+   * Kingdom Clash places its whole HUD itself (data-safe-area="manual").
+   */
+  .g-root:not([data-safe-area="manual"]) > :not(canvas, style, [data-bleed]) {
+    border-left: var(--cut-l) solid transparent;
+    border-right: var(--cut-r) solid transparent;
+    --safe-l: 0px;
+    --safe-r: 0px;
+  }
+  /* The part of the screen HUD buttons may use: everything but the cutout. */
+  .g-safe {
+    position: absolute;
+    inset: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
+    pointer-events: none;
+  }
+  .g-display {
+    font-family: var(--g-ui-font, var(--game-display)), var(--game-body), ui-sans-serif, sans-serif;
+  }
+  .g-title {
+    font-family: var(--game-display), var(--game-body), ui-sans-serif, sans-serif;
+    color: var(--g-title);
+    text-shadow: var(--g-title-shadow);
+    text-transform: var(--g-case);
+    font-style: var(--g-italic);
+    letter-spacing: var(--g-tracking);
+    line-height: 1;
+  }
+  .g-title-accent {
+    color: var(--g-title-accent);
+  }
+  .g-panel {
+    background: var(--g-panel);
+    color: var(--g-panel-text);
+    border: var(--g-panel-border);
+    border-radius: var(--g-panel-radius);
+    box-shadow: var(--g-panel-shadow);
+    backdrop-filter: var(--g-panel-blur);
+    -webkit-backdrop-filter: var(--g-panel-blur);
+  }
+  .g-panel-title {
+    font-family: var(--game-display), var(--game-body), ui-sans-serif, sans-serif;
+    text-transform: var(--g-case);
+    font-style: var(--g-italic);
+    letter-spacing: var(--g-tracking);
+    line-height: 1.05;
+  }
+  .g-muted {
+    color: var(--g-panel-muted);
+  }
+  .g-btn {
+    font-family: var(--g-ui-font, var(--game-display)), var(--game-body), ui-sans-serif, sans-serif;
+    font-weight: 700;
+    background: var(--g-btn);
+    color: var(--g-btn-text);
+    border: var(--g-btn-border);
+    border-radius: var(--g-btn-radius);
+    box-shadow: var(--g-btn-shadow);
+    text-shadow: var(--g-btn-text-shadow);
+    text-transform: var(--g-case);
+    font-style: var(--g-italic);
+    letter-spacing: var(--g-tracking);
+    transform: skewX(var(--g-skew));
+    transition:
+      transform 0.12s,
+      box-shadow 0.12s,
+      filter 0.15s;
+  }
+  .g-btn:hover:not(:disabled) {
+    filter: brightness(1.07);
+  }
+  .g-btn:active:not(:disabled) {
+    transform: translateY(3px) skewX(var(--g-skew));
+    box-shadow: var(--g-btn-shadow-pressed);
+  }
+  .g-soft {
+    background: var(--g-soft);
+    color: var(--g-soft-text);
+    border: var(--g-soft-border);
+    border-radius: var(--g-btn-radius);
+    transform: skewX(var(--g-skew));
+    transition: filter 0.15s;
+  }
+  .g-soft:hover {
+    filter: brightness(1.1);
+  }
+  .g-soft[data-active="true"] {
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+  /* Counters the button slant so text and icons stay upright. */
+  .g-unskew {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: inherit;
+    transform: skewX(calc(-1 * var(--g-skew)));
+  }
+  .g-hud {
+    background: var(--g-hud);
+    color: var(--g-hud-text);
+    border: var(--g-hud-border);
+    border-radius: var(--g-hud-radius);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  /* Blurring the 3D view behind many HUD chips is expensive on phone GPUs. */
+  @media (pointer: coarse) {
+    .g-hud {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+  .g-kbd {
+    background: var(--g-kbd);
+    color: var(--g-kbd-text);
+    border: 1px solid var(--g-kbd-border);
+    border-bottom-width: 3px;
+    border-radius: 6px;
+    font-family: var(--font-mono), ui-monospace, monospace;
+  }
+  .g-loading {
+    background: var(--g-loading-bg);
+    color: var(--g-loading-text);
+  }
+  /* A faint fill in the current text colour — rows and tiles inside panels. */
+  .g-tint {
+    background: color-mix(in srgb, currentColor 8%, transparent);
+  }
+}
+
+/* Games: tips and toasts fade in. */
+@keyframes game-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Games: loading screen bars (src/components/games/shared/loaders.tsx). These only animate `transform`
+ * and `opacity`, so they combine with Tailwind's translate / rotate utilities and keep running while
+ * the page is busy loading.
+ */
+@keyframes g-stripes {
+  to {
+    transform: translateX(var(--stripe, 28px));
+  }
+}
+@keyframes g-glint {
+  0% {
+    transform: translateX(-110%);
+  }
+  55%,
+  100% {
+    transform: translateX(250%);
+  }
+}
+@keyframes g-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.2;
+  }
+}
+@keyframes g-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(5deg);
+  }
+}
+@keyframes g-flicker {
+  from {
+    transform: scale(0.94, 1) rotate(-4deg);
+    opacity: 0.85;
+  }
+  to {
+    transform: scale(1.06, 1.14) rotate(4deg);
+    opacity: 1;
+  }
+}
+@keyframes g-hop {
+  from {
+    transform: translateY(0) scale(1.12, 0.88);
+  }
+  to {
+    transform: translateY(-14px) scale(0.95, 1.05);
+  }
+}
+@keyframes g-eq {
+  from {
+    transform: scaleY(0.3);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes g-wave {
+  from {
+    transform: scaleX(1) skewY(0deg);
+  }
+  to {
+    transform: scaleX(0.82) skewY(-7deg);
+  }
+}
+@keyframes g-scan {
+  from {
+    transform: translateY(-12rem);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100vh);
+    opacity: 1;
+  }
+}
+@keyframes g-torch {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  30% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.95;
+  }
+}
+@keyframes g-pulse {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes g-sweep {
+  from {
+    transform: translateX(-22%) rotate(-6deg);
+  }
+  to {
+    transform: translateX(22%) rotate(6deg);
+  }
+}
+
+/* Skate Rush: the controls hint fades in, stays a few seconds, then fades out. */
+@keyframes skate-hint {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  10%,
+  75% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

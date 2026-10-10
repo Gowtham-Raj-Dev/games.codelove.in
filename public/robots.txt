@@ -1,0 +1,7 @@
+# robots.txt for https://games.codelove.in
+# Every page is open to search engines. The sitemap lists them all (made by scripts/build-sitemap.mjs on every build).
+
+User-agent: *
+Allow: /
+
+Sitemap: https://games.codelove.in/sitemap.xml
