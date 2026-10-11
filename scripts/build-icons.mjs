@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Renders the favicon set from the master SVG (src/app/icon.svg):
+ * Renders the favicon set from the master SVG (src/app/icon.svg). The SVG is a full-bleed square with no rounded
+ * corners: Google and iOS paint transparent corners white, and every platform applies its own mask anyway.
  *   src/app/favicon.ico        16/32/48 px (PNG-in-ICO)
  *   src/app/apple-icon.png     180 px, opaque, for iOS home screens
  *   public/icons/icon-*.png    192/512 px + maskable 512 px for the web app manifest
@@ -11,11 +12,9 @@ import sharp from "sharp";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const SVG = fs.readFileSync(path.join(ROOT, "src", "app", "icon.svg"), "utf8");
-// Square-cornered variant for platforms that apply their own mask (iOS, Android adaptive icons).
-const SQUARE_SVG = SVG.replace(/ rx="[\d.]+"/, "");
 
-const render = (size, svg = SVG) =>
-  sharp(Buffer.from(svg), { density: Math.max(72, (size / 64) * 72 * 2) }).resize(size, size).png().toBuffer();
+const render = (size) =>
+  sharp(Buffer.from(SVG), { density: Math.max(72, (size / 64) * 72 * 2) }).resize(size, size).png().toBuffer();
 
 /** Minimal ICO writer: a directory of PNG-compressed images (supported by every current browser). */
 function ico(images) {
@@ -44,15 +43,14 @@ const icoSizes = [16, 32, 48];
 const icoImages = await Promise.all(icoSizes.map(async (size) => ({ size, data: await render(size) })));
 fs.writeFileSync(path.join(ROOT, "src", "app", "favicon.ico"), ico(icoImages));
 
-// iOS rounds the corners itself and ignores transparency, so render full-bleed.
-fs.writeFileSync(path.join(ROOT, "src", "app", "apple-icon.png"), await render(180, SQUARE_SVG));
+fs.writeFileSync(path.join(ROOT, "src", "app", "apple-icon.png"), await render(180));
 
 const iconsDir = path.join(ROOT, "public", "icons");
 fs.mkdirSync(iconsDir, { recursive: true });
 for (const size of [192, 512]) {
   fs.writeFileSync(path.join(iconsDir, `icon-${size}.png`), await render(size));
 }
-// Maskable: full-bleed background; the gamepad already sits inside the 80% safe zone.
-fs.writeFileSync(path.join(iconsDir, "icon-maskable-512.png"), await render(512, SQUARE_SVG));
+// Maskable: the gamepad already sits inside the 80% safe zone.
+fs.writeFileSync(path.join(iconsDir, "icon-maskable-512.png"), await render(512));
 
 console.log("Icons written: favicon.ico, apple-icon.png, public/icons/*");
