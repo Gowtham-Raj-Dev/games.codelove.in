@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Writes public/sitemap.xml before every build: the home page and, for each game that can be played, its page
- * and its player. A game is a folder in src/app with a play/ route; "coming soon" ones are left out (noindex).
+ * Writes public/sitemap.xml before every build: the home page, for each game that can be played its page
+ * and its player, then the about / contact / privacy pages (PAGES below — add a new fixed page there). A game is a folder in src/app with a play/ route; "coming soon" ones are left out (noindex).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -18,7 +18,8 @@ const games = fs
   .sort();
 
 const today = new Date().toISOString().slice(0, 10);
-const urls = ["/", ...games.flatMap((slug) => [`/${slug}/`, `/${slug}/play/`])];
+const PAGES = ["/about/", "/contact/", "/privacy/"];
+const urls = ["/", ...games.flatMap((slug) => [`/${slug}/`, `/${slug}/play/`]), ...PAGES];
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `  <url>\n    <loc>${SITE}${u}</loc>\n    <lastmod>${today}</lastmod>\n  </url>`).join("\n")}

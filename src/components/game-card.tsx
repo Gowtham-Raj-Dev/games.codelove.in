@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { CSSProperties } from "react";
 import { ArrowUpRight, Gamepad2, Hourglass, Play, Smartphone } from "lucide-react";
 import { GameCardPreview } from "@/components/game-card-preview";
 import { asset } from "@/lib/asset";
@@ -27,8 +26,7 @@ export function GameCard({ game, modelCount, priority = false, android = false }
   return (
     <Link
       href={`/${game.slug}/`}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-surface transition duration-300 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_24px_60px_-24px_var(--glow)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      style={{ "--glow": `${game.accent}99` } as CSSProperties}
+      className="pop pop-lift group relative flex flex-col overflow-hidden rounded-2xl bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
       <div className="relative aspect-[1200/630] overflow-hidden bg-elevated">
         {game.comingSoon ? (
@@ -43,45 +41,45 @@ export function GameCard({ game, modelCount, priority = false, android = false }
               height={630}
               loading={priority ? "eager" : "lazy"}
               decoding="async"
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.07]"
             />
             {game.preview && <GameCardPreview src={asset(game.preview)} />}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent" />
           </>
         )}
-        <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-md">
+        <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full border-2 border-fg bg-surface px-2.5 py-0.5 text-[11px] font-semibold text-fg">
           <Gamepad2 className="size-3.5" /> {game.genre}
         </span>
         {android && (
-          <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-md">
+          <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full border-2 border-fg bg-surface px-2.5 py-0.5 text-[11px] font-semibold text-fg">
             <Smartphone className="size-3.5" /> Android app
           </span>
         )}
         {game.comingSoon ? (
           <span
-            className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-black/80 shadow-lg shadow-black/40"
+            className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 rounded-full border-2 border-fg px-3 py-1 text-xs font-bold text-ink shadow-[0_3px_0_var(--color-fg)]"
             style={{ background: game.accent }}
           >
             <Hourglass className="size-3.5" /> Coming soon
           </span>
         ) : (
           <span
-            className="absolute right-3 bottom-3 grid size-11 place-items-center rounded-full text-black/80 shadow-lg shadow-black/40 transition duration-300 group-hover:scale-110"
+            className="absolute right-3 bottom-3 inline-flex items-center gap-1.5 rounded-full border-2 border-fg py-1.5 pr-4 pl-3.5 font-display text-sm font-bold tracking-wide text-ink uppercase shadow-[0_4px_0_var(--color-fg)] transition duration-200 group-hover:-translate-y-0.5 group-hover:scale-105"
             style={{ background: game.accent }}
           >
-            <Play className="size-5 translate-x-px fill-current" />
+            <Play className="size-4 fill-current" /> Play
           </span>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1 border-t border-line px-5 py-4">
+      <div className="flex flex-1 flex-col gap-1 border-t-2 border-fg px-5 py-4">
         <div className="flex items-start justify-between gap-2">
-          <h2 className={`text-xl text-fg ${gameDisplayClass(game.slug)}`}>{game.title}</h2>
-          <ArrowUpRight className="mt-1 size-4 shrink-0 text-subtle transition group-hover:text-fg" />
+          <h3 className={`text-xl text-fg ${gameDisplayClass(game.slug)}`}>{game.title}</h3>
+          <ArrowUpRight className="mt-1 size-4 shrink-0 text-subtle transition duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-accent" />
         </div>
         <p className="text-sm leading-relaxed text-muted">{game.tagline}</p>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {game.features.slice(0, 2).map((f) => (
-            <span key={f} className="rounded-full border border-line px-2 py-0.5 text-[11px] text-subtle">
+            <span key={f} className="rounded-full border border-line bg-elevated/60 px-2 py-0.5 text-[11px] font-medium text-muted">
               {f}
             </span>
           ))}

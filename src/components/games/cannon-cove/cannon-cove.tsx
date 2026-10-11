@@ -33,6 +33,7 @@ import type { LoadProgress } from "../shared/assets";
 import { audio } from "../shared/audio";
 import { music } from "../shared/music";
 import { SEA_SHANTY } from "../shared/songs";
+import { inPlayables, playablesFirstFrame, playablesLifecycle, playablesCloud, playablesReady, playablesScore, playablesSlot, usePlayables, usePointerControls } from "../shared/playables";
 import { box, ControlLayer, ControlsButton, ControlsEditor, createControls, type Placed } from "../shared/touch-layout";
 import {
   BigButton,
@@ -62,9 +63,12 @@ import { Career, type CareerSave } from "./trade";
 import { ChartScreen, DockButton, PortScreen, Tracker, zoneTone } from "./trade-ui";
 import { OnlineHudView, OnlinePanel, roomFromUrl } from "./online-ui";
 
-const records = createRecords("cannon-cove:v1", { bestWave: 0, bestGold: 0, mostSunk: 0, voyages: 0 });
+// In YouTube Playables progress goes to YouTube's cloud save instead of this browser: the two records are its two parts.
+const records = createRecords("cannon-cove:v1", { bestWave: 0, bestGold: 0, mostSunk: 0, voyages: 0 }, { cloud: inPlayables() ? playablesSlot("records") : undefined });
 /** The Open Sea trading career (one save). */
-const career = createRecords<{ save: CareerSave | null }>("cannon-cove:trade:v1", { save: null });
+const career = createRecords<{ save: CareerSave | null }>("cannon-cove:trade:v1", { save: null }, { cloud: inPlayables() ? playablesSlot("career") : undefined });
+
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 const STYLES = `
 @keyframes cove-hint { 0% { opacity: 0; transform: translateY(8px); } 8%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
@@ -99,7 +103,9 @@ export function CannonCove({ sizes }: { sizes: Record<string, number> }) {
   const [confirmNew, setConfirmNew] = useState(false);
   const [help, setHelp] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [touch, setTouch] = useState(false);
+  const [touchSeen, setTouch] = useState(false);
+  // YouTube Playables: the on-screen controls also serve a mouse (until a key is pressed).
+  const touch = usePointerControls() || touchSeen;
   const [runKey, setRunKey] = useState(0);
   const saved = useRecords(records);
   const voyage = useRecords(career);
@@ -126,23 +132,45 @@ export function CannonCove({ sizes }: { sizes: Record<string, number> }) {
           mostSunk: Math.max(before.mostSunk, run.sunk),
           voyages: before.voyages + 1,
         });
+        if (newBest) playablesScore(run.wave);
         setResult({ ...run, newBest });
       },
       port: setPort,
       save: (data) => career.set({ save: data }),
       wrecked: setWreck,
-    });
+    }, { visibility: !inPlayables() });
     gameRef.current = game;
     if (process.env.NODE_ENV !== "production") Object.assign(window, { __cannonCove: { game, records, career, audio, music, song: SEA_SHANTY } });
     game.setOverlay(overlayRef.current);
     // Floating texts over the 3D view use the game's display face.
     game.setFont(getComputedStyle(canvas).getPropertyValue("--game-display"));
+    playablesFirstFrame();
+    const stopLifecycle = playablesLifecycle(
+      () => {
+        game.releaseInput();
+        game.pause();
+        game.setSuspended(true);
+      },
+      () => game.setSuspended(false),
+    );
+    // The models don't depend on the save: they load while YouTube's cloud save is on its way.
     void game.load(modelSizes);
+    void playablesCloud((cloud) => {
+      if (isObject(cloud.records)) records.hydrate(cloud.records);
+      // YouTube shows the best score it was sent: keep it in step with the save.
+      playablesScore(records.get().bestWave);
+      if (isObject(cloud.career)) career.hydrate(cloud.career as { save: CareerSave | null });
+    });
     return () => {
+      stopLifecycle();
       gameRef.current = null;
       game.dispose();
     };
   }, [hud, modelSizes]);
+
+  useEffect(() => {
+    if (phase === "menu") playablesReady();
+  }, [phase]);
 
   // Chart the open sea in the background once the title screen is up, so setting sail is instant.
   const warmed = useRef(false);
@@ -320,8 +348,9 @@ export function CannonCove({ sizes }: { sizes: Record<string, number> }) {
     };
   });
 
-  // Leaving the tab or window pauses the voyage.
+  // Leaving the tab or window pauses the voyage (YouTube pauses through its own SDK instead).
   useEffect(() => {
+    if (inPlayables()) return;
     const pause = () => {
       gameRef.current?.releaseInput();
       if (!gameRef.current?.onlineActive) gameRef.current?.pause();
@@ -534,6 +563,7 @@ function MenuScreen({
   onHelp: () => void;
   onControls: () => void;
 }) {
+  const youtube = usePlayables();
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col">
       <div className="pointer-events-auto flex items-center justify-end p-3 pt-[max(env(safe-area-inset-top),12px)] sm:p-5">
@@ -564,10 +594,13 @@ function MenuScreen({
             </span>
           </p>
         )}
-        <div className="grid grid-cols-2 gap-2">
-          <SoftButton onClick={onOnline} icon={<Users className="size-4" />}>
-            Online battle
-          </SoftButton>
+        <div className={`grid gap-2 ${youtube ? "" : "grid-cols-2"}`}>
+          {/* No online battles in YouTube Playables: nothing may leave the bundle. */}
+          {!youtube && (
+            <SoftButton onClick={onOnline} icon={<Users className="size-4" />}>
+              Online battle
+            </SoftButton>
+          )}
           <SoftButton onClick={onWaves} icon={<Swords className="size-4" />}>
             Battle waves{best ? ` · best ${best}` : ""}
           </SoftButton>

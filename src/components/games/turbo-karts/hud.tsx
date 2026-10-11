@@ -5,7 +5,6 @@ import { Banana, ChevronLeft, ChevronRight, ChevronsUp, Coins, Pause, Play, Shie
 import { box, ControlLayer, createControls, type Placed } from "../shared/touch-layout";
 import { FullscreenButton, IconButton, RotateButton, SystemButtons, useStore, type Store } from "../shared/ui";
 import type { ItemKind } from "./kart";
-import { DRIVERS } from "./manifest";
 import { ordinal, type Hud, type TurboKartsGame } from "./engine";
 
 export const formatTime = (t: number | null | undefined) => {
@@ -98,17 +97,16 @@ export function HudOverlay({
         </div>
       </div>
 
-      {/* Live order (desktop) */}
-      {!timeTrial && (
+      {/* Live order (desktop; with the on-screen controls up, the minimap has that corner) */}
+      {!timeTrial && !touch && (
         <ol className="absolute top-36 left-5 hidden space-y-1 lg:block">
-          {hud.order.map((driver, i) => {
-            const d = DRIVERS[driver];
-            const me = d && i + 1 === hud.place;
+          {hud.order.map((d, i) => {
+            const me = d.me;
             return (
-              <li key={driver} className={`g-hud flex w-32 items-center gap-2 px-2 py-0.5 text-xs font-bold italic ${me ? "border-[var(--accent)] bg-[var(--accent)] text-black" : "opacity-85"}`}>
+              <li key={i} className={`g-hud flex w-32 items-center gap-2 px-2 py-0.5 text-xs font-bold italic ${me ? "border-[var(--accent)] bg-[var(--accent)] text-black" : "opacity-85"}`}>
                 <span className="w-3 tabular-nums">{i + 1}</span>
-                <span className="size-2.5 rounded-full ring-1 ring-black/40" style={{ background: d?.color }} />
-                {d?.name}
+                <span className="size-2.5 rounded-full ring-1 ring-black/40" style={{ background: d.color }} />
+                <span className="truncate">{d.name}</span>
               </li>
             );
           })}

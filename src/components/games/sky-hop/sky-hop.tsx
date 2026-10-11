@@ -5,7 +5,7 @@ import { ArrowDownToLine, ChevronLeft, ChevronRight, CircleHelp, Clock, Flag, Ga
 import type { LoadProgress } from "../shared/assets";
 import { audio } from "../shared/audio";
 import { music } from "../shared/music";
-import { inPlayables, playablesFirstFrame, playablesLifecycle, playablesLoad, playablesReady, playablesSave, playablesScore } from "../shared/playables";
+import { inPlayables, playablesFirstFrame, playablesLifecycle, playablesCloud, playablesReady, playablesSave, playablesScore, usePointerControls } from "../shared/playables";
 import { SKY_HOP } from "../shared/songs";
 import { box, ControlLayer, ControlsButton, ControlsEditor, createControls, type Placed } from "../shared/touch-layout";
 import {
@@ -135,7 +135,9 @@ export function SkyHop({ sizes }: { sizes: Record<string, number> }) {
   const [current, setCurrent] = useState<StageRef>({ world: WORLDS[0].id, stage: 0 });
   const [help, setHelp] = useState(false);
   // Only read after loading (nothing touch-specific renders before), so SSR markup still matches.
-  const [touch, setTouch] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches);
+  const [touchSeen, setTouch] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches);
+  // YouTube Playables: the on-screen controls also serve a mouse (until a key is pressed).
+  const touch = usePointerControls() || touchSeen;
   const [editing, setEditing] = useState(false);
   const [runKey, setRunKey] = useState(0);
   const saved = useRecords(records);
@@ -192,9 +194,13 @@ export function SkyHop({ sizes }: { sizes: Record<string, number> }) {
       () => game.setSuspended(false),
     );
     void (async () => {
-      // YouTube: wait for the cloud save before anything can be saved over it.
-      const cloud = await playablesLoad();
-      if (cloud) records.hydrate(cloud as Partial<Save>);
+      // YouTube: the cloud save comes first (briefly — a slow answer is applied when it arrives).
+      await playablesCloud((cloud) => {
+        records.hydrate(cloud as Partial<Save>);
+        migrate();
+        // YouTube shows the best score it was sent: keep it in step with the save.
+        playablesScore(totalStars(records.get()));
+      });
       migrate();
       if (gameRef.current === game) void game.load(modelSizes, loadoutOf(records.get()));
     })();

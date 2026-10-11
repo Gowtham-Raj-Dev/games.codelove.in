@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Chakra_Petch, Geist, Geist_Mono } from "next/font/google";
 import { FirebaseAnalytics } from "@/components/firebase-analytics";
 import { JsonLd } from "@/components/json-ld";
 import { SiteChrome } from "@/components/site-chrome";
@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { ADSENSE_CLIENT } from "@/lib/adsense";
 import { DEFAULT_IMAGE } from "@/lib/seo";
 import { absoluteUrl, CODELOVE, SITE } from "@/lib/site";
+import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,6 +19,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+/** The site's display face: headings, the logo and the big buttons (`font-display`). */
+const display = Chakra_Petch({
+  variable: "--font-display-face",
+  subsets: ["latin"],
+  weight: ["600", "700"],
 });
 
 const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
@@ -52,8 +60,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: SITE.themeColor,
-  colorScheme: "dark",
+  // The browser's toolbar follows the system; the page itself follows the visitor's choice (globals.css).
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: SITE.themeColor },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
+  colorScheme: "light dark",
   width: "device-width",
   initialScale: 1,
 };
@@ -78,7 +90,8 @@ const siteJsonLd = [
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    // THEME_SCRIPT sets data-theme and data-mode on <html> before React hydrates: suppressHydrationWarning keeps them.
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`} suppressHydrationWarning>
       {/* The AdSense loader, on every page once a publisher ID is set. The site has no ad units, so ads show only where Auto ads is switched on in the AdSense account. */}
       {ADSENSE_CLIENT ? (
         <head>
@@ -86,11 +99,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </head>
       ) : null}
       <body className="flex min-h-full flex-col">
+        {/* First in <body>, not in <head>: AdSense adds its own scripts to <head>, which React would then compare with this one. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <JsonLd data={siteJsonLd} />
         <FirebaseAnalytics />
         <a
           href="#main"
-          className="sr-only z-50 rounded-lg bg-fg px-4 py-2 text-sm text-bg focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+          className="sr-only z-50 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
         >
           Skip to content
         </a>

@@ -13,7 +13,10 @@
     "start": "npx serve@latest out",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "assets:sync": "node scripts/sync-assets.mjs"
+    "assets:sync": "node scripts/sync-assets.mjs",
+    "icons": "node scripts/build-icons.mjs",
+    "playables:build": "node scripts/build-playables.mjs",
+    "playables:serve": "node scripts/serve-playables.mjs"
   },
   "dependencies": {
     "cannon-es": "^0.20.0",
@@ -33,6 +36,7 @@
     "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -26,11 +26,29 @@ export interface LoadedModel {
 
 const buffers = new Map<string, Promise<ArrayBuffer>>();
 
+/**
+ * YouTube Playables: the models the first screen needs come as one file (models.pack) that index.html
+ * starts downloading before the game's script has even run, so the menu is up seconds sooner.
+ * `index` is where each model sits in it: [offset, bytes]. (scripts/build-playables.mjs writes both.)
+ */
+interface ModelPack {
+  index: Record<string, [number, number]>;
+  data: Promise<ArrayBuffer>;
+}
+const modelPack = (): ModelPack | null => (typeof window !== "undefined" && (window as { __MODEL_PACK__?: ModelPack }).__MODEL_PACK__) || null;
+
 /** Public URL of a model key. */
 export const modelUrl = (key: string) => (key.startsWith("/") ? `${key}.glb` : `/library/${key}.glb`);
 const FALLBACK_BYTES = 60_000;
 
 async function download(key: string, onBytes: (loaded: number, total: number | null) => void): Promise<ArrayBuffer> {
+  const pack = modelPack();
+  const at = pack?.index[key];
+  if (pack && at) {
+    const buf = (await pack.data).slice(at[0], at[0] + at[1]);
+    onBytes(buf.byteLength, buf.byteLength);
+    return buf;
+  }
   const res = await fetch(asset(modelUrl(key)));
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${key}`);
   const length = Number(res.headers.get("content-length")) || null;

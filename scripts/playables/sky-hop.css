@@ -1,0 +1,28 @@
+/* Sky Hop for YouTube Playables: the site's styles (Tailwind + the game UI classes) plus the game's own fonts, served from the bundle. */
+@import "../../src/app/globals.css";
+
+@font-face {
+  font-family: "Luckiest Guy";
+  src: url("./fonts/luckiest-guy-latin-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "Baloo 2";
+  src: url("./fonts/baloo-2-latin-variable.woff2") format("woff2");
+  font-weight: 400 800;
+  font-display: block;
+}
+
+:root {
+  --game-display: "Luckiest Guy";
+  --game-body: "Baloo 2";
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #9fd3f7;
+}

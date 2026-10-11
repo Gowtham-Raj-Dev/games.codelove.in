@@ -7,15 +7,17 @@ import { music } from "../shared/music";
 import { TURBO_LAP } from "../shared/songs";
 import { AiDriver, speedProfile, type Hazard } from "./ai";
 import { Sfx } from "./audio";
+import { NO_TUNE, SKINS, type Tune } from "./garage";
 import { makeBubbleMaterial, makeCheckerTexture, makeChevronTexture, Puffs, SkidMarks, Sparks } from "./fx";
 import { Kart, KART_R, MAX_COINS, type ItemKind, type KartEvents, type KartInput } from "./kart";
-import { DRIVERS, ITEMS, MODELS, PROPS, ROAD, WALLS } from "./manifest";
-import { buildTrack, clearance, DECK_HALF, indexAt, LAPS, locate, pointAt, ROAD_HALF, TILE, TRACKS, WALL_HALF, type Track } from "./tracks";
+import { DRIVERS, ITEMS, MODELS, PROPS, RIVALS, ROAD, WALLS } from "./manifest";
+import type { KartNetEvent } from "./online";
+import { buildTrack, clearance, CUPS, DECK_HALF, indexAt, LAPS, locate, nearestSample, pointAt, ROAD_HALF, TILE, TRACKS, WALL_HALF, type Track } from "./tracks";
 
 // --- Public types -----------------------------------------------------------------------------------
 
 export type Phase = "loading" | "menu" | "intro" | "countdown" | "racing" | "paused" | "finished" | "results" | "podium" | "error";
-export type Mode = "cup" | "time";
+export type Mode = "cup" | "time" | "online";
 
 export const CLASSES = [
   { name: "Rookie", top: 22.5, skill: [0.9, 0.95] },
@@ -30,6 +32,29 @@ export interface RaceConfig {
   driver: number;
   cls: number;
   track: number;
+  cup: number;
+}
+
+/** A player in an online race. */
+export interface NetPlayer {
+  id: string;
+  name: string;
+  driver: number;
+  skin: number;
+  color: string;
+}
+
+/** An online race: who is on the grid (in grid order), when it starts, and how to talk to the others. */
+export interface OnlineRace {
+  track: number;
+  cls: number;
+  me: string;
+  players: NetPlayer[];
+  /** The moment of GO, on the shared clock (ms). */
+  start: number;
+  clock(): number;
+  send(state: number[]): void;
+  event(e: KartNetEvent): void;
 }
 
 export interface Hud {
@@ -54,13 +79,18 @@ export interface Hud {
   wrongWay: boolean;
   toast: string | null;
   toastId: number;
-  order: number[];
+  /** Karts in race order. */
+  order: { name: string; color: string; me: boolean }[];
   track: number;
   race: number;
   mode: Mode;
 }
 
 export interface Standing {
+  /** Unique per kart: the driver index offline, the player id online. */
+  id: string;
+  name: string;
+  color: string;
   driver: number;
   place: number;
   time: number | null;
@@ -81,6 +111,10 @@ export interface RaceResult {
   lapTimes: number[];
   bestLap: number;
   place: number;
+  /** Index into CUPS (cup mode). */
+  cupIndex: number;
+  /** Coins picked up on the track this race. */
+  coins: number;
 }
 
 export interface GameEvents {
@@ -238,6 +272,7 @@ interface Pickup {
 }
 
 interface Banana {
+  id: string;
   obj: THREE.Object3D;
   x: number;
   y: number;
@@ -247,7 +282,30 @@ interface Banana {
   age: number;
 }
 
+/** Where another player's kart was last reported, and what it was doing. */
+interface Remote {
+  x: number;
+  y: number;
+  z: number;
+  h: number;
+  speed: number;
+  /** Local time the report arrived. */
+  at: number;
+  seen: boolean;
+  boost: boolean;
+  shield: boolean;
+  spin: boolean;
+  air: boolean;
+  drift: number;
+  level: number;
+}
+
 interface Racer {
+  id: string;
+  name: string;
+  /** Another player's kart, moved by their reports instead of the local simulation. */
+  remote: Remote | null;
+  flame: THREE.Color[];
   kart: Kart;
   ai: AiDriver;
   bubble: THREE.Mesh;
@@ -275,6 +333,7 @@ export class TurboKartsGame {
   private readonly dynamic = new THREE.Group();
   private readonly timer = new THREE.Timer();
   private raf = 0;
+  private suspended = false;
   private disposed = false;
   private resizeObserver: ResizeObserver | null = null;
   private envTexture: THREE.Texture | null = null;
@@ -311,9 +370,21 @@ export class TurboKartsGame {
 
   private phase: Phase = "loading";
   private pausedFrom: Phase = "racing";
-  private config: RaceConfig = { mode: "cup", driver: 0, cls: 1, track: 0 };
+  private config: RaceConfig = { mode: "cup", driver: 0, cls: 1, track: 0, cup: 0 };
+  private online: OnlineRace | null = null;
+  private netKarts: Kart[] = [];
+  private netAcc = 0;
+  private bananaSeq = 0;
+  private firstFinish = -1;
+  private tune: Tune = NO_TUNE;
+  private skin = 0;
+  private readonly kartSkin = new Map<Kart, number>();
+  private readonly skinMats = new Map<string, THREE.Material>();
+  private readonly skinFlames = new Map<number, THREE.Color[]>();
   private race = 0;
-  private cupPoints = [0, 0, 0, 0, 0];
+  private cupPoints = DRIVERS.map(() => 0);
+  /** The five on the grid offline: the player's kart first, then the rivals. */
+  private field: number[] = RIVALS.slice(0, 5);
   private lastPlaces: number[] = [];
   private podiumBlocks: THREE.Object3D[] = [];
   private readonly podiumGround = new Map<Kart, number>();
@@ -426,6 +497,8 @@ export class TurboKartsGame {
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly events: GameEvents,
+    /** In YouTube Playables the SDK pauses the game; the page visibility API must not be used. */
+    { visibility = true }: { visibility?: boolean } = {},
   ) {
     this.coarse = window.matchMedia("(pointer: coarse)").matches;
     this.autoGas = this.coarse;
@@ -484,7 +557,7 @@ export class TurboKartsGame {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas.parentElement ?? canvas);
     this.resize();
-    this.timer.connect(document);
+    if (visibility) this.timer.connect(document);
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -885,6 +958,8 @@ export class TurboKartsGame {
   setDriver(index: number) {
     this.menuDriver = ((index % DRIVERS.length) + DRIVERS.length) % DRIVERS.length;
     this.config.driver = this.menuDriver;
+    this.field = this.fieldFor(this.menuDriver);
+    this.refreshSkins();
     if (this.phase === "menu") {
       this.arrangeMenu();
       const k = this.karts[this.menuDriver];
@@ -902,25 +977,219 @@ export class TurboKartsGame {
     this.arrangeMenu();
   }
 
-  startCup(driver: number, cls: number) {
-    this.config = { mode: "cup", driver, cls, track: 0 };
+  /** The player's garage: upgrades for the chosen kart and the paint job. */
+  setGarage(tune: Tune, skin: number) {
+    this.tune = tune;
+    this.skin = skin;
+    this.refreshSkins();
+  }
+
+  private refreshSkins() {
+    for (const k of this.karts) this.applySkin(k, k.index === this.config.driver ? this.skin : 0);
+  }
+
+  /** Paints a kart's body (wheels and the driver keep their own colours). */
+  private applySkin(kart: Kart, index: number) {
+    const skin = SKINS[index] ?? SKINS[0];
+    this.kartSkin.set(kart, SKINS[index] ? index : 0);
+    kart.body.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (let p: THREE.Object3D | null = mesh; p && p !== kart.body; p = p.parent) if (p.name.startsWith("wheel") || p.name === "character") return;
+      const base = (mesh.userData.baseMat ??= mesh.material) as THREE.MeshStandardMaterial;
+      if (!skin.tint || !base.isMeshStandardMaterial) {
+        mesh.material = base;
+        return;
+      }
+      const key = `${base.uuid}|${skin.id}`;
+      let m = this.skinMats.get(key);
+      if (!m) {
+        const c = base.clone();
+        c.color.set(skin.tint);
+        if (skin.glow) {
+          c.emissive.set(skin.glow);
+          c.emissiveIntensity = 0.45;
+        }
+        this.skinMats.set(key, (m = c));
+      }
+      mesh.material = m;
+    });
+  }
+
+  private flameOf(kart: Kart) {
+    const index = this.kartSkin.get(kart) ?? 0;
+    const flame = SKINS[index]?.flame;
+    if (!flame) return FLAME;
+    let out = this.skinFlames.get(index);
+    if (!out) this.skinFlames.set(index, (out = [new THREE.Color(flame), new THREE.Color(flame).lerp(new THREE.Color("#ffffff"), 0.45), FLAME[0]]));
+    return out;
+  }
+
+  private fieldFor(driver: number) {
+    return [driver, ...RIVALS.filter((i) => i !== driver).slice(0, 4)];
+  }
+
+  startCup(driver: number, cls: number, cup = 0) {
+    this.online = null;
+    this.field = this.fieldFor(driver);
+    this.config = { mode: "cup", driver, cls, track: CUPS[cup].tracks[0], cup };
     this.race = 0;
-    this.cupPoints = [0, 0, 0, 0, 0];
+    this.cupPoints = DRIVERS.map(() => 0);
     this.gridOrder = [];
     this.startRace();
   }
 
   startTimeTrial(driver: number, cls: number, track: number) {
-    this.config = { mode: "time", driver, cls, track };
+    this.online = null;
+    this.field = this.fieldFor(driver);
+    this.config = { mode: "time", driver, cls, track, cup: 0 };
+    this.race = 0;
+    this.startRace();
+  }
+
+  /** Joins an online race: every player simulates their own kart and reports it to the others. */
+  startOnline(race: OnlineRace) {
+    const me = race.players.find((p) => p.id === race.me);
+    if (!me) return;
+    this.online = race;
+    this.config = { mode: "online", driver: me.driver, cls: race.cls, track: race.track, cup: 0 };
+    this.menuDriver = me.driver;
+    this.field = this.fieldFor(me.driver);
     this.race = 0;
     this.startRace();
   }
 
   nextRace() {
-    if (this.config.mode !== "cup" || this.race >= TRACKS.length - 1) return;
+    const tracks = CUPS[this.config.cup].tracks;
+    if (this.config.mode !== "cup" || this.race >= tracks.length - 1) return;
     this.race++;
-    this.config.track = this.race;
+    this.config.track = tracks[this.race];
     this.startRace();
+  }
+
+  // --- Online -------------------------------------------------------------------------------------
+
+  /** Another player's kart report: [x, y, z, heading, speed, total, flags, laps, steer, finish time]. */
+  netState(id: string, s: number[]) {
+    const r = this.racers.find((o) => o.id === id);
+    const m = r?.remote;
+    const track = this.track;
+    if (!r || !m || !track || !Array.isArray(s) || s.length < 10 || !s.every((v) => typeof v === "number" && Number.isFinite(v))) return;
+    const k = r.kart;
+    m.x = s[0];
+    m.y = s[1];
+    m.z = s[2];
+    m.h = s[3];
+    m.speed = s[4];
+    m.at = this.elapsed;
+    const f = s[6];
+    m.boost = !!(f & 2);
+    m.shield = !!(f & 4);
+    m.spin = !!(f & 8);
+    m.air = !!(f & 32);
+    m.drift = f & 1 ? (f & 256 ? -1 : 1) : 0;
+    m.level = (f >> 6) & 3;
+    k.speed = s[4];
+    k.total = s[5];
+    k.lapsDone = s[7];
+    k.steer = Math.max(-1, Math.min(1, s[8]));
+    if (f & 16 && !k.finished) {
+      k.finished = true;
+      k.finishTime = s[9] > 0 ? s[9] : this.raceTime;
+    }
+    if (!m.seen) {
+      m.seen = true;
+      k.x = m.x;
+      k.y = m.y;
+      k.z = m.z;
+      k.heading = m.h;
+      locate(track, k.x, k.z, nearestSample(track, k.x, k.z), k.pos, 40);
+    }
+  }
+
+  netEvent(id: string, e: KartNetEvent) {
+    const track = this.track;
+    if (!track || !this.online) return;
+    if (e.k === "b" && typeof e.x === "number" && typeof e.z === "number" && typeof e.id === "string") {
+      if (!this.bananas.some((b) => b.id === e.id)) this.addBanana(e.x, e.z, nearestSample(track, e.x, e.z), e.id.slice(0, 40));
+    } else if (e.k === "bx") {
+      const b = this.bananas.find((o) => o.id === e.id);
+      if (b) this.removeBanana(b);
+    } else if (e.k === "fin") {
+      const k = this.racers.find((o) => o.id === id && o.remote)?.kart;
+      if (k && !k.finished && typeof e.t === "number" && e.t > 0) {
+        k.finished = true;
+        k.finishTime = e.t;
+        if (typeof e.bl === "number" && e.bl > 0) k.lapTimes = [e.bl];
+      }
+    }
+  }
+
+  /** Players still in the room: the karts of those who left are taken off the track. */
+  netRoster(ids: string[]) {
+    if (!this.online) return;
+    for (const r of [...this.racers]) {
+      if (!r.remote || ids.includes(r.id)) continue;
+      r.bubble.removeFromParent();
+      r.kart.root.visible = false;
+      this.racers = this.racers.filter((o) => o !== r);
+    }
+  }
+
+  /** The room went back to the lobby: wrap the race up now. */
+  endOnline() {
+    if (!this.online || this.resultSent || !this.player) return;
+    if (this.phase === "racing" || this.phase === "finished" || this.phase === "countdown") this.sendResult();
+  }
+
+  get isOnline() {
+    return !!this.online;
+  }
+
+  private clearNetKarts() {
+    for (const k of this.netKarts) {
+      k.root.removeFromParent();
+      this.kartSkin.delete(k);
+    }
+    this.netKarts = [];
+  }
+
+  private packState(k: Kart) {
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+    const flags =
+      (k.drift ? 1 : 0) | (k.boosting ? 2 : 0) | (k.shieldT > 0 ? 4 : 0) | (k.spinning ? 8 : 0) | (k.finished ? 16 : 0) | (!k.grounded && !k.hopping ? 32 : 0) | ((k.drift?.level ?? 0) << 6) | (k.drift && k.drift.dir < 0 ? 256 : 0);
+    return [r2(k.x), r2(k.y), r2(k.z), Math.round(k.heading * 1000) / 1000, Math.round(k.speed * 10) / 10, Math.round(k.total * 10) / 10, flags, k.lapsDone, r2(k.steer), k.finished ? r2(k.finishTime) : 0];
+  }
+
+  /** Eases another player's kart towards where its last report says it is by now. */
+  private updateRemote(r: Racer, dt: number) {
+    const m = r.remote!;
+    const k = r.kart;
+    const track = this.track!;
+    if (m.seen) {
+      const age = Math.min(0.35, this.elapsed - m.at);
+      const a = 1 - Math.exp(-14 * dt);
+      k.x += (m.x + Math.sin(m.h) * m.speed * age - k.x) * a;
+      k.z += (m.z + Math.cos(m.h) * m.speed * age - k.z) * a;
+      k.y += (m.y - k.y) * a;
+      k.heading = wrapAngle(k.heading + wrapAngle(m.h - k.heading) * a);
+      locate(track, k.x, k.z, k.pos.i, k.pos);
+      // No reports for a while: the kart rolls to a stop instead of sliding on.
+      if (this.elapsed - m.at > 1.5) m.speed *= Math.exp(-3 * dt);
+    }
+    if (m.spin && k.spinT <= 0) k.spinT = 1;
+    if (k.spinT > 0) {
+      k.spinT = Math.max(0, k.spinT - dt);
+      k.spinAngle += dt * 15 * Math.max(0.25, k.spinT);
+      if (!m.spin && k.spinT <= 0) k.spinAngle = 0;
+    } else k.spinAngle = 0;
+    k.boostT = m.boost ? 0.2 : 0;
+    k.shieldT = m.shield ? 5 : 0;
+    k.grounded = !m.air;
+    k.hopping = false;
+    if (!m.drift) k.drift = null;
+    else if (k.drift && k.drift.dir === m.drift) k.drift.level = m.level;
+    else k.drift = { dir: m.drift, charge: 0, level: m.level };
   }
 
   restartRace() {
@@ -984,9 +1253,12 @@ export class TurboKartsGame {
     this.skids.clear();
     this.puffs?.clear();
     this.clearBananas();
-    this.buildCircuit(this.config.mode === "time" ? this.config.track : 0);
+    this.online = null;
+    this.clearNetKarts();
+    this.buildCircuit(this.config.mode === "cup" ? CUPS[this.config.cup].tracks[0] : this.config.track);
     this.resetPickups();
     this.player = null;
+    this.racers.forEach((r) => r.bubble.removeFromParent());
     this.racers = [];
     this.keys.clear();
     this.sfx.idle(0.03);
@@ -998,6 +1270,8 @@ export class TurboKartsGame {
   }
 
   pause() {
+    // An online race can't stop for one player.
+    if (this.online) return;
     if (this.phase !== "racing" && this.phase !== "countdown" && this.phase !== "intro" && this.phase !== "finished") return;
     this.pausedFrom = this.phase;
     this.keys.clear();
@@ -1060,6 +1334,9 @@ export class TurboKartsGame {
     this.sfx.dispose();
     music.stop();
     this.clearCircuit();
+    this.clearNetKarts();
+    this.skinMats.forEach((m) => m.dispose());
+    this.skinMats.clear();
     for (const proto of this.protos.values()) disposeTree(proto.object);
     for (const m of this.models.values()) disposeTree(m.scene);
     litCache.forEach((m) => m.dispose());
@@ -1089,14 +1366,14 @@ export class TurboKartsGame {
 
   private arrangeMenu() {
     const track = this.track!;
-    this.karts.forEach((k) => (k.root.visible = true));
+    this.karts.forEach((k) => (k.root.visible = this.field.includes(k.index)));
     // The chosen kart in front of the start line; the others parked on the grid behind.
     const front = this.karts[this.menuDriver];
     const p = pointAt(track, track.length - 9, 0);
     front.place0(track, p.x, p.z, p.heading, p.i);
     let slot = 0;
     this.karts.forEach((k) => {
-      if (k === front) return;
+      if (k === front || !k.root.visible) return;
       const g = this.gridSlot(slot++ + 1);
       k.place0(track, g.x, g.z, g.heading, g.i);
     });
@@ -1112,7 +1389,7 @@ export class TurboKartsGame {
 
   /** Cup standings: points, then the latest race's finish breaks ties. */
   private cupOrder() {
-    return DRIVERS.map((_, i) => i).sort((a, b) => this.cupPoints[b] - this.cupPoints[a] || (this.lastPlaces[a] ?? 9) - (this.lastPlaces[b] ?? 9) || a - b);
+    return this.field.slice().sort((a, b) => this.cupPoints[b] - this.cupPoints[a] || (this.lastPlaces[a] ?? 9) - (this.lastPlaces[b] ?? 9) || a - b);
   }
 
   private startRace() {
@@ -1128,11 +1405,14 @@ export class TurboKartsGame {
     this.clearBananas();
     this.resetPickups(cfg.mode === "time");
     this.racers.forEach((r) => r.bubble.removeFromParent());
+    this.clearNetKarts();
+    this.refreshSkins();
+    const online = cfg.mode === "online" ? this.online : null;
 
     // Grid: the player starts at the back of the first race; later races line up in reverse cup order.
-    const others = DRIVERS.map((_, i) => i).filter((i) => i !== cfg.driver);
+    const others = this.field.filter((i) => i !== cfg.driver);
     let order: number[];
-    if (cfg.mode === "time") order = [cfg.driver];
+    if (cfg.mode === "time" || online) order = [cfg.driver];
     else if (this.race === 0) {
       for (let i = others.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -1144,15 +1424,30 @@ export class TurboKartsGame {
 
     const [lo, hi] = CLASSES[cfg.cls].skill;
     this.karts.forEach((k) => (k.root.visible = false));
-    this.racers = order.map((driver, slot) => {
-      const kart = this.karts[driver];
+    // Who is on the grid: the drivers offline, the room's players online (their karts are extra copies).
+    const entries = online
+      ? online.players.map((p) => {
+          const mine = p.id === online.me;
+          const base = DRIVERS[p.driver] ?? DRIVERS[0];
+          let kart = this.karts[cfg.driver];
+          if (!mine) {
+            kart = new Kart(DRIVERS.indexOf(base), { ...base, name: p.name, color: p.color }, false, this.protos.get(base.key)!.object.clone());
+            this.dynamic.add(kart.root);
+            this.netKarts.push(kart);
+            this.applySkin(kart, p.skin);
+          }
+          return { kart, id: p.id, name: p.name, mine };
+        })
+      : order.map((driver) => ({ kart: this.karts[driver], id: String(driver), name: DRIVERS[driver].name, mine: driver === cfg.driver }));
+    this.racers = entries.map(({ kart, id, name, mine }, slot) => {
       kart.root.visible = true;
       const g = cfg.mode === "time" ? pointAt(track, track.length - 8, 0) : this.gridSlot(slot);
       kart.place0(track, g.x, g.z, g.heading, g.i);
-      kart.isPlayer = driver === cfg.driver;
+      kart.isPlayer = mine;
+      kart.tune(mine ? this.tune : NO_TUNE);
       // Rivals: the further back they start, the a little sharper they drive.
-      const skill = lo + (hi - lo) * (0.35 + 0.65 * (slot / Math.max(1, order.length - 1))) + (Math.random() - 0.5) * 0.01;
-      const ai = new AiDriver(kart, driver === cfg.driver ? 0.98 : skill);
+      const skill = lo + (hi - lo) * (0.35 + 0.65 * (slot / Math.max(1, entries.length - 1))) + (Math.random() - 0.5) * 0.01;
+      const ai = new AiDriver(kart, mine ? 0.98 : skill);
       ai.reaction = 0.05 + Math.random() * 0.35;
       ai.rocket = Math.random() < 0.45;
       const bubble = new THREE.Mesh(this.bubbleGeometry, this.bubbleMaterial);
@@ -1160,10 +1455,13 @@ export class TurboKartsGame {
       bubble.visible = false;
       bubble.position.y = 1.2;
       kart.root.add(bubble);
-      return { kart, ai, bubble, pendingItem: null, lastPad: -10, stuck: 0, dust: 0, sparkAcc: 0, slip: 0 };
+      const remote: Remote | null = online && !mine ? { x: kart.x, y: kart.y, z: kart.z, h: kart.heading, speed: 0, at: 0, seen: false, boost: false, shield: false, spin: false, air: false, drift: 0, level: 0 } : null;
+      return { id, name, remote, flame: this.flameOf(kart), kart, ai, bubble, pendingItem: null, lastPad: -10, stuck: 0, dust: 0, sparkAcc: 0, slip: 0 };
     });
     this.racers.forEach((r, i) => (r.kart.place = i + 1));
-    this.player = this.racers.find((r) => r.kart.driver === DRIVERS[cfg.driver]) ?? null;
+    this.player = this.racers.find((r) => r.kart.isPlayer) ?? null;
+    this.firstFinish = -1;
+    this.netAcc = 0;
     if (cfg.mode === "time" && this.player) {
       this.player.kart.item = "triple";
       this.player.kart.itemCount = 3;
@@ -1183,14 +1481,31 @@ export class TurboKartsGame {
     music.play(TURBO_LAP, 1);
     music.setIntensity(1);
     music.duck(false);
-    this.setPhase("intro");
+    if (online) {
+      // No fly-by online: straight to the lights, timed by the shared clock.
+      this.phaseT = (online.clock() - (online.start - 3000)) / 1000;
+      this.setPhase("countdown");
+    } else this.setPhase("intro");
     this.emitHud(true);
   }
 
   // --- Frame --------------------------------------------------------------------------------------
 
+  /** Stops every frame (YouTube's pause) — nothing runs until resumed. */
+  setSuspended(on: boolean) {
+    if (on === this.suspended || this.disposed) return;
+    this.suspended = on;
+    if (on) {
+      cancelAnimationFrame(this.raf);
+      this.sfx.quiet();
+    } else {
+      this.timer.reset();
+      this.raf = requestAnimationFrame(this.frame);
+    }
+  }
+
   private frame = (time: number) => {
-    if (this.disposed) return;
+    if (this.disposed || this.suspended) return;
     this.raf = requestAnimationFrame(this.frame);
     this.timer.update(time);
     const dt = Math.min(this.timer.getDelta(), 1 / 20);
@@ -1261,7 +1576,17 @@ export class TurboKartsGame {
   }
 
   private updateCountdown(dt: number) {
+    if (this.online) this.phaseT = (this.online.clock() - (this.online.start - 3000)) / 1000;
     const t = this.phaseT;
+    if (t < 0) {
+      // Online: waiting for the lights.
+      for (const r of this.racers) {
+        if (r.remote) this.updateRemote(r, dt);
+        r.kart.syncVisual(dt, this.track!);
+      }
+      this.sfx.idle(0.05);
+      return;
+    }
     const step = Math.floor(t);
     if (step !== this.countdownShown && step <= 3) {
       this.countdownShown = step;
@@ -1277,6 +1602,7 @@ export class TurboKartsGame {
     if (gas && !this.throttleWasDown) this.throttleDownAt = t;
     this.throttleWasDown = gas;
     for (const r of this.racers) {
+      if (r.remote) this.updateRemote(r, dt);
       r.kart.syncVisual(dt, this.track!);
       if (gas && r === this.player) r.kart.body.position.y = Math.sin(this.elapsed * 60) * 0.02;
     }
@@ -1293,7 +1619,7 @@ export class TurboKartsGame {
             this.sfx.boost(0.6);
             this.say("Rocket start!");
           }
-        } else if (r.ai.rocket) {
+        } else if (r.ai.rocket && !r.remote) {
           r.kart.startBoost(0.9);
           r.ai.reaction = 0;
         }
@@ -1323,7 +1649,9 @@ export class TurboKartsGame {
   private updateRace(dt: number) {
     const track = this.track!;
     const env = { top: CLASSES[this.config.cls].top, events: this.kartEvents };
-    this.raceTime += dt;
+    const online = this.online;
+    if (online) this.raceTime = Math.max(0, (online.clock() - online.start) / 1000);
+    else this.raceTime += dt;
     const hazards: Hazard[] = this.bananas.map((b) => ({ s: b.s, d: b.d }));
     const player = this.player;
     const world = {
@@ -1338,6 +1666,12 @@ export class TurboKartsGame {
 
     for (const r of this.racers) {
       const k = r.kart;
+      if (r.remote) {
+        this.updateRemote(r, dt);
+        this.kartEffects(r, dt);
+        r.bubble.visible = k.shieldT > 0;
+        continue;
+      }
       const human = r === player && !k.finished && this.phase === "racing";
       let input: KartInput;
       let useItem = false;
@@ -1366,7 +1700,10 @@ export class TurboKartsGame {
         if (laps >= LAPS) {
           k.finished = true;
           k.finishTime = this.raceTime;
-          if (r === player) this.onPlayerFinish();
+          if (r === player) {
+            online?.event({ k: "fin", t: Math.round(k.finishTime * 100) / 100, bl: Math.round(Math.min(...k.lapTimes) * 100) / 100 });
+            this.onPlayerFinish();
+          }
         } else if (r === player) {
           if (laps === LAPS - 1) {
             this.sfx.finalLap();
@@ -1438,7 +1775,20 @@ export class TurboKartsGame {
       this.wrongWasOn = wrong;
     }
 
-    if (this.phase === "finished" && !this.resultSent && (this.phaseT > 4.5 || this.racers.every((r) => r.kart.finished))) this.sendResult();
+    if (online) {
+      if (player) {
+        this.netAcc += dt;
+        if (this.netAcc >= 1 / 15) {
+          this.netAcc = 0;
+          online.send(this.packState(player.kart));
+        }
+      }
+      // The race is over when everyone is home, or half a minute after the winner.
+      const home = this.racers.filter((r) => r.kart.finished).length;
+      if (home && this.firstFinish < 0) this.firstFinish = this.raceTime;
+      const over = home === this.racers.length || (this.firstFinish >= 0 && this.raceTime - this.firstFinish > 30);
+      if (over && !this.resultSent && (this.phase === "racing" || (this.phase === "finished" && this.phaseT > 2.5))) this.sendResult();
+    } else if (this.phase === "finished" && !this.resultSent && (this.phaseT > 4.5 || this.racers.every((r) => r.kart.finished))) this.sendResult();
     this.emitHud();
   }
 
@@ -1446,6 +1796,7 @@ export class TurboKartsGame {
     const k = this.player!.kart;
     const place = 1 + this.racers.filter((r) => r !== this.player && r.kart.finished).length;
     this.finishPlace = place;
+    if (this.online) this.online.send(this.packState(k));
     this.sfx.finish(this.config.mode === "time" ? 1 : place);
     this.say(this.config.mode === "time" ? "Finish!" : place === 1 ? "You win!" : `Finished ${ordinal(place)}`);
     music.setIntensity(1);
@@ -1459,6 +1810,7 @@ export class TurboKartsGame {
     const track = this.track!;
     // Karts still racing get a projected time from their remaining distance.
     const avg = CLASSES[this.config.cls].top * 0.9;
+    const home = new Set(this.racers.filter((r) => r.kart.finished));
     for (const r of this.racers) {
       const k = r.kart;
       if (!k.finished) {
@@ -1468,9 +1820,13 @@ export class TurboKartsGame {
     }
     const byTime = [...this.racers].sort((a, b) => a.kart.finishTime - b.kart.finishTime);
     const standings: Standing[] = byTime.map((r, i) => ({
+      id: r.id,
+      name: r.name,
+      color: r.kart.driver.color,
       driver: r.kart.index,
       place: i + 1,
-      time: r.kart.finishTime,
+      // Online, karts still out on track when the race is called get no time.
+      time: this.online && !home.has(r) ? null : r.kart.finishTime,
       bestLap: r.kart.lapTimes.length ? Math.min(...r.kart.lapTimes) : null,
       points: this.config.mode === "cup" ? POINTS[i] ?? 0 : 0,
       total: 0,
@@ -1480,7 +1836,10 @@ export class TurboKartsGame {
     this.lastPlaces = [];
     for (const s of standings) this.lastPlaces[s.driver] = s.place;
     for (const s of standings) s.total = this.cupPoints[s.driver];
-    const cup = this.cupOrder().map((driver, i) => ({
+    const cup: Standing[] = (this.config.mode === "cup" ? this.cupOrder() : []).map((driver, i) => ({
+      id: String(driver),
+      name: DRIVERS[driver].name,
+      color: DRIVERS[driver].color,
       driver,
       place: i + 1,
       time: null,
@@ -1496,11 +1855,13 @@ export class TurboKartsGame {
       race: this.race,
       standings,
       cup,
-      cupOver: this.config.mode === "cup" && this.race >= TRACKS.length - 1,
+      cupOver: this.config.mode === "cup" && this.race >= CUPS[this.config.cup].tracks.length - 1,
       time: pk.finishTime,
       lapTimes: pk.lapTimes.slice(),
       bestLap: pk.lapTimes.length ? Math.min(...pk.lapTimes) : 0,
       place: standings.find((s) => s.player)?.place ?? 1,
+      cupIndex: this.config.cup,
+      coins: pk.earned,
     };
     this.setPhase("results");
     this.events.result(result);
@@ -1578,6 +1939,7 @@ export class TurboKartsGame {
       if (this.near(k)) this.sfx.banana();
     } else if (item === "coins") {
       k.coins = Math.min(MAX_COINS, k.coins + 3);
+      k.earned += 3;
       if (isPlayer) {
         this.sfx.coin();
         this.say("+3 coins");
@@ -1591,18 +1953,24 @@ export class TurboKartsGame {
   }
 
   private dropBanana(k: Kart) {
+    const x = Math.round((k.x - Math.sin(k.heading) * 2.6) * 100) / 100;
+    const z = Math.round((k.z - Math.cos(k.heading) * 2.6) * 100) / 100;
+    const id = `${this.online?.me ?? "b"}.${++this.bananaSeq}`;
+    this.addBanana(x, z, k.pos.i, id);
+    this.online?.event({ k: "b", id, x, z });
+  }
+
+  private addBanana(x: number, z: number, hint: number, id: string) {
     const track = this.track!;
     if (this.bananas.length >= 14) this.removeBanana(this.bananas[0]);
-    const x = k.x - Math.sin(k.heading) * 2.6;
-    const z = k.z - Math.cos(k.heading) * 2.6;
-    const pos = { i: k.pos.i, s: 0, d: 0, y: 0 };
-    locate(track, x, z, k.pos.i, pos);
+    const pos = { i: hint, s: 0, d: 0, y: 0 };
+    locate(track, x, z, hint, pos);
     const obj = this.bananaPool.pop() ?? this.protos.get(ITEMS.banana)!.object.clone();
     obj.visible = true;
     obj.position.set(x, pos.y, z);
     obj.rotation.set(0, Math.random() * 6, 0);
     this.dynamic.add(obj);
-    this.bananas.push({ obj, x, y: pos.y, z, s: pos.s, d: pos.d, age: 0 });
+    this.bananas.push({ id, obj, x, y: pos.y, z, s: pos.s, d: pos.d, age: 0 });
   }
 
   private removeBanana(b: Banana) {
@@ -1621,9 +1989,12 @@ export class TurboKartsGame {
       b.obj.rotation.z = Math.sin(this.elapsed * 3 + b.x) * 0.08;
       for (const r of this.racers) {
         const k = r.kart;
+        // Each player decides their own slips; the others hear about it.
+        if (r.remote) continue;
         if (b.age < 0.4 && Math.hypot(k.x - b.x, k.z - b.z) < 3) continue;
         if (Math.hypot(k.x - b.x, k.z - b.z) > KART_R + 0.7 || Math.abs(k.y - b.y) > 1.5) continue;
         this.removeBanana(b);
+        this.online?.event({ k: "bx", id: b.id });
         if (k.shieldT > 0) {
           k.shieldT = 0;
           if (this.near(k)) this.sfx.shieldBreak();
@@ -1642,6 +2013,7 @@ export class TurboKartsGame {
 
   private collectPickups() {
     for (const r of this.racers) {
+      if (r.remote) continue;
       const k = r.kart;
       for (const b of this.boxes) {
         if (b.away > 0 || Math.abs(k.y + 0.6 - b.y) > 2.5) continue;
@@ -1664,6 +2036,7 @@ export class TurboKartsGame {
         c.away = 10;
         c.obj.visible = false;
         k.coins = Math.min(MAX_COINS, k.coins + 1);
+        k.earned++;
         if (r === this.player) this.sfx.coin();
         for (let i = 0; i < 5; i++) this.sparks.emit(c.x, c.y + 0.6, c.z, (Math.random() - 0.5) * 4, 2 + Math.random() * 3, (Math.random() - 0.5) * 4, SPARK_COLORS[0], 0.35, 0.4, 2, 6);
       }
@@ -1706,11 +2079,17 @@ export class TurboKartsGame {
         if (dist >= min || dist < 1e-4) continue;
         const nx = dx / dist;
         const nz = dz / dist;
+        // Another player's kart is moved by its owner: the local kart takes the whole bump.
+        const ra = !!rs[i].remote;
+        const rb = !!rs[j].remote;
+        if (ra && rb) continue;
         const push = (min - dist) / 2;
-        a.x -= nx * push;
-        a.z -= nz * push;
-        b.x += nx * push;
-        b.z += nz * push;
+        const sa = ra ? 0 : rb ? 2 : 1;
+        const sb = rb ? 0 : ra ? 2 : 1;
+        a.x -= nx * push * sa;
+        a.z -= nz * push * sa;
+        b.x += nx * push * sb;
+        b.z += nz * push * sb;
         const vax = Math.sin(a.heading) * a.speed + a.extX;
         const vaz = Math.cos(a.heading) * a.speed + a.extZ;
         const vbx = Math.sin(b.heading) * b.speed + b.extX;
@@ -1720,13 +2099,17 @@ export class TurboKartsGame {
         const wa = b.boosting && !a.boosting ? 1.6 : 1;
         const wb = a.boosting && !b.boosting ? 1.6 : 1;
         const imp = rel * 0.75 + 2;
-        a.extX -= nx * imp * wa;
-        a.extZ -= nz * imp * wa;
-        b.extX += nx * imp * wb;
-        b.extZ += nz * imp * wb;
+        if (!ra) {
+          a.extX -= nx * imp * wa;
+          a.extZ -= nz * imp * wa;
+        }
+        if (!rb) {
+          b.extX += nx * imp * wb;
+          b.extZ += nz * imp * wb;
+        }
         // The kart behind loses a little speed.
         const aBehind = a.total < b.total;
-        (aBehind ? a : b).speed *= 0.93;
+        if (!(aBehind ? ra : rb)) (aBehind ? a : b).speed *= 0.93;
         if (a === this.player?.kart || b === this.player?.kart) {
           this.sfx.bump();
           this.shake = Math.max(this.shake, 0.15);
@@ -1745,10 +2128,11 @@ export class TurboKartsGame {
     const lapStart = k.lapStart;
     const lapTimes = k.lapTimes;
     const coins = k.coins;
+    const earned = k.earned;
     const item = k.item;
     const count = k.itemCount;
     k.place0(track, p.x, p.z, p.heading, p.i);
-    Object.assign(k, { total, lapsDone: laps, lapStart, lapTimes, coins, item, itemCount: count });
+    Object.assign(k, { total, lapsDone: laps, lapStart, lapTimes, coins, earned, item, itemCount: count });
     k.invulnT = 2;
     r.stuck = 0;
     this.puffs?.emit(k.x, k.y + 0.5, k.z, 2.2, 0.8);
@@ -1792,7 +2176,7 @@ export class TurboKartsGame {
     // Boost flames.
     if (k.boosting) {
       for (let i = 0; i < 3; i++) {
-        const c = FLAME[Math.floor(Math.random() * FLAME.length)];
+        const c = r.flame[Math.floor(Math.random() * r.flame.length)];
         const lx = (Math.random() - 0.5) * 0.7;
         this.sparks.emit(
           k.x - sin * 1.5 + cos * lx,
@@ -1866,8 +2250,8 @@ export class TurboKartsGame {
     if (!force && now - this.hudAt < 1 / 15) return;
     this.hudAt = now;
     const top = CLASSES[this.config.cls].top;
-    const order = [...this.racers].sort((a, b) => a.kart.place - b.kart.place).map((r) => r.kart.index);
-    const countdown = this.phase === "countdown" ? Math.max(0, 3 - Math.floor(this.phaseT)) : this.phase === "racing" && this.raceTime < 0.8 ? 0 : null;
+    const order = [...this.racers].sort((a, b) => a.kart.place - b.kart.place).map((r) => ({ name: r.name, color: r.kart.driver.color, me: r === p }));
+    const countdown = this.phase === "countdown" ? Math.max(0, Math.min(3, 3 - Math.floor(this.phaseT))) : this.phase === "racing" && this.raceTime < 0.8 ? 0 : null;
     const lapTimes = k.lapTimes;
     this.hud = {
       place: k.place,

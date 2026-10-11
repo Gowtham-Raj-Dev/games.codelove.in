@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Copy, Crown, Globe, Loader2, Lock, LogOut, Share2, Swords, Trophy, Users, Wifi, X } from "lucide-react";
+import { inPlayables } from "../shared/playables";
 import { BigButton, createRecords, Modal, SoftButton, useRecords } from "../shared/ui";
 import type { CannonCoveGame, OnlineHud } from "./engine";
 import { CoveNet, MAX_PLAYERS, ONLINE_SHIPS, PLAYER_COLORS, type Link, type Result, type RoomView } from "./online";
@@ -10,12 +11,13 @@ import { CoveNet, MAX_PLAYERS, ONLINE_SHIPS, PLAYER_COLORS, type Link, type Resu
 
 type GameRef = { readonly current: CannonCoveGame | null };
 
-const profile = createRecords("cannon-cove:online", { name: "", ship: 0 });
+// (YouTube Playables has no online battles, and nothing may go in the browser's storage there.)
+const profile = createRecords("cannon-cove:online", { name: "", ship: 0 }, { cloud: inPlayables() ? () => {} : undefined });
 
 const SHIP_BARS: Record<number, [number, number, number]> = { 0: [3, 1, 1], 1: [2, 2, 2], 2: [1, 3, 3] };
 
 export function roomFromUrl() {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || inPlayables()) return null;
   const code = new URLSearchParams(window.location.search).get("room");
   return code ? code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5) : null;
 }

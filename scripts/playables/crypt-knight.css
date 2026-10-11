@@ -1,0 +1,40 @@
+/* Crypt Knight for YouTube Playables: the site's styles (Tailwind + the game UI classes) plus the game's own fonts, served from the bundle. */
+@import "../../src/app/globals.css";
+
+@font-face {
+  font-family: "Cinzel";
+  src: url("./fonts/cinzel-latin-variable.woff2") format("woff2");
+  font-weight: 400 900;
+  font-display: block;
+}
+@font-face {
+  font-family: "Crimson Text";
+  src: url("./fonts/crimson-text-latin-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "Crimson Text";
+  src: url("./fonts/crimson-text-latin-600.woff2") format("woff2");
+  font-weight: 600;
+  font-display: block;
+}
+@font-face {
+  font-family: "Crimson Text";
+  src: url("./fonts/crimson-text-latin-700.woff2") format("woff2");
+  font-weight: 700;
+  font-display: block;
+}
+
+:root {
+  --game-display: "Cinzel";
+  --game-body: "Crimson Text";
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #07050b;
+}

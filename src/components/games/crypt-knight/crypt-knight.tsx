@@ -31,6 +31,7 @@ import type { LoadProgress } from "../shared/assets";
 import { audio } from "../shared/audio";
 import { music } from "../shared/music";
 import { CRYPT_EPIC } from "../shared/songs";
+import { inPlayables, playablesFirstFrame, playablesLifecycle, playablesCloud, playablesReady, playablesSave, playablesScore, usePointerControls } from "../shared/playables";
 import { ControlsButton } from "../shared/touch-layout";
 import {
   BigButton,
@@ -62,7 +63,7 @@ import { nextStage, StageMap, Stars } from "./stages";
 import { ControlsEditor, TouchControls } from "./touch";
 
 /** `stars`: per world, the stars of each of its ten stages (0 = not cleared). bestDepth / wins / bestTime are from the old ten-room runs. */
-const records = createRecords("crypt-knight:v1", {
+const DEFAULTS = {
   bestDepth: 0,
   wins: 0,
   runs: 0,
@@ -75,7 +76,13 @@ const records = createRecords("crypt-knight:v1", {
   world: WORLDS[0].id,
   worlds: {} as Record<string, { best: number; wins: number }>,
   stars: {} as Record<string, number[]>,
-});
+};
+
+// In YouTube Playables progress goes to YouTube's cloud save instead of this browser.
+const records = createRecords("crypt-knight:v1", DEFAULTS, { cloud: inPlayables() ? playablesSave : undefined });
+
+/** Every star earned, over all worlds (the score YouTube shows). */
+const totalStars = (stars: Record<string, number[]>) => Object.values(stars).reduce((n, list) => n + (Array.isArray(list) ? list.reduce((a, b) => a + (Number(b) || 0), 0) : 0), 0);
 
 type Save = ReturnType<typeof records.get>;
 
@@ -146,7 +153,9 @@ export function CryptKnight({ sizes }: { sizes: Record<string, number> }) {
   const [banner, setBanner] = useState<{ title: string; sub?: string; id: number } | null>(null);
   const [hurtKey, setHurtKey] = useState(0);
   const [help, setHelp] = useState(false);
-  const [touch, setTouch] = useState(false);
+  const [touchSeen, setTouch] = useState(false);
+  // YouTube Playables: the on-screen controls also serve a mouse (until a key is pressed).
+  const touch = usePointerControls() || touchSeen;
   const [editing, setEditing] = useState(false);
   // The HUD shown behind the controls editor when it opens from the title screen.
   const [menuHud] = useState(() => createStore<Hud>(EMPTY_HUD));
@@ -172,18 +181,41 @@ export function CryptKnight({ sizes }: { sizes: Record<string, number> }) {
         const stars = [...starsOf(before, world.id)];
         const newBest = run.stars > stars[run.stage];
         stars[run.stage] = Math.max(stars[run.stage], run.stars);
-        records.set({ stars: { ...before.stars, [world.id]: stars }, runs: before.runs + 1, kills: before.kills + run.kills, bank: before.bank + saved });
+        const allStars = { ...before.stars, [world.id]: stars };
+        records.set({ stars: allStars, runs: before.runs + 1, kills: before.kills + run.kills, bank: before.bank + saved });
+        if (newBest) playablesScore(totalStars(allStars));
         setSummary({ ...run, newBest, saved });
       },
-    });
+    }, { visibility: !inPlayables() });
     gameRef.current = game;
-    void game.load(modelSizes, loadoutOf(records.get()));
+    playablesFirstFrame();
+    const stopLifecycle = playablesLifecycle(
+      () => {
+        game.pause();
+        game.setSuspended(true);
+      },
+      () => game.setSuspended(false),
+    );
+    void (async () => {
+      // YouTube: the cloud save comes first (briefly — a slow answer is applied when it arrives).
+      await playablesCloud((cloud) => {
+        records.hydrate(cloud as Partial<Save>);
+        // YouTube shows the best score it was sent: keep it in step with the save.
+        playablesScore(totalStars(records.get().stars));
+      });
+      if (gameRef.current === game) void game.load(modelSizes, loadoutOf(records.get()));
+    })();
     if (process.env.NODE_ENV !== "production") Object.assign(window, { __cryptKnight: { game, records, audio, music, song: CRYPT_EPIC, ui: { map: setMap } } });
     return () => {
+      stopLifecycle();
       gameRef.current = null;
       game.dispose();
     };
   }, [hud, modelSizes]);
+
+  useEffect(() => {
+    if (phase === "menu") playablesReady();
+  }, [phase]);
 
   // Touch controls appear for touch screens (and as soon as someone touches).
   useEffect(() => {
@@ -365,8 +397,9 @@ export function CryptKnight({ sizes }: { sizes: Record<string, number> }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  // Leaving the tab or window pauses the run.
+  // Leaving the tab or window pauses the run (YouTube pauses through its own SDK instead).
   useEffect(() => {
+    if (inPlayables()) return;
     const pause = () => gameRef.current?.pause();
     const onVisibility = () => document.hidden && pause();
     document.addEventListener("visibilitychange", onVisibility);

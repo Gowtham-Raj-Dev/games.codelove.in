@@ -1619,15 +1619,19 @@ export class SkateRushGame {
     const top = this.y + (this.duckT > 0 ? DUCK_H : STAND_H);
     for (const p of this.pickups) {
       if (p.taken >= 0) continue;
-      const ahead = p.s - this.distance;
+      let ahead = p.s - this.distance;
       if (this.magnet > 0 && p.kind === "coin" && ahead < 22 && ahead > -1) p.attract = true;
       if (p.attract) {
-        p.s = damp(p.s, this.distance, 10, dt);
-        p.x = damp(p.x, this.x, 10, dt);
-        p.y = damp(p.y, this.y + 0.5, 10, dt);
+        // Close the gap to the skater, not to a spot on the road: chasing the road position, the coin
+        // settled a couple of metres behind a fast skater and trailed there without ever being taken.
+        ahead = damp(ahead, 0, 12, dt);
+        p.s = this.distance + ahead;
+        p.x = damp(p.x, this.x, 12, dt);
+        p.y = damp(p.y, this.y + 0.5, 12, dt);
         p.part.obj.position.set(p.x, p.y, -p.s);
       }
-      if (Math.abs(ahead) > 1 || Math.abs(p.x - this.x) > 1.05 || p.y > top + 0.1 || p.y + 0.75 < this.y) continue;
+      const pulledIn = p.attract && Math.abs(ahead) < 0.8 && Math.abs(p.x - this.x) < 0.8;
+      if (!pulledIn && (Math.abs(ahead) > 1 || Math.abs(p.x - this.x) > 1.05 || p.y > top + 0.1 || p.y + 0.75 < this.y)) continue;
       p.taken = 0;
       if (p.kind === "coin") {
         this.coins++;

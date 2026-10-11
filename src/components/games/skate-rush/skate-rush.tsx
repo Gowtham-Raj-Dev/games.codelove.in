@@ -6,7 +6,7 @@ import type { LoadProgress } from "../shared/assets";
 import { audio } from "../shared/audio";
 import { music } from "../shared/music";
 import { CITY_RUSH } from "../shared/songs";
-import { playablesFirstFrame, playablesLifecycle, playablesLoad, playablesReady, playablesSave, playablesScore, inPlayables } from "../shared/playables";
+import { playablesFirstFrame, playablesLifecycle, playablesCloud, playablesReady, playablesSave, playablesScore, inPlayables } from "../shared/playables";
 import {
   BigButton,
   createRecords,
@@ -139,9 +139,12 @@ export function SkateRush({ sizes }: { sizes: Record<string, number> }) {
       () => game.setSuspended(false),
     );
     void (async () => {
-      // YouTube: wait for the cloud save before anything can be saved over it.
-      const cloud = await playablesLoad();
-      if (cloud) records.hydrate(cloud as Partial<Save>);
+      // YouTube: the cloud save comes first (briefly — a slow answer is applied when it arrives).
+      await playablesCloud((cloud) => {
+        records.hydrate(cloud as Partial<Save>);
+        // YouTube shows the best score it was sent: keep it in step with the save.
+        playablesScore(records.get().best);
+      });
       if (gameRef.current === game) void game.load(modelSizes, loadoutOf(records.get()));
     })();
     return () => {
@@ -304,7 +307,7 @@ export function SkateRush({ sizes }: { sizes: Record<string, number> }) {
     };
   }, []);
 
-  // Swipes (touch or mouse drag). Each 24px of travel fires one move, so a single touch can chain moves.
+  // Swipes (touch or mouse drag). One touch is one move, however far it travels: lift the finger to swipe again.
   const onPointerDown = (e: ReactPointerEvent) => {
     if (phase === "playing") swipe.current = { x: e.clientX, y: e.clientY };
   };
@@ -316,7 +319,7 @@ export function SkateRush({ sizes }: { sizes: Record<string, number> }) {
     const dy = e.clientY - s.y;
     if (Math.hypot(dx, dy) < 24) return;
     game.input(Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? "left" : "right") : dy < 0 ? "jump" : "duck");
-    swipe.current = { x: e.clientX, y: e.clientY };
+    swipe.current = null;
   };
   const endSwipe = () => {
     swipe.current = null;

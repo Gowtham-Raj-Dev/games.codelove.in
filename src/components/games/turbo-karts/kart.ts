@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { NO_TUNE, TUNE_STEP, type Tune } from "./garage";
 import type { Driver } from "./manifest";
 import { CURB_HALF, LAPS, locate, type Track, type TrackPos } from "./tracks";
 
@@ -65,7 +66,11 @@ export class Kart {
   readonly body = new THREE.Group();
   readonly wheels: THREE.Object3D[] = [];
   character: THREE.Object3D | null = null;
-  readonly stats: { top: number; accel: number; turn: number };
+  readonly stats = { top: 1, accel: 1, turn: 1 };
+  /** Garage turbo upgrade: boosts last this much longer. */
+  boostMul = 1;
+  /** Coins picked up this race (the bank counts these, not the ones lost in spin-outs). */
+  earned = 0;
 
   x = 0;
   y = 0;
@@ -126,8 +131,7 @@ export class Kart {
     public isPlayer: boolean,
     model: THREE.Object3D,
   ) {
-    const k = (n: number) => 0.94 + n * 0.025;
-    this.stats = { top: 0.97 + driver.speed * 0.012, accel: k(driver.accel) * 1.0, turn: 0.92 + driver.handling * 0.028 };
+    this.tune(NO_TUNE);
     this.root.add(this.body);
     this.body.add(model);
     this.body.rotation.order = "YXZ";
@@ -139,6 +143,15 @@ export class Kart {
       }
     }
     this.character = model.getObjectByName("character") ?? null;
+  }
+
+  /** Handling numbers from the driver's bars plus garage upgrades. */
+  tune(t: Tune) {
+    const d = this.driver;
+    this.stats.top = 0.97 + d.speed * 0.012 + t[0] * TUNE_STEP.top;
+    this.stats.accel = 0.94 + d.accel * 0.025 + t[1] * TUNE_STEP.accel;
+    this.stats.turn = 0.92 + d.handling * 0.028 + t[2] * TUNE_STEP.turn;
+    this.boostMul = 1 + t[3] * TUNE_STEP.boost;
   }
 
   get lap() {
@@ -170,6 +183,7 @@ export class Kart {
     this.boostT = this.spinT = this.shieldT = this.invulnT = 0;
     this.spinAngle = 0;
     this.coins = 0;
+    this.earned = 0;
     this.item = null;
     this.itemCount = 0;
     this.rollT = 0;
@@ -198,6 +212,7 @@ export class Kart {
   }
 
   startBoost(seconds: number, power = BOOST_FACTOR) {
+    seconds *= this.boostMul;
     this.boostT = Math.max(this.boostT, seconds);
     this.boostPower = Math.max(power, this.boostT > seconds ? this.boostPower : power);
   }

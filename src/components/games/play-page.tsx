@@ -38,7 +38,7 @@ export function playMetadata(game: GameEntry): Metadata {
   return {
     ...pageMetadata({
       title: `Play ${game.title} — Free 3D ${genreTitle(game)} Game`,
-      description: `Play ${game.title} free online — no ads, no download. ${game.description} ${GAME_CREDIT}.`,
+      description: `Play ${game.title} free online — no download, no sign-up. ${game.description} ${GAME_CREDIT}.`,
       path: `/${game.slug}/play/`,
       image: { url: game.cover, alt: `${game.title} gameplay` },
       keywords: [
@@ -48,7 +48,6 @@ export function playMetadata(game: GameEntry): Metadata {
         `free 3D ${genreTitle(game).toLowerCase()} game`,
         "free 3D games online",
         "free games",
-        "ad-free games",
         SITE.brand,
       ],
     }),

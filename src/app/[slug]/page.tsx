@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: PageProps<"/[slug]">): Promis
   return {
     ...pageMetadata({
       title: `${game.title} — Free 3D ${genreTitle(game)} Game Online`,
-      description: `Play ${game.title} free online — no ads, no download. ${game.description} ${GAME_CREDIT}.`,
+      description: `Play ${game.title} free online — no download, no sign-up. ${game.description} ${GAME_CREDIT}.`,
       path: `/${game.slug}/`,
       image: { url: game.cover, alt: `${game.title} gameplay` },
       keywords: [
@@ -55,8 +55,6 @@ export async function generateMetadata({ params }: PageProps<"/[slug]">): Promis
         "3D games",
         "free games",
         "free games online",
-        "ad-free games",
-        "free games without ads",
         "free online games no download",
         `${SITE.author} games`,
         SITE.brand,
@@ -198,10 +196,10 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
         )}
 
         <div className="space-y-4">
-          <p className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-[0.14em] uppercase" style={{ color: game.accent }}>
+          <p className="inline-flex items-center gap-1.5 text-xs font-bold tracking-[0.14em] text-muted uppercase">
             <Gamepad2 className="size-4" /> {game.genre}
           </p>
-          <h1 className={`text-4xl sm:text-6xl ${gameDisplayClass(game.slug)}`} style={{ color: game.accent }}>
+          <h1 className={`text-4xl text-fg sm:text-6xl ${gameDisplayClass(game.slug)}`} style={{ textShadow: `3px 3px 0 ${game.accent}` }}>
             {game.title}
           </h1>
           <p className="text-lg font-medium text-fg">{game.tagline}</p>
@@ -214,8 +212,7 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
           {soon ? (
             <div className="flex flex-wrap items-center gap-3">
               <span
-                className="inline-flex items-center gap-2 rounded-full border-2 px-6 py-3 text-base font-bold"
-                style={{ borderColor: game.accent, color: game.accent }}
+                className="inline-flex items-center gap-2 rounded-full border-2 border-fg bg-surface px-6 py-3 text-base font-bold text-fg"
               >
                 <Hourglass className="size-5" /> Coming soon
               </span>
@@ -225,7 +222,7 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 href={playHref}
-                className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-base font-bold text-black/85 shadow-lg shadow-black/30 transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="inline-flex items-center gap-2 rounded-full border-2 border-fg px-7 py-3.5 text-base font-bold text-ink shadow-[0_5px_0_var(--color-fg)] transition hover:-translate-y-0.5 hover:brightness-105 active:translate-y-1 active:shadow-[0_1px_0_var(--color-fg)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 style={{ background: game.accent }}
               >
                 <Play className="size-5 fill-current" /> Play now — free
@@ -235,8 +232,7 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
                   href={asset(app.apk)}
                   download={`${game.slug}-${app.version}.apk`}
                   type="application/vnd.android.package-archive"
-                  className="inline-flex items-center gap-2 rounded-full border-2 px-6 py-3 text-base font-bold transition hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  style={{ borderColor: game.accent, color: game.accent }}
+                  className="inline-flex items-center gap-2 rounded-full border-2 border-fg bg-surface px-6 py-3 text-base font-bold text-fg transition hover:bg-accent-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   <Download className="size-5" /> Download for Android
                 </a>
@@ -309,7 +305,7 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
       <section className="mt-12 grid gap-6 lg:grid-cols-2">
         <div className="rounded-3xl border border-line bg-surface p-6 sm:p-7">
           <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <ListChecks className="size-5" style={{ color: game.accent }} /> How to play
+            <ListChecks className="size-5 text-accent" /> How to play
           </h2>
           {game.touchHowTo ? (
             <>
@@ -324,10 +320,10 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
         <div className="rounded-3xl border border-line bg-surface p-6 sm:p-7">
           <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
             <span className="contents pointer-coarse:hidden">
-              <Keyboard className="size-5" style={{ color: game.accent }} /> Controls
+              <Keyboard className="size-5 text-accent" /> Controls
             </span>
             <span className="hidden pointer-coarse:contents">
-              <Smartphone className="size-5" style={{ color: game.accent }} /> Touch controls
+              <Smartphone className="size-5 text-accent" /> Touch controls
             </span>
           </h2>
           <div className="mt-5 overflow-x-auto">

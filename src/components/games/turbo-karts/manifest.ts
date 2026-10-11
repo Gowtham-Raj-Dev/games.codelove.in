@@ -11,15 +11,22 @@ export interface Driver {
   speed: number;
   accel: number;
   handling: number;
+  /** Coins to unlock it in the shop (free karts have none). Every kart races as a rival, owned or not. */
+  cost?: number;
+  /** Width it is scaled to on the track (the cars are longer than the karts, so a little narrower). */
+  width?: number;
 }
 
 export const DRIVERS: Driver[] = [
   { key: "car-kit/kart-oobi", name: "Oobi", color: "#a78bfa", speed: 3, accel: 3, handling: 3 },
   { key: "car-kit/kart-oodi", name: "Oodi", color: "#f472b6", speed: 2, accel: 4, handling: 4 },
-  { key: "car-kit/kart-ooli", name: "Ooli", color: "#fbbf24", speed: 4, accel: 2, handling: 3 },
-  { key: "car-kit/kart-oopi", name: "Oopi", color: "#2dd4bf", speed: 3, accel: 2, handling: 4 },
-  { key: "car-kit/kart-oozi", name: "Oozi", color: "#fdba74", speed: 4, accel: 3, handling: 2 },
+  { key: "car-kit/kart-ooli", name: "Ooli", color: "#fbbf24", speed: 4, accel: 2, handling: 3, cost: 120 },
+  { key: "car-kit/kart-oopi", name: "Oopi", color: "#2dd4bf", speed: 3, accel: 2, handling: 4, cost: 180 },
+  { key: "car-kit/kart-oozi", name: "Oozi", color: "#fdba74", speed: 4, accel: 3, handling: 2, cost: 250 },
 ];
+
+/** The karts every race is run against: all of them. */
+export const RIVALS = DRIVERS.map((_, i) => i);
 
 const R = (name: string) => `racing-kit/${name}`;
 
@@ -127,7 +134,7 @@ export const GAME: GameEntry = {
   title: "Turbo Karts",
   tagline: "Drift, boost and banana-slip your way to the podium.",
   description:
-    "A 3D kart racer. Pick one of five drivers and race four rivals over three laps on three circuits — a grandstand Grand Prix park, a desert track with a big ramp jump, and a figure-eight with a bridge overpass. Drift through corners to charge blue, orange and purple mini-turbos, hit boost pads, grab item boxes for boosts, shields and banana peels, collect coins for extra speed, win the three-race cup or chase your best lap in Time Trial.",
+    "A 3D kart racer. Pick a kart and race four rivals over three laps on nine circuits: a grandstand Grand Prix park, a desert track with a big ramp jump, a figure-eight with a bridge overpass, a sunset speedway, a red-rock canyon, a night flyover, a snowy switchback, a harbour figure-eight and a jungle rally. Drift through corners to charge blue, orange and purple mini-turbos, hit boost pads, grab item boxes for boosts, shields and banana peels, and win the Grand Prix, Turbo and Champion cups or chase your best lap in Time Trial. Coins from every race go to the shop: unlock more karts and cups, buy engine, gearbox, tyre and turbo upgrades, and repaint your kart in fourteen designs. Race online too: Quick Race puts up to six players in a room, or make a private room and invite friends with a link.",
   genre: "Kart racing",
   accent: "#f97316",
   cover: "/games/turbo-karts/cover.webp",
@@ -149,6 +156,8 @@ export const GAME: GameEntry = {
     "Coins make your kart a little faster (up to 10). You lose a few when you spin out.",
     "Orange arrow pads give a free boost. Grass slows you down — stay on the asphalt and take the racing line.",
     "Hold the gas just before GO for a rocket start. Press drift in mid-air off the big ramp for a trick boost.",
+    "Every race pays coins: more for a better place, plus the ones you picked up, plus a bonus for a cup trophy. Spend them in the Shop: more karts, the Turbo and Champion cups, upgrades for the kart you drive (engine, gearbox, tyres, turbo) and kart designs.",
+    "Online: Quick Race joins a public room of up to six players and races start by themselves. To play with friends, create a private room and send them the invite link or the 5-letter code.",
   ],
   touchHowTo: [
     "Finish three laps ahead of the other four karts. In the Cup, points (10-8-6-4-2) over three races decide the trophy.",
@@ -159,7 +168,9 @@ export const GAME: GameEntry = {
     "Coins make your kart a little faster (up to 10). You lose a few when you spin out.",
     "Orange arrow pads give a free boost. Grass slows you down — stay on the asphalt and take the racing line.",
     "Rocket start: turn Auto-accelerate off in the pause menu, then press GAS as the 1 appears and hold it through GO. Tap DRIFT in mid-air off the big ramp for a trick boost.",
+    "Every race pays coins: more for a better place, plus the ones you picked up, plus a bonus for a cup trophy. Spend them in the Shop: more karts, the Turbo and Champion cups, upgrades for the kart you drive (engine, gearbox, tyres, turbo) and kart designs.",
+    "Online: Quick Race joins a public room of up to six players and races start by themselves. To play with friends, create a private room and send them the invite link or the 5-letter code.",
   ],
-  features: ["3 circuits: Grand Prix, desert jump & figure-eight overpass", "Drift mini-turbos & rocket starts", "4 AI rivals with items", "3-race Cup and Time Trial with saved records"],
+  features: ["9 circuits in 3 cups, plus Time Trial", "Online races: quick match (6 per room) or private rooms with friends", "Shop: karts, cups, upgrades & 14 kart designs", "Drift mini-turbos, items & rocket starts"],
   music: "Turbo Lap",
 };

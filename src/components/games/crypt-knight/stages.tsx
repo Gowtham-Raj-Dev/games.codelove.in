@@ -56,7 +56,7 @@ export function StageMap({
         e.preventDefault();
         onPlay(next);
       } else if (e.key === "Escape") {
-        e.preventDefault();
+        // (No preventDefault on Esc: YouTube Playables forbids it — the browser needs the key to leave full screen.)
         e.stopImmediatePropagation();
         onClose();
       }

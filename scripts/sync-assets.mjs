@@ -4,7 +4,8 @@
  *   games/      covers, trailers, backdrops, music, the Patti Veedu app
  *   library/, models/, animations/   only the models the games load (each game's `models` list)
  *   thumbs/     the thumbnails of those models (shown on each game's page)
- *   decoders/, downloads/ (Android apps), icons/
+ *   decoders/, downloads/ (Android apps)
+ * The site's own icons (public/icons/) are not copied: `npm run icons` draws them from src/app/icon.svg.
  *
  *   node scripts/sync-assets.mjs              (the library is ../Models.Codelove.in)
  *   SOURCE=path/to/Models.Codelove.in node scripts/sync-assets.mjs
@@ -71,7 +72,7 @@ await build({
 });
 const { list } = await import(`${pathToFileURL(bundle).href}?${Date.now()}`);
 
-for (const dir of ["games", "decoders", "downloads", "icons"]) copyDir(dir);
+for (const dir of ["games", "decoders", "downloads"]) copyDir(dir);
 for (const game of list) {
   for (const key of game.models) copyFile(key.startsWith("/") ? `${key.slice(1)}.glb` : `library/${key}.glb`);
   for (const thumb of game.thumbs) copyFile(thumb.replace(/^\//, ""));

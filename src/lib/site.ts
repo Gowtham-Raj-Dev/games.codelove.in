@@ -14,21 +14,19 @@ export const SITE = {
   url: (process.env.NEXT_PUBLIC_SITE_URL ?? "https://games.codelove.in").replace(/\/$/, ""),
   tagline: "Free 3D games",
   description:
-    "Free 3D games you play in the browser — kart racing, skating, tower defense, a dungeon crawler, cooking, mini golf, puzzles and strategy. No ads, no download, no sign-up, on PC or phone.",
+    "Free 3D games you play in the browser — kart racing, skating, tower defense, a dungeon crawler, cooking, mini golf, puzzles and strategy. No download, no sign-up, on PC or phone.",
   keywords: [
     "free 3D games online",
     "free 3D games",
     "3D games",
     "free games online",
-    "ad-free games",
-    "free games without ads",
     "free online games no download",
     "browser games",
     "three.js games",
     "games.codelove.in",
   ],
   locale: "en_US",
-  themeColor: "#07070b",
+  themeColor: "#1b1425",
 };
 
 /**

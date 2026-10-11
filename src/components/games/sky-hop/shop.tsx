@@ -116,7 +116,8 @@ export function Shop({
         e.preventDefault();
         act();
       } else if (e.key === "Escape" || e.key === "s" || e.key === "S") {
-        e.preventDefault();
+        // (No preventDefault on Esc: YouTube Playables forbids it — the browser needs the key to leave full screen.)
+        if (e.key !== "Escape") e.preventDefault();
         e.stopImmediatePropagation();
         onClose();
       }

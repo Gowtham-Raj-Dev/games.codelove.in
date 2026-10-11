@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { PLAYABLES_LOADING_EXIT, usePlayables } from "./playables";
 import { RotateCcw } from "lucide-react";
 import backdrops from "@/data/game-backdrops.json";
 import { asset } from "@/lib/asset";
@@ -110,6 +111,7 @@ export function LoadingScreen({ game, progress, error, ready = false }: { game: 
   const vars = useMemo(() => titleVars(look.shade, t), [look.shade, t]);
   const [tip, setTip] = useState(0);
   const [gone, setGone] = useState(false);
+  const youtube = usePlayables();
   useEffect(() => {
     if (tips.length < 2) return;
     const id = setInterval(() => setTip((n) => (n + 1) % tips.length), 5200);
@@ -118,9 +120,10 @@ export function LoadingScreen({ game, progress, error, ready = false }: { game: 
   // The game is up: fade out over it, then leave the page.
   useEffect(() => {
     if (!ready) return;
-    const id = setTimeout(() => setGone(true), 1200);
+    // (YouTube Playables counts the seconds to gameReady, which waits for this screen to go.)
+    const id = setTimeout(() => setGone(true), youtube ? PLAYABLES_LOADING_EXIT : 1200);
     return () => clearTimeout(id);
-  }, [ready]);
+  }, [ready, youtube]);
   if (gone) return null;
 
   const pct = ready ? 100 : Math.min(100, Math.round((progress?.ratio ?? 0) * 100));

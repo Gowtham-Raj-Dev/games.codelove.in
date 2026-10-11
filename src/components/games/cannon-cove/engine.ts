@@ -577,6 +577,7 @@ export class CannonCoveGame {
   private readonly timer = new THREE.Timer();
   private world: World | null = null;
   private raf = 0;
+  private suspended = false;
   private disposed = false;
   private resizeObserver: ResizeObserver | null = null;
   private envTexture: THREE.Texture | null = null;
@@ -706,6 +707,8 @@ export class CannonCoveGame {
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly events: GameEvents,
+    /** In YouTube Playables the SDK pauses the game; the page visibility API must not be used. */
+    { visibility = true }: { visibility?: boolean } = {},
   ) {
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -718,7 +721,7 @@ export class CannonCoveGame {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas.parentElement ?? canvas);
     this.resize();
-    this.timer.connect(document);
+    if (visibility) this.timer.connect(document);
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -1447,8 +1450,20 @@ export class CannonCoveGame {
 
   // --- Frame --------------------------------------------------------------------------------------
 
+  /** Stops every frame (YouTube's pause) — nothing runs until resumed. */
+  setSuspended(on: boolean) {
+    if (on === this.suspended || this.disposed) return;
+    this.suspended = on;
+    if (on) {
+      cancelAnimationFrame(this.raf);
+    } else {
+      this.timer.reset();
+      this.raf = requestAnimationFrame(this.frame);
+    }
+  }
+
   private frame = (time: number) => {
-    if (this.disposed) return;
+    if (this.disposed || this.suspended) return;
     this.raf = requestAnimationFrame(this.frame);
     this.timer.update(time);
     const dt = Math.min(this.timer.getDelta(), 1 / 20);

@@ -10,51 +10,85 @@
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  /* Headings, the logo and the big buttons. */
+  --font-display: var(--font-display-face), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme {
-  --color-bg: #07070b;
-  --color-surface: #0d0d13;
-  --color-elevated: #14141c;
-  --color-line: rgb(255 255 255 / 0.08);
-  --color-line-strong: rgb(255 255 255 / 0.14);
-  --color-fg: #ededf3;
-  --color-muted: #a0a0b2;
-  --color-subtle: #6e6e80;
-  --color-accent: #a78bfa;
-  --color-accent-2: #67e8f9;
-  --color-ok: #4ade80;
+  /* Cream paper, ink outlines and three flat poster colours. No gradients, no glow. */
+  --color-bg: #fbefd2;
+  --color-surface: #fffaf0;
+  --color-elevated: #f3e2b6;
+  --color-line: rgb(27 20 37 / 0.16);
+  --color-line-strong: #1b1425;
+  --color-fg: #1b1425;
+  --color-muted: #52485f;
+  --color-subtle: #6e647b;
+  /* Red is the "press me" colour: play buttons and highlights. Yellow and green are fills. */
+  --color-accent: #e03a12;
+  --color-accent-2: #ffc531;
+  --color-accent-3: #0f9d76;
+  --color-ok: #15803d;
+  /* Text on a yellow or game-accent fill: dark in both themes. */
+  --color-ink: #1b1425;
+}
+
+/*
+ * Dark theme: pure black paper, light outlines, the same three poster colours. <html data-theme> is set before the
+ * first paint by THEME_SCRIPT (src/lib/theme.ts) from the visitor's choice, or from the system setting.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #000000;
+  --color-surface: #0d0d0d;
+  --color-elevated: #1c1c1c;
+  --color-line: rgb(255 255 255 / 0.18);
+  --color-line-strong: #f5f5f5;
+  --color-fg: #f5f5f5;
+  --color-muted: #b4b4b4;
+  --color-subtle: #8a8a8a;
+  --color-accent: #f0451c;
+  --color-ok: #22c55e;
+}
+
+/* The theme button shows the icon of the current choice (<html data-mode>): system, light or dark. */
+[data-theme-icon] {
+  display: none;
+}
+:root:not([data-mode]) [data-theme-icon="system"],
+:root[data-mode="system"] [data-theme-icon="system"],
+:root[data-mode="light"] [data-theme-icon="light"],
+:root[data-mode="dark"] [data-theme-icon="dark"] {
+  display: block;
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
   background: var(--color-bg);
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;
 }
 
 body {
-  background: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Soft aurora behind the whole site. */
+/* Halftone dots on the paper, behind the whole site. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(60rem 36rem at 12% -8%, rgb(139 92 246 / 0.18), transparent 60%),
-    radial-gradient(48rem 30rem at 92% 4%, rgb(34 211 238 / 0.12), transparent 60%),
-    radial-gradient(50rem 40rem at 50% 110%, rgb(139 92 246 / 0.08), transparent 60%);
+  background-image: radial-gradient(color-mix(in srgb, var(--color-fg) 10%, transparent) 1.2px, transparent 1.4px);
+  background-size: 22px 22px;
 }
 
 ::selection {
-  background: rgb(167 139 250 / 0.35);
+  background: var(--color-accent-2);
+  color: var(--color-ink);
 }
 
 /* Tailwind v4 resets buttons to the default cursor; restore the pointer on everything clickable. */
@@ -92,23 +126,55 @@ body::before {
 }
 
 @utility glass {
-  background: rgb(255 255 255 / 0.035);
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
   border: 1px solid var(--color-line);
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 
-@utility text-gradient {
-  background: linear-gradient(100deg, #f5f3ff 0%, #c4b5fd 35%, #67e8f9 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+/* A sticker: ink outline and a hard ink shadow. */
+@utility pop {
+  border: 2px solid var(--color-fg);
+  box-shadow: 5px 5px 0 var(--color-fg);
+}
+
+/* A sticker you can click: it lifts off the page. */
+@utility pop-lift {
+  transition:
+    transform 0.15s,
+    box-shadow 0.15s;
+  &:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 8px 8px 0 var(--color-fg);
+  }
+}
+
+/* The main call to action: a chunky arcade button that sinks onto its ledge when pressed. */
+@utility btn-play {
+  background: var(--color-accent);
+  color: #fff;
+  border: 2px solid var(--color-fg);
+  box-shadow: 0 5px 0 var(--color-fg);
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s,
+    filter 0.15s;
+  &:hover {
+    filter: brightness(1.08);
+    transform: translateY(-2px);
+    box-shadow: 0 7px 0 var(--color-fg);
+  }
+  &:active {
+    filter: none;
+    transform: translateY(4px);
+    box-shadow: 0 1px 0 var(--color-fg);
+  }
 }
 
 @utility grid-fade {
   background-image:
-    linear-gradient(to right, rgb(255 255 255 / 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / 0.045) 1px, transparent 1px);
+    linear-gradient(to right, color-mix(in srgb, var(--color-fg) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-fg) 7%, transparent) 1px, transparent 1px);
   background-size: 44px 44px;
   mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
 }
@@ -133,6 +199,8 @@ body::before {
 @layer components {
   .g-root {
     font-family: var(--game-body), ui-sans-serif, system-ui, sans-serif;
+    /* Games have their own themes: the site's light / dark theme doesn't change their text. */
+    color: var(--color-ink);
     /* Safe area beside a notch / camera cutout: env() in browsers (every play route has
        viewport-fit=cover), and --app-safe-* from the Android app, which draws the game under the cutout. */
     --cut-l: max(env(safe-area-inset-left, 0px), var(--app-safe-left, 0px));
@@ -425,6 +493,7 @@ body::before {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
