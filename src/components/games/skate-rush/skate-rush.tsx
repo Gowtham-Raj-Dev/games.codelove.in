@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { CircleHelp, Gem, Heart, Home, Magnet, Map as MapIcon, Pause, Play, RotateCcw, Shirt, ShoppingBag, Sparkles, Trophy, User } from "lucide-react";
+import { ChevronsUp, CircleHelp, Gem, Heart, Home, Magnet, Map as MapIcon, Pause, Play, RotateCcw, Rocket, Shirt, ShoppingBag, Sparkles, Trophy, User } from "lucide-react";
 import type { LoadProgress } from "../shared/assets";
 import { audio } from "../shared/audio";
 import { music } from "../shared/music";
@@ -62,7 +62,7 @@ function loadoutOf(save: Save): Loadout {
   return { skater: pick("skater", skater), skin: pick("skin", save.skin), board: pick("board", save.board), stage: pick("stage", save.stage) };
 }
 
-const EMPTY_HUD: Hud = { score: 0, coins: 0, distance: 0, shield: false, magnet: 0, boost: 0 };
+const EMPTY_HUD: Hud = { score: 0, coins: 0, distance: 0, shield: false, magnet: 0, boost: 0, jet: 0, spring: 0 };
 
 const KEY_MOVES: Record<string, Move> = {
   ArrowLeft: "left",
@@ -536,6 +536,8 @@ function HudOverlay({ store, best, paused, onPause }: { store: Store<Hud>; best:
           {hud.shield && <PowerChip icon={<Heart className="size-3.5 fill-current" />} label="Shield" tone="bg-rose-500" />}
           {hud.magnet > 0 && <PowerChip icon={<Magnet className="size-3.5" />} label="Magnet" tone="bg-amber-500" left={hud.magnet} />}
           {hud.boost > 0 && <PowerChip icon={<Gem className="size-3.5" />} label="2× Score" tone="bg-indigo-500" left={hud.boost} />}
+          {hud.jet > 0 && <PowerChip icon={<Rocket className="size-3.5" />} label="Jetpack" tone="bg-red-500" left={hud.jet} />}
+          {hud.spring > 0 && <PowerChip icon={<ChevronsUp className="size-3.5" />} label="Super Jump" tone="bg-green-600" left={hud.spring} />}
         </div>
       </div>
 

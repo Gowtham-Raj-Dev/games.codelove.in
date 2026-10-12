@@ -3,7 +3,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { audio } from "../shared/audio";
 import { disposeTree, loadModels, makeProto, Pool, type Fit, type LoadedModel, type LoadProgress, type Proto } from "../shared/assets";
 import { music } from "../shared/music";
-import { CITY_RUSH } from "../shared/songs";
+import { CITY_RUSH, SKATE_SONGS } from "../shared/songs";
 import { Sfx } from "./audio";
 import { BOARDS, findItem, RIG_KEY, SKATERS, SKINS, STAGES, stageModels, type Placed, type SkinLook, type StageDef, type StageRules } from "./content";
 import { applySkin, BoardRig, glowTexture, makeSkyDisc, makeStars, makeWeather, shaderDistance, shaderTime, TrailFx, variantMaterial, type Variant } from "./looks";
@@ -32,6 +32,14 @@ const DUCK_TIME = 0.8;
 const STAND_H = 1.6;
 const DUCK_H = 0.8;
 const POWER_TIME = 10;
+/** Jetpack: seconds in the air, how high, and how much faster the street goes by. */
+const JET_TIME = 7;
+const JET_H = 5.2;
+const JET_PACE = 1.3;
+/** Spring shoes: how much harder the jump is (about twice as high: clears a car). */
+const SPRING_JUMP = 1.45;
+/** Rush-hour cars stand still until the skater is this close, then drive at them. */
+const RUSH_WAKE = 75;
 const COIN_POINTS = 10;
 const ZONE_LEN = 480;
 
@@ -56,6 +64,9 @@ export interface Hud {
   /** Seconds left on the magnet / x2 booster. */
   magnet: number;
   boost: number;
+  /** Seconds left in the air on the jetpack, and on the spring shoes. */
+  jet: number;
+  spring: number;
 }
 
 export interface RunResult {
@@ -115,10 +126,13 @@ interface Obstacle {
   yMax: number;
   /** Own speed towards the player (oncoming traffic). */
   speed: number;
+  /** Rush-hour car: the distance at which it starts driving (null once it has), and how fast. */
+  wake: number | null;
+  drive: number;
   fly: { t: number; vy: number; vx: number; spin: THREE.Vector3 } | null;
 }
 
-type PickupKind = "coin" | "shield" | "magnet" | "boost";
+type PickupKind = "coin" | "shield" | "magnet" | "boost" | "jetpack" | "spring";
 
 interface Pickup {
   part: Part;
@@ -184,7 +198,9 @@ export class SkateRushGame {
   private board: BoardRig | null = null;
   private readonly trail = new TrailFx();
   private readonly riders = new Map<string, Rider>();
-  private readonly orbs = { shield: new THREE.Group(), magnet: new THREE.Group(), boost: new THREE.Group() };
+  private readonly orbs = { shield: new THREE.Group(), magnet: new THREE.Group(), boost: new THREE.Group(), spring: new THREE.Group() };
+  /** The jetpack on the skater's back, shown while flying. */
+  private jetpack: THREE.Object3D | null = null;
   private boardHeight = 0.16;
   /** Node positions of the rig model before any animation moved them. */
   private rigRest = new Map<string, THREE.Vector3>();
@@ -215,6 +231,10 @@ export class SkateRushGame {
   private shield = false;
   private magnet = 0;
   private boost = 0;
+  private jet = 0;
+  private spring = 0;
+  /** 0..1: how far the camera has risen to follow the jetpack. */
+  private jetBlend = 0;
   private invulnerable = 0;
   private crashT = 0;
   private boardFly = { vy: 0, vz: 0 };
@@ -246,7 +266,7 @@ export class SkateRushGame {
   // Model lists for the current stage, filtered to what actually loaded.
   private cars: string[] = [];
 
-  private hud: Hud = { score: 0, coins: 0, distance: 0, shield: false, magnet: 0, boost: 0 };
+  private hud: Hud = { score: 0, coins: 0, distance: 0, shield: false, magnet: 0, boost: 0, jet: 0, spring: 0 };
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -350,7 +370,7 @@ export class SkateRushGame {
       this.setBoard(loadout.board);
       this.resetWorld();
       this.resetRun();
-      music.play(CITY_RUSH, 0);
+      music.play(this.song, 0);
       this.setPhase("menu");
     } catch (err) {
       console.error(err);
@@ -417,6 +437,10 @@ export class SkateRushGame {
       return group;
     };
     const made = (key: string, object: THREE.Object3D) => this.protos.set(key, { object, size: new THREE.Vector3(1, 1, 1), animations: [] });
+    // The jetpack and the spring shoes are built from simple shapes.
+    made("jetpack", scaled(makeJetpack(), 1.6));
+    made("spring", scaled(makeSpring(), 1.15));
+    made("orb-spring", scaled(makeSpring(), 0.5));
     made("kerb-a", kerb("#22d3ee"));
     made("kerb-b", kerb("#e879f9"));
     made("lamp-glow", glow());
@@ -559,6 +583,13 @@ export class SkateRushGame {
     orb(this.orbs.shield, "orb-heart");
     orb(this.orbs.magnet, "orb-star");
     orb(this.orbs.boost, "orb-jewel");
+    orb(this.orbs.spring, "orb-spring");
+
+    // On the skater's back (the body faces away from the camera, so its back is -z).
+    this.jetpack = makeJetpack();
+    this.jetpack.position.set(0, 0.45, -0.24);
+    this.jetpack.visible = false;
+    this.body.add(this.jetpack);
   }
 
   /** Builds a skater once its model is loaded: the shared skate animations, fitted to its body. */
@@ -677,8 +708,14 @@ export class SkateRushGame {
     if (def.id === this.stage.id && this.builtStages.has(def.id)) return;
     this.buildStage(def);
     this.applyStage(def);
+    music.play(this.song);
     const inRun = this.phase !== "menu";
     this.resetWorld(inRun ? this.distance : 0);
+  }
+
+  /** The stage's own theme. */
+  private get song() {
+    return SKATE_SONGS[this.stage.id] ?? CITY_RUSH;
   }
 
   get currentLoadout(): Loadout {
@@ -719,7 +756,7 @@ export class SkateRushGame {
     this.resetRun();
     this.play("skate", { fade: 0.3 });
     this.sfx.go();
-    music.play(CITY_RUSH, 1);
+    music.play(this.song, 1);
     music.duck(false);
     this.setPhase("playing");
   }
@@ -727,6 +764,7 @@ export class SkateRushGame {
   pause() {
     if (this.phase !== "playing") return;
     this.sfx.rolling(0);
+    this.sfx.thrust(0);
     music.duck(true);
     this.setPhase("paused");
   }
@@ -743,7 +781,8 @@ export class SkateRushGame {
     this.resetRun();
     this.camBlend = 0;
     this.sfx.rolling(0);
-    music.play(CITY_RUSH, 0);
+    this.sfx.thrust(0);
+    music.play(this.song, 0);
     music.duck(false);
     this.play("idle", { fade: 0.2 });
     this.setPhase("menu");
@@ -807,6 +846,8 @@ export class SkateRushGame {
     this.shield = false;
     this.magnet = 0;
     this.boost = 0;
+    this.jet = 0;
+    this.spring = 0;
     this.invulnerable = 0;
     this.crashT = 0;
     this.wobble = 0;
@@ -861,6 +902,7 @@ export class SkateRushGame {
   // --- Controls ---------------------------------------------------------------------------------
 
   private blocked(lane: number) {
+    if (this.jet > 0) return false;
     const top = this.y + (this.duckT > 0 ? DUCK_H : STAND_H);
     return this.obstacles.some(
       (o) => !o.fly && o.lane === lane && Math.abs(this.distance - o.s) < o.halfLen + 0.5 && this.y + 0.08 < o.yMax && top > o.yMin,
@@ -888,8 +930,13 @@ export class SkateRushGame {
     return GRAVITY * this.rules.gravity;
   }
 
-  private get jumpV() {
+  /** The jump on an ordinary board; the spring shoes add to it. */
+  private get baseJumpV() {
     return this.rules.gravity < 1 ? JUMP_V * 0.9 : JUMP_V;
+  }
+
+  private get jumpV() {
+    return this.baseJumpV * (this.spring > 0 ? SPRING_JUMP : 1);
   }
 
   private jump() {
@@ -902,9 +949,34 @@ export class SkateRushGame {
     this.trick = Math.random() < 0.6 ? "flip" : "spin";
     this.play(this.trick === "flip" ? "skate-air" : "skate-grab", { once: true, fade: 0.08 });
     this.sfx.jump();
+    if (this.spring > 0) this.sfx.spring();
+  }
+
+  /** Takes off on the jetpack: up over the traffic, with a trail of coins laid out in the sky. */
+  private startJet() {
+    this.jet = JET_TIME;
+    this.grounded = false;
+    this.vy = 0;
+    this.airTime = 0;
+    this.duckT = 0;
+    this.duckQueued = false;
+    this.trick = "spin";
+    this.play("skate-grab", { once: true, fade: 0.1 });
+    this.sfx.jetStart();
+    this.shake = Math.max(this.shake, 0.3);
+    const v = this.speedAt(this.distance) * JET_PACE;
+    const end = this.distance + v * (JET_TIME - 0.7);
+    let lane = this.lane;
+    for (let s = this.distance + v * 0.9; s < end - 8; ) {
+      const to = Math.min(end, s + rand(22, 36));
+      this.coinLine(lane, s, to, JET_H + 0.45);
+      s = to + 7;
+      lane = lane === 1 ? pick([0, 2]) : 1;
+    }
   }
 
   private duck() {
+    if (this.jet > 0) return;
     if (!this.grounded) {
       this.vy = Math.min(this.vy, SLAM_V);
       this.duckQueued = true;
@@ -1036,13 +1108,24 @@ export class SkateRushGame {
     this.runTime += dt;
     const target = this.speedAt(this.distance);
     this.speed = Math.min(target, this.speed + dt * 30);
-    this.distance += this.speed * dt;
+    const pace = this.jet > 0 ? JET_PACE : 1;
+    this.distance += this.speed * pace * dt;
     this.track.position.z = this.distance;
     const multiplier = this.boost > 0 ? 2 : 1;
-    this.points += this.speed * dt * 0.5 * multiplier;
+    this.points += this.speed * pace * dt * 0.5 * multiplier;
 
-    // Vertical motion.
-    if (!this.grounded) {
+    // Vertical motion: the jetpack holds the skater up; out of fuel, they drop back to the street
+    // (and cannot be hit until they have landed and looked around).
+    if (this.jet > 0) {
+      this.jet -= dt;
+      this.y = damp(this.y, JET_H + Math.sin(this.elapsed * 2.4) * 0.18, 3.5, dt);
+      this.vy = 0;
+      if (this.jet <= 0) {
+        this.jet = 0;
+        this.invulnerable = Math.max(this.invulnerable, 1.8);
+        this.sfx.jetEnd();
+      }
+    } else if (!this.grounded) {
       this.airTime += dt;
       this.vy -= this.gravity * dt;
       this.y += this.vy * dt;
@@ -1070,6 +1153,8 @@ export class SkateRushGame {
     this.player.position.set(this.x + this.wobble * 0.35, this.y, 0);
     const lean = THREE.MathUtils.clamp((tx - this.x) * 0.16 + this.wobble * 0.25, -0.35, 0.35);
     this.body.rotation.z = damp(this.body.rotation.z, lean, 14, dt);
+    // Flying: lean into the wind.
+    this.body.rotation.x = damp(this.body.rotation.x, this.jet > 0 ? -0.32 : 0, 6, dt);
 
     // Tricks: kickflip (board rolls) or a 360 spin (whole body).
     const airProgress = this.grounded ? 1 : Math.min(1, this.airTime / ((2 * this.jumpV) / this.gravity));
@@ -1083,6 +1168,7 @@ export class SkateRushGame {
     // Power-up timers.
     this.magnet = Math.max(0, this.magnet - dt);
     this.boost = Math.max(0, this.boost - dt);
+    this.spring = Math.max(0, this.spring - dt);
     this.invulnerable = Math.max(0, this.invulnerable - dt);
 
     this.updateObstacles(dt);
@@ -1090,6 +1176,7 @@ export class SkateRushGame {
     this.spawnAhead();
     this.cleanup();
     this.sfx.rolling(this.grounded ? 0.35 + (0.65 * this.speed) / MAX_SPEED : 0);
+    this.sfx.thrust(this.jet > 0 ? 1 : 0);
     music.setIntensity(this.speed > 25 ? 2 : 1);
     this.emitHud();
   }
@@ -1139,7 +1226,9 @@ export class SkateRushGame {
     this.duckT = 0;
     this.sfx.crash();
     this.sfx.rolling(0);
+    this.sfx.thrust(0);
     music.setIntensity(0);
+    this.body.rotation.x = 0;
     this.body.rotation.y = Math.PI;
     this.boardPivot.rotation.set(0, 0, 0);
     this.boardFly = { vy: 7, vz: 9 };
@@ -1194,8 +1283,11 @@ export class SkateRushGame {
     const menuPos = this.tmpPos.copy(preset.pos);
     const menuLook = this.tmpLook.copy(preset.look);
     const back = this.portrait ? 8.6 : 6.6;
-    this.gamePos.set(this.x * 0.55, (this.portrait ? 4.2 : 3.5) + this.y * 0.35, back + speedT * 0.8);
-    this.gameLook.set(this.x * 0.7, 1.15 + this.y * 0.25, -8);
+    // On the jetpack the camera climbs with the skater, so the coins in the sky stay in view.
+    this.jetBlend = damp(this.jetBlend, this.jet > 0 && this.phase !== "menu" ? 1 : 0, 3, dt);
+    const lift = this.jetBlend * 2.1;
+    this.gamePos.set(this.x * 0.55, (this.portrait ? 4.2 : 3.5) + this.y * 0.35 + lift, back + speedT * 0.8 + this.jetBlend * 1.2);
+    this.gameLook.set(this.x * 0.7, 1.15 + this.y * 0.25 + lift, -8);
     menuPos.lerp(this.gamePos, k);
     menuLook.lerp(this.gameLook, k);
     // Swing out to the side on the way between the two, instead of passing through the rider.
@@ -1396,7 +1488,7 @@ export class SkateRushGame {
   }
 
   /** Builds one obstacle; `s` is its near edge. Returns it so the caller knows its length. */
-  private addObstacle(kind: ObKind, lane: number, s: number, opts: { car?: string; speed?: number } = {}): Obstacle {
+  private addObstacle(kind: ObKind, lane: number, s: number, opts: { car?: string; speed?: number; drive?: number } = {}): Obstacle {
     const holder = new THREE.Group();
     this.track.add(holder);
     const parts: Part[] = [];
@@ -1437,7 +1529,7 @@ export class SkateRushGame {
       const key = opts.car ?? pick(this.cars);
       const size = this.size(key);
       // Oncoming traffic faces the player; parked cars face either way.
-      add(key, 0, 0, 0, opts.speed || Math.random() < 0.5 ? 0 : Math.PI);
+      add(key, 0, 0, 0, opts.speed || opts.drive || Math.random() < 0.5 ? 0 : Math.PI);
       action = "block";
       halfLen = size.z / 2 - 0.15;
       halfW = size.x / 2 - 0.1;
@@ -1448,7 +1540,23 @@ export class SkateRushGame {
       halfLen = this.size(barrier).z / 2;
       yMax = this.size(barrier).y;
     }
-    const ob: Obstacle = { holder, parts, action, lane, x: laneX(lane), s: s + halfLen, halfLen, halfW, yMin, yMax, speed: opts.speed ?? 0, fly: null };
+    const centre = s + halfLen;
+    const ob: Obstacle = {
+      holder,
+      parts,
+      action,
+      lane,
+      x: laneX(lane),
+      s: centre,
+      halfLen,
+      halfW,
+      yMin,
+      yMax,
+      speed: opts.speed ?? 0,
+      wake: opts.drive ? centre - RUSH_WAKE : null,
+      drive: opts.drive ?? 0,
+      fly: null,
+    };
     holder.position.set(ob.x, 0, -ob.s);
     this.obstacles.push(ob);
     return ob;
@@ -1462,15 +1570,45 @@ export class SkateRushGame {
   }
 
   private addPickup(kind: PickupKind, x: number, s: number, y: number) {
-    const key = kind === "coin" ? M.coin : kind === "shield" ? M.heart : kind === "magnet" ? M.star : M.jewel;
+    const key = kind === "coin" ? M.coin : kind === "shield" ? M.heart : kind === "magnet" ? M.star : kind === "boost" ? M.jewel : kind;
     if (!this.protos.has(key)) return;
     const part = this.place(key, x, s, y);
     part.obj.rotation.y = s * 0.35; // coins in a line spin in a wave
     this.pickups.push({ part, kind, s, x, y, attract: false, taken: -1 });
   }
 
-  private coinLine(lane: number, from: number, to: number) {
-    for (let s = from; s <= to; s += 2.6) this.addPickup("coin", laneX(lane), s, 0.5);
+  private coinLine(lane: number, from: number, to: number, y = 0.5) {
+    for (let s = from; s <= to; s += 2.6) this.addPickup("coin", laneX(lane), s, y);
+  }
+
+  /**
+   * Rush hour: a stretch with no barriers, only cars. Each stands in its lane until the skater is
+   * close, then drives at them, timed to pass one after another — a lane (marked by coins) is always
+   * free, and it moves from car to car. Further down the street the cars are faster, closer together
+   * and more often two abreast. Returns where the stretch ends.
+   */
+  private spawnRush(s: number, d: number, d2: number) {
+    const v = this.speedAt(s);
+    const drive = rand(8, 10 + d * 4 + d2 * 3);
+    // How far a car has driven when it reaches the skater.
+    const lead = (RUSH_WAKE * drive) / (v + drive);
+    const gap = v * (1.05 - d * 0.25 - d2 * 0.12);
+    const cars = 3 + Math.floor(rand(0, 2 + d * 3 + d2 * 3));
+    let free = pick([0, 1, 2]);
+    let meet = s + 8;
+    let end = s;
+    for (let i = 0; i < cars; i++) {
+      if (i > 0 && Math.random() < 0.65) free = THREE.MathUtils.clamp(free + (Math.random() < 0.5 ? -1 : 1), 0, 2);
+      const others = [0, 1, 2].filter((l) => l !== free);
+      const lanes = Math.random() < 0.2 + d * 0.35 + d2 * 0.2 ? others : [pick(others)];
+      for (const lane of lanes) {
+        const car = this.addObstacle("car", lane, meet + lead, { drive });
+        end = Math.max(end, car.s + car.halfLen);
+      }
+      this.coinLine(free, meet - gap * 0.3, meet + gap * 0.3);
+      meet += gap;
+    }
+    return end;
   }
 
   private canSendTraffic(lane: number, sCar: number, carSpeed: number) {
@@ -1484,6 +1622,8 @@ export class SkateRushGame {
   private spawnRow() {
     const s = this.cursor.row;
     const d = Math.min(1, s / 3200);
+    // Past the first three kilometres the street keeps getting busier, more slowly.
+    const d2 = THREE.MathUtils.clamp((s - 3000) / 7000, 0, 1);
     const placed: (Obstacle[] | null)[] = [null, null, null];
     const lanes = [0, 1, 2].sort(() => Math.random() - 0.5);
     const passableKind = (): ObKind => pick(["barrier", "barrier", "fence", "cones", "gate", "gate"] as const);
@@ -1495,12 +1635,21 @@ export class SkateRushGame {
       ["double", 0.9 + d * 0.4],
       ["triple", 0.15 + d * 0.7],
       ["train", 0.35 + d * 0.35],
-      ["traffic", s > 250 ? 0.3 + d * 0.4 : 0],
+      ["traffic", s > 250 ? 0.3 + d * 0.4 + d2 * 0.2 : 0],
+      ["rush", s > 400 ? 0.3 + d * 0.45 + d2 * 0.5 : 0],
       ["breather", 0.3 - d * 0.15],
     ];
     let r = Math.random() * weights.reduce((n, [, w]) => n + w, 0);
     const pattern = weights.find(([, w]) => (r -= w) < 0)?.[0] ?? "single";
+    const rowGap = Math.max(15, this.speedAt(s) * (1.45 - d * 0.6 - d2 * 0.2));
 
+    if (pattern === "rush") {
+      const end = this.spawnRush(s, d, d2);
+      this.rows.push({ s, end, passable: [true, true, true] });
+      this.lastRowEnd = end;
+      this.cursor.row = end + rowGap;
+      return;
+    }
     if (pattern === "single") {
       placed[lanes[0]] = [this.addObstacle(anyKind(), lanes[0], s)];
     } else if (pattern === "double") {
@@ -1522,7 +1671,7 @@ export class SkateRushGame {
       placed[lanes[0]] = train;
       if (Math.random() < 0.3 + d * 0.5) placed[lanes[1]] = [this.addObstacle(passableKind(), lanes[1], s + rand(0, at - s))];
     } else if (pattern === "traffic") {
-      const carSpeed = rand(7, 11 + d * 5);
+      const carSpeed = rand(7, 11 + d * 5 + d2 * 3);
       if (this.canSendTraffic(lanes[0], s, carSpeed)) {
         placed[lanes[0]] = [this.addObstacle("car", lanes[0], s, { speed: carSpeed })];
         if (Math.random() < 0.5) placed[lanes[1]] = [this.addObstacle(passableKind(), lanes[1], s)];
@@ -1551,12 +1700,15 @@ export class SkateRushGame {
       if (powerHere) {
         const mid = (from + trailEnd) / 2;
         this.coinLine(coinLane, from, mid - 4);
-        this.addPickup(pick(["shield", "magnet", "boost"] as const), laneX(coinLane), mid, 0.45);
+        // The jetpack is the rare one, and never the first power-up of a run.
+        const powers: PickupKind[] = ["shield", "magnet", "boost", "spring", "spring"];
+        if (s > 600) powers.push("jetpack", "jetpack");
+        this.addPickup(pick(powers), laneX(coinLane), mid, 0.45);
         this.coinLine(coinLane, mid + 4, trailEnd);
-        this.cursor.power = s + rand(420, 720);
+        this.cursor.power = s + rand(340, 600);
       } else if (trailEnd - from > 4) this.coinLine(coinLane, from, trailEnd);
       if (obstacle?.action === "jump") {
-        const peak = 1.7 * (this.jumpV * this.jumpV) / (JUMP_V * JUMP_V) / this.rules.gravity;
+        const peak = 1.7 * (this.baseJumpV * this.baseJumpV) / (JUMP_V * JUMP_V) / this.rules.gravity;
         for (let i = -2; i <= 2; i++) {
           const u = i / 2.5;
           this.addPickup("coin", laneX(coinLane), obstacle.s + i * 2.2, 0.5 + peak * (1 - u * u));
@@ -1566,9 +1718,8 @@ export class SkateRushGame {
       }
     }
 
-    const gap = Math.max(15, this.speedAt(s) * (1.45 - d * 0.6));
     this.lastRowEnd = breather ? s + 34 : end;
-    this.cursor.row = this.lastRowEnd + gap;
+    this.cursor.row = this.lastRowEnd + rowGap;
   }
 
   // --- Per-frame entity updates -----------------------------------------------------------------
@@ -1586,6 +1737,10 @@ export class SkateRushGame {
         o.holder.rotation.z += o.fly.spin.z * dt;
         continue;
       }
+      if (o.wake !== null && this.distance >= o.wake) {
+        o.wake = null;
+        o.speed = o.drive;
+      }
       if (o.speed) {
         o.s -= o.speed * dt;
         o.holder.position.z = -o.s;
@@ -1601,7 +1756,7 @@ export class SkateRushGame {
       const dz = Math.abs(this.distance - o.s);
       if (dz > o.halfLen + 0.45 || Math.abs(o.x - this.x) > o.halfW + 0.38) continue;
       if (this.y + 0.08 > o.yMax || top < o.yMin) continue;
-      if (this.invulnerable > 0) continue;
+      if (this.invulnerable > 0 || this.jet > 0) continue;
       if (this.shield || this.invincible) {
         if (!this.invincible) this.shield = false;
         this.invulnerable = 1.2;
@@ -1641,6 +1796,8 @@ export class SkateRushGame {
         this.sfx.power();
         if (p.kind === "shield") this.shield = true;
         else if (p.kind === "magnet") this.magnet = POWER_TIME;
+        else if (p.kind === "jetpack") this.startJet();
+        else if (p.kind === "spring") this.spring = POWER_TIME;
         else this.boost = POWER_TIME;
       }
     }
@@ -1668,7 +1825,7 @@ export class SkateRushGame {
 
   private animateOrbs(dt: number) {
     const t = this.elapsed;
-    const { shield, magnet, boost } = this.orbs;
+    const { shield, magnet, boost, spring } = this.orbs;
     const running = this.phase === "playing" || this.phase === "paused";
     shield.visible = running && this.shield && (this.invulnerable <= 0 || Math.floor(t * 12) % 2 === 0);
     magnet.visible = running && this.magnet > 0 && (this.magnet > 2 || Math.floor(t * 8) % 2 === 0);
@@ -1676,6 +1833,14 @@ export class SkateRushGame {
     shield.position.set(Math.cos(t * 3) * 0.9, 1.0, Math.sin(t * 3) * 0.9);
     magnet.position.set(Math.cos(t * 3 + Math.PI) * 0.9, 1.3, Math.sin(t * 3 + Math.PI) * 0.9);
     boost.position.set(0, 2.05 + Math.sin(t * 4) * 0.08, 0);
+    spring.visible = running && this.spring > 0 && (this.spring > 2 || Math.floor(t * 8) % 2 === 0);
+    spring.position.set(Math.cos(t * 3 + Math.PI / 2) * 0.9, 0.55 + Math.abs(Math.sin(t * 6)) * 0.25, Math.sin(t * 3 + Math.PI / 2) * 0.9);
+    if (this.jetpack) {
+      // Blinks as the fuel runs out; the flames flicker.
+      this.jetpack.visible = running && this.jet > 0 && (this.jet > 1.5 || Math.floor(t * 8) % 2 === 0);
+      const flames = this.jetpack.getObjectByName("flames");
+      if (flames) flames.scale.set(1, 0.8 + Math.sin(t * 43) * 0.18 + Math.sin(t * 71) * 0.12, 1);
+    }
     shield.rotation.y += dt * 3;
     magnet.rotation.y += dt * 3;
     boost.rotation.y += dt * 2;
@@ -1689,6 +1854,8 @@ export class SkateRushGame {
       shield: this.shield,
       magnet: Math.ceil(this.magnet * 10) / 10,
       boost: Math.ceil(this.boost * 10) / 10,
+      jet: Math.ceil(this.jet * 10) / 10,
+      spring: Math.ceil(this.spring * 10) / 10,
     };
     const h = this.hud;
     if (
@@ -1698,12 +1865,82 @@ export class SkateRushGame {
       h.distance === next.distance &&
       h.shield === next.shield &&
       h.magnet === next.magnet &&
-      h.boost === next.boost
+      h.boost === next.boost &&
+      h.jet === next.jet &&
+      h.spring === next.spring
     )
       return;
     this.hud = next;
     this.events.hud(next);
   }
+}
+
+/** A made model at another size (its own group, so pooled copies can be scaled freely). */
+function scaled(model: THREE.Object3D, scale: number) {
+  const group = new THREE.Group();
+  model.scale.setScalar(scale);
+  group.add(model);
+  return group;
+}
+
+/** The jetpack: two red tanks on a grey frame, with a flame under each. Stands on y = 0. */
+function makeJetpack() {
+  const pack = new THREE.Group();
+  const red = new THREE.MeshStandardMaterial({ color: "#e11d48", roughness: 0.35, metalness: 0.3 });
+  const steel = new THREE.MeshStandardMaterial({ color: "#94a3b8", roughness: 0.4, metalness: 0.7 });
+  const gold = new THREE.MeshStandardMaterial({ color: "#fbbf24", roughness: 0.3, metalness: 0.6 });
+  const fire = new THREE.MeshBasicMaterial({ color: "#ffb020", toneMapped: false, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+  const core = new THREE.MeshBasicMaterial({ color: "#fff6c4", toneMapped: false, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.42, 0.12), steel);
+  frame.position.y = 0.48;
+  pack.add(frame);
+  const flames = new THREE.Group();
+  flames.name = "flames";
+  flames.position.y = 0.2;
+  for (const x of [-0.17, 0.17]) {
+    const tank = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.34, 4, 12), red);
+    tank.position.set(x, 0.5, 0);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.06, 12), gold);
+    band.position.set(x, 0.56, 0);
+    const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, 0.12, 12), steel);
+    nozzle.position.set(x, 0.22, 0);
+    pack.add(tank, band, nozzle);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.5, 10), fire);
+    flame.rotation.x = Math.PI;
+    flame.position.set(x, -0.25, 0);
+    const inner = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.3, 8), core);
+    inner.rotation.x = Math.PI;
+    inner.position.set(x, -0.15, 0);
+    flames.add(flame, inner);
+  }
+  pack.add(flames);
+  pack.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh && o.parent !== flames) o.castShadow = true;
+  });
+  return pack;
+}
+
+/** The spring shoes' pickup: a steel coil on a green foot, with a green arrow pointing up. */
+function makeSpring() {
+  const spring = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.3, metalness: 0.8 });
+  const green = new THREE.MeshStandardMaterial({ color: "#22c55e", roughness: 0.4, emissive: "#16a34a", emissiveIntensity: 0.5 });
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.1, 16), green);
+  foot.position.y = 0.05;
+  spring.add(foot);
+  for (let i = 0; i < 4; i++) {
+    const coil = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.045, 8, 18), steel);
+    coil.rotation.x = Math.PI / 2;
+    coil.position.y = 0.17 + i * 0.12;
+    spring.add(coil);
+  }
+  const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.32, 4), green);
+  arrow.position.y = 0.82;
+  spring.add(arrow);
+  spring.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+  });
+  return spring;
 }
 
 function restPose(scene: THREE.Object3D) {

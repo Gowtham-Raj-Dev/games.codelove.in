@@ -5,6 +5,7 @@ export class Sfx {
   private coinStep = 0;
   private lastCoin = 0;
   private readonly roll = new NoiseLoop({ type: "lowpass", freq: 500 });
+  private readonly jet = new NoiseLoop({ type: "bandpass", freq: 900 });
 
   coin() {
     // Coins picked up in quick succession climb a little scale.
@@ -63,7 +64,28 @@ export class Sfx {
     this.roll.set(level * 0.16, 350 + level * 700);
   }
 
+  /** Jetpack roar: level 0..1. */
+  thrust(level: number) {
+    this.jet.set(level * 0.2, 700 + level * 500);
+  }
+
+  jetStart() {
+    audio.noise(0.7, { volume: 0.45, freq: 500, type: "bandpass", slide: 2600, q: 1.2 });
+    audio.jingle([67, 72, 76, 79, 84]);
+  }
+
+  jetEnd() {
+    audio.noise(0.4, { volume: 0.3, freq: 1800, type: "bandpass", slide: -1400, q: 1.2 });
+    audio.tone(520, 0.3, { type: "triangle", volume: 0.14, slide: -300 });
+  }
+
+  /** The boing of a spring-shoe jump. */
+  spring() {
+    audio.tone(180, 0.28, { type: "sine", volume: 0.22, slide: 520 });
+  }
+
   dispose() {
     this.roll.stop();
+    this.jet.stop();
   }
 }

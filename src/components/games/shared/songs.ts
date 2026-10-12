@@ -48,6 +48,239 @@ export const CITY_RUSH: Song = {
   ],
 };
 
+/** Skate Rush, Sunset Docks — a laid-back harbour funk in G mixolydian: G – F – C – G, organ stabs and brass. */
+export const DOCKSIDE_FUNK: Song = {
+  name: "Dockside Funk",
+  bpm: 112,
+  swing: 0.1,
+  root: 55,
+  scale: SCALES.mixolydian,
+  chords: [0, 6, 3, 0],
+  layers: [
+    { inst: "pad", mode: "chord", bars: [WHOLE], gain: 0.8 },
+    { inst: "piano", mode: "rel", octave: 1, bars: ["0 . . 4 . . 7 . 4 . . 2 . . 4 ."], to: 0, gain: 0.7 },
+    { inst: "sub", mode: "rel", bars: [WHOLE], to: 0 },
+    { inst: "organ", mode: "chord", bars: [". . x . . . x . . . x . . x . ."], from: 1, gain: 0.7 },
+    { inst: "kick", bars: ["x . . . . . x . x . . . . . . ."], from: 1 },
+    { inst: "snare", bars: [BACKBEAT], from: 1, gain: 0.8 },
+    { inst: "hat", bars: [OFF8], from: 1, to: 1 },
+    { inst: "hat", bars: [HATS16], from: 2, gain: 0.7 },
+    { inst: "bass", mode: "rel", bars: ["0 . . 0 . . 7 . 0 . . 0 . 4 7 .", "0 . . 0 . . 7 . 0 . 4 . 7 . 4 ."], from: 1 },
+    {
+      inst: "lead",
+      mode: "abs",
+      from: 1,
+      gain: 0.9,
+      bars: [
+        "4 . . 2 . . 4 . 7 . . . 4 . 2 .",
+        "3 . . 1 . . 3 . 6 . . . 5 . 3 .",
+        "5 . . 3 . . 5 . 7 . . . 9 . 7 .",
+        "4 . . . 2 . 1 . 0 . . . - . . .",
+        "7 . . . 9 . 7 . 4 . . 2 4 . . .",
+        "8 . . . 10 . 8 . 6 . . 3 6 . . .",
+        "7 . 5 . 3 . 5 . 7 . 9 . 10 . . .",
+        "9 . 7 . 4 . 2 . 0 . . . . . . .",
+      ],
+    },
+    { inst: "brass", mode: "chord", bars: ["x . . . . . . x . . x . . . . ."], from: 2, gain: 0.7 },
+  ],
+};
+
+/** Skate Rush, Snow Village — a holiday sleigh ride in C major: C – Am – F – G, bells over sleigh-bell shakers. */
+export const SLEIGH_RIDE: Song = {
+  name: "Sleigh Ride",
+  bpm: 126,
+  root: 60,
+  scale: SCALES.major,
+  chords: [0, 5, 3, 4],
+  layers: [
+    { inst: "strings", mode: "chord", bars: [WHOLE], gain: 0.7 },
+    { inst: "marimba", mode: "rel", octave: 1, bars: ["0 . 4 . 7 . 4 . 2 . 4 . 7 . 4 ."], gain: 0.7 },
+    { inst: "sub", mode: "rel", bars: [WHOLE], to: 0 },
+    { inst: "shaker", bars: ["x . . . x . . . x . . . x . . ."], to: 0, gain: 0.7 },
+    { inst: "shaker", bars: ["x . x x x . x x x . x x x . x x"], from: 1, gain: 0.8 },
+    { inst: "kick", bars: [FOUR], from: 1, gain: 0.9 },
+    { inst: "clap", bars: [BACKBEAT], from: 1, gain: 0.6 },
+    { inst: "hat", bars: [HATS16], from: 2, gain: 0.6 },
+    { inst: "bass", mode: "rel", bars: ["0 . . . 4 . . . 0 . . . 4 . 7 ."], from: 1, gain: 0.85 },
+    {
+      inst: "bell",
+      mode: "abs",
+      octave: 1,
+      from: 1,
+      bars: [
+        "7 . 4 . 2 . 4 . 7 . . . 9 . 7 .",
+        "5 . 7 . 9 . 7 . 5 . . . 4 . 2 .",
+        "3 . 5 . 7 . 5 . 10 . . . 9 . 7 .",
+        "8 . 6 . 4 . 6 . 8 . . . . . . .",
+        "9 . . 7 9 . 11 . 9 . 7 . 4 . . .",
+        "7 . . 5 7 . 9 . 7 . 5 . 2 . . .",
+        "5 . 7 . 10 . 9 . 7 . 5 . 3 . 5 .",
+        "4 . 6 . 8 . 11 . 8 . . . - . . .",
+      ],
+    },
+    { inst: "pluck", mode: "rel", octave: 2, bars: ["0 2 4 7 4 2 0 2 4 7 4 2 0 2 4 2"], from: 2, gain: 0.5 },
+  ],
+};
+
+/** Skate Rush, Neon Night — dark synthwave in F♯ minor: F♯m – D – A – E, a driving sixteenth-note bass. */
+export const NEON_DRIVE: Song = {
+  name: "Neon Drive",
+  bpm: 132,
+  root: 54,
+  scale: SCALES.minor,
+  chords: [0, 5, 2, 6],
+  layers: [
+    { inst: "pad", mode: "chord", bars: [WHOLE], gain: 0.9 },
+    { inst: "pluck", mode: "rel", octave: 1, bars: ["0 . 4 . 7 . 4 . 0 . 4 . 7 . 9 ."], gain: 0.6 },
+    { inst: "sub", mode: "rel", bars: [WHOLE], to: 0 },
+    { inst: "kick", bars: [FOUR], from: 1 },
+    { inst: "snare", bars: [BACKBEAT], from: 1, gain: 0.8 },
+    { inst: "hat", bars: [OFF8], from: 1, to: 1 },
+    { inst: "hat", bars: [HATS16], from: 2, gain: 0.8 },
+    { inst: "openhat", bars: [". . x . . . x . . . x . . . x ."], from: 2, gain: 0.6 },
+    { inst: "bass", mode: "rel", bars: ["0 0 7 0 0 0 7 0 0 0 7 0 0 7 0 7"], from: 1, gain: 0.8 },
+    {
+      inst: "lead",
+      mode: "abs",
+      from: 1,
+      bars: [
+        "4 . . . . . 2 . 4 . 7 . . . 4 .",
+        "5 . . . . . 2 . 5 . 9 . . . 7 .",
+        "6 . . . . . 4 . 6 . 9 . . . 8 .",
+        "8 . . . 6 . . . 3 . . . 1 . . .",
+        "7 . 7 . 4 . 7 . 9 . 7 . 4 . 2 .",
+        "7 . 7 . 5 . 7 . 9 . 7 . 5 . 2 .",
+        "9 . 6 . 4 . 6 . 9 . . . 11 . . .",
+        "10 . 8 . 6 . 8 . 7 . . . - . . .",
+      ],
+    },
+    { inst: "strings", mode: "chord", octave: 1, bars: [WHOLE], from: 2, gain: 0.5 },
+  ],
+};
+
+/** Skate Rush, Haunted Hollow — a creeping organ in D harmonic minor: Dm – Gm – Dm – A, a ticking bell and a wailing flute. */
+export const HOLLOW_HAUNT: Song = {
+  name: "Hollow Haunt",
+  bpm: 118,
+  root: 50,
+  scale: SCALES.harmonicMinor,
+  chords: [0, 3, 0, 4],
+  layers: [
+    { inst: "organ", mode: "chord", bars: [WHOLE], gain: 0.7 },
+    { inst: "bell", mode: "rel", octave: 1, bars: ["7 . . . 4 . . . 7 . . . 4 . . ."], gain: 0.6 },
+    { inst: "sub", mode: "rel", bars: [WHOLE], to: 0 },
+    { inst: "kick", bars: ["x . . . . . x . x . . . . . . ."], from: 1 },
+    { inst: "snare", bars: [BACKBEAT], from: 1, gain: 0.8 },
+    { inst: "hat", bars: ["x . x . x . x . x . x . x . x ."], from: 1, to: 1, gain: 0.7 },
+    { inst: "hat", bars: [HATS16], from: 2, gain: 0.7 },
+    { inst: "bass", mode: "rel", bars: ["0 . . 0 . . 4 . 0 . . 0 . 7 4 ."], from: 1, gain: 0.85 },
+    {
+      inst: "flute",
+      mode: "abs",
+      octave: 1,
+      from: 1,
+      bars: [
+        "0 . . . 2 . . . 4 . . . 3 . 2 .",
+        "3 . . . 5 . . . 7 . . . 5 . 3 .",
+        "4 . . . 7 . . . 9 . . . 8 . 7 .",
+        "6 . . . . . 8 . 6 . . . 4 . . .",
+        "7 . 6 . 7 . 9 . 7 . . . 4 . . .",
+        "10 . 9 . 10 . 12 . 10 . . . 7 . . .",
+        "9 . 7 . 4 . 7 . 9 . 11 . 9 . 7 .",
+        "8 . 6 . 4 . 6 . 7 . . . - . . .",
+      ],
+    },
+    { inst: "tom", bars: [". . . . . . . . . . . . x . x x"], from: 2, gain: 0.7 },
+    { inst: "strings", mode: "chord", bars: ["x . . . . . . . x . . . . . . ."], from: 2, gain: 0.6 },
+  ],
+};
+
+/** Skate Rush, Pirate Cove — a sunny jig in 6/8, D major: accordion, flute and deck drums. */
+export const BEACH_JIG: Song = {
+  name: "Beach Jig",
+  bpm: 116,
+  beats: 2,
+  steps: 12,
+  root: 50,
+  scale: SCALES.major,
+  chords: [0, 3, 0, 4, 0, 3, 4, 0],
+  layers: [
+    { inst: "accordion", mode: "chord", bars: ["x . . . . . . . . . . ."], to: 0 },
+    { inst: "marimba", mode: "rel", octave: 1, bars: ["0 . 2 . 4 . 7 . 4 . 2 ."], to: 0, gain: 0.6 },
+    { inst: "sub", mode: "rel", bars: ["0 . . . . . . . . . . ."], to: 0 },
+    { inst: "accordion", mode: "chord", bars: [". . x . x . . . x . x ."], from: 1, gain: 0.8 },
+    { inst: "bass", mode: "rel", bars: ["0 . . . . . 4 . . . . ."], from: 1 },
+    { inst: "kick", bars: ["x . . . . . x . . . . ."], from: 1, gain: 0.9 },
+    { inst: "shaker", bars: [". . x . x . . . x . x ."], from: 1 },
+    { inst: "clap", bars: [". . . . . . x . . . . ."], from: 2, gain: 0.6 },
+    {
+      inst: "flute",
+      mode: "abs",
+      octave: 1,
+      from: 1,
+      bars: [
+        "4 . 2 . 4 . 7 . 4 . 2 .",
+        "5 . 3 . 5 . 7 . . . 5 .",
+        "4 . 2 . 0 . 2 . 4 . 7 .",
+        "8 . . . 6 . 4 . . . . .",
+        "7 . 9 . 7 . 4 . 7 . 9 .",
+        "10 . 9 . 7 . 5 . 7 . 10 .",
+        "8 . 6 . 4 . 6 . 8 . 11 .",
+        "9 . 7 . 4 . 7 . . . . .",
+      ],
+    },
+    { inst: "tom", bars: [". . . . . . x . x . x x"], from: 2, gain: 0.8 },
+  ],
+};
+
+/** Skate Rush, Moon Base — a weightless half-time drift in A lydian: A – B – A – F♯m, echoing bells and a slow flute. */
+export const LOW_GRAVITY: Song = {
+  name: "Low Gravity",
+  bpm: 108,
+  root: 57,
+  scale: [0, 2, 4, 6, 7, 9, 11],
+  chords: [0, 1, 0, 5],
+  layers: [
+    { inst: "pad", mode: "chord", bars: [WHOLE] },
+    { inst: "bell", mode: "rel", octave: 1, bars: ["0 . 4 . 7 . 4 . 9 . 7 . 4 . 2 ."], gain: 0.6 },
+    { inst: "sub", mode: "rel", bars: [WHOLE] },
+    { inst: "kick", bars: ["x . . . . . . . . . x . . . . ."], from: 1 },
+    { inst: "clap", bars: [". . . . . . . . x . . . . . . ."], from: 1, gain: 0.7 },
+    { inst: "hat", bars: [OFF8], from: 1, to: 1, gain: 0.6 },
+    { inst: "hat", bars: [HATS16], from: 2, gain: 0.5 },
+    { inst: "bass", mode: "rel", bars: ["0 . . . . . 7 . . . 0 . . . 4 ."], from: 1, gain: 0.8 },
+    {
+      inst: "flute",
+      mode: "abs",
+      octave: 1,
+      from: 1,
+      bars: [
+        "4 . . . . . 7 . . . 6 . 4 . . .",
+        "5 . . . . . 8 . . . 7 . 5 . . .",
+        "9 . . . . . 7 . . . 4 . 2 . . .",
+        "5 . . . 7 . . . 9 . . . . . . .",
+        "11 . . . 9 . . . 7 . . . 6 . 4 .",
+        "10 . . . 8 . . . 5 . . . 3 . 5 .",
+        "7 . 9 . 11 . . . 9 . 7 . 4 . . .",
+        "7 . . . 5 . . . 2 . . . - . . .",
+      ],
+    },
+    { inst: "pluck", mode: "rel", octave: 1, bars: ["0 2 4 7 4 2 0 2 4 7 9 7 4 2 0 2"], from: 2, gain: 0.5 },
+  ],
+};
+
+/** Skate Rush: each stage's own theme, by stage id (City Rush for a stage without one). */
+export const SKATE_SONGS: Record<string, Song> = {
+  city: CITY_RUSH,
+  docks: DOCKSIDE_FUNK,
+  snow: SLEIGH_RIDE,
+  neon: NEON_DRIVE,
+  haunted: HOLLOW_HAUNT,
+  pirate: BEACH_JIG,
+  moon: LOW_GRAVITY,
+};
+
 /** Saucer Siege — a sci-fi march in D minor: strings, bells, a theremin-like flute. */
 export const SAUCER_MARCH: Song = {
   name: "Saucer March",
