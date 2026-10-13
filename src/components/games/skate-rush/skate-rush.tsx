@@ -90,7 +90,7 @@ export function SkateRush({ sizes }: { sizes: Record<string, number> }) {
   const [modelSizes] = useState(sizes);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<SkateRushGame | null>(null);
-  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const swipe = useRef(new Map<number, { x: number; y: number }>());
   const [hud] = useState(() => createStore<Hud>(EMPTY_HUD));
   const [phase, setPhase] = useState<Phase>("loading");
   const [progress, setProgress] = useState<LoadProgress | null>(null);
@@ -308,21 +308,23 @@ export function SkateRush({ sizes }: { sizes: Record<string, number> }) {
   }, []);
 
   // Swipes (touch or mouse drag). One touch is one move, however far it travels: lift the finger to swipe again.
+  // Each finger is followed on its own: with two thumbs on the screen, one resting must not bend the other's swipe.
   const onPointerDown = (e: ReactPointerEvent) => {
-    if (phase === "playing") swipe.current = { x: e.clientX, y: e.clientY };
+    if (phase === "playing") swipe.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
   };
   const onPointerMove = (e: ReactPointerEvent) => {
-    const s = swipe.current;
+    const s = swipe.current.get(e.pointerId);
     const game = gameRef.current;
     if (!s || !game) return;
     const dx = e.clientX - s.x;
     const dy = e.clientY - s.y;
-    if (Math.hypot(dx, dy) < 24) return;
+    // A thumb flick is short: it counts sooner than a mouse drag.
+    if (Math.hypot(dx, dy) < (e.pointerType === "mouse" ? 24 : 14)) return;
     game.input(Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? "left" : "right") : dy < 0 ? "jump" : "duck");
-    swipe.current = null;
+    swipe.current.delete(e.pointerId);
   };
-  const endSwipe = () => {
-    swipe.current = null;
+  const endSwipe = (e: ReactPointerEvent) => {
+    swipe.current.delete(e.pointerId);
   };
 
   const running = phase === "playing" || phase === "paused" || phase === "crashed";

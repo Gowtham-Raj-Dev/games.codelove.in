@@ -1,4 +1,4 @@
-import * as THREE from "three";
+﻿import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { audio } from "../shared/audio";
 import { disposeTree, loadModels, makeProto, Pool, type Fit, type LoadedModel, type LoadProgress, type Proto } from "../shared/assets";
@@ -42,13 +42,29 @@ const SPRING_JUMP = 1.45;
 const RUSH_WAKE = 75;
 const COIN_POINTS = 10;
 const ZONE_LEN = 480;
+/** A jump swiped this long before landing still happens, the moment the board touches down. */
+const JUMP_BUFFER = 0.2;
+/** Past the first kilometres the street never stops speeding up: this much per kilometre, up to TOP_SPEED. */
+const LATE_FROM = 2000;
+const LATE_GAIN = 2.2;
+const TOP_SPEED = 52;
+/**
+ * Pixels drawn per screen pixel. Phones draw at 1.5 (about 720p on a full-HD phone: sharp, and a
+ * quarter fewer pixels to shade than 1.75); video recordings (the autopilot) at 1.75. A phone that
+ * still can't keep up (under ~35 frames a second) goes to LOW_RATIO.
+ */
+const TOUCH_RATIO = 1.5;
+const RECORD_RATIO = 1.75;
+const LOW_RATIO = 1.3;
+const SLOW_FRAME = 1 / 35;
 
 const laneX = (lane: number) => (lane - 1) * LANE_W;
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)];
 const damp = (current: number, target: number, lambda: number, dt: number) => current + (target - current) * (1 - Math.exp(-lambda * dt));
 const ease = (t: number) => t * t * (3 - 2 * t);
-const baseSpeedAt = (s: number) => BASE_SPEED + (MAX_SPEED - BASE_SPEED) * (1 - Math.exp(-Math.max(0, s) / 2600));
+const baseSpeedAt = (s: number) =>
+  Math.min(TOP_SPEED, BASE_SPEED + (MAX_SPEED - BASE_SPEED) * (1 - Math.exp(-Math.max(0, s) / 1800)) + (Math.max(0, s - LATE_FROM) / 1000) * LATE_GAIN);
 /** Proto key of a placed model (the same model can be placed at several sizes). */
 const placedKey = (p: Placed) => `${p.key}@${JSON.stringify(p.fit)}`;
 
@@ -224,6 +240,8 @@ export class SkateRushGame {
   private airTime = 0;
   private duckT = 0;
   private duckQueued = false;
+  /** Seconds left in which a jump swiped in the air is still made on landing. */
+  private jumpBuffer = 0;
   private trick: "flip" | "spin" = "flip";
   private wobble = 0;
   private points = 0;
@@ -250,11 +268,33 @@ export class SkateRushGame {
   private readonly viewShift = { x: 0, y: 0, tx: 0, ty: 0 };
   private readonly preset = { pos: new THREE.Vector3(), look: new THREE.Vector3(), ready: false };
 
+  private auto = false;
+  private fps: { el: HTMLElement; t: number; draw: number; n: number } | null = null;
+
   /** Plays itself (trailer recording). */
-  autopilot = false;
+  get autopilot() {
+    return this.auto;
+  }
+
+  set autopilot(on: boolean) {
+    this.auto = on;
+    if (!on || !this.touch) return;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, RECORD_RATIO));
+    this.resize();
+  }
+
   /** Obstacles bounce off instead of ending the run (trailer recording). */
   invincible = false;
   private botCooldown = 0;
+
+  /** Touch screen (phone, tablet, the Android app). */
+  private readonly touch: boolean;
+  private quality = 0;
+  /** Frame-rate watch: time and frames of this sample, slow samples in a row, seconds to wait before sampling. */
+  private perf = { t: 0, n: 0, slow: 0, settle: 2 };
+  /** Skaters / stages downloading now (parsing them drops frames, which says nothing about the phone). */
+  private downloads = 0;
+  private hudAt = 0;
 
   private obstacles: Obstacle[] = [];
   private pickups: Pickup[] = [];
@@ -275,8 +315,15 @@ export class SkateRushGame {
     { visibility = true }: { visibility?: boolean } = {},
   ) {
     const coarse = window.matchMedia("(pointer: coarse)").matches;
+    this.touch = coarse;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.75 : 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? TOUCH_RATIO : 2));
+    if (new URLSearchParams(window.location.search).has("fps")) {
+      const el = document.createElement("div");
+      el.style.cssText = "position:absolute;left:50%;bottom:8px;transform:translateX(-50%);z-index:60;padding:2px 8px;border-radius:6px;background:#000a;color:#fff;font:600 12px monospace;pointer-events:none";
+      (canvas.parentElement ?? document.body).append(el);
+      this.fps = { el, t: 0, draw: 0, n: 0 };
+    }
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
@@ -318,7 +365,8 @@ export class SkateRushGame {
       }),
     );
     sky.frustumCulled = false;
-    sky.renderOrder = -2;
+    // Drawn after the street, so only the sky that is actually seen gets shaded.
+    sky.renderOrder = 10;
     this.camera.add(sky);
     scene.add(this.camera);
 
@@ -342,6 +390,8 @@ export class SkateRushGame {
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.12;
     this.ground.receiveShadow = true;
+    // After the road and buildings: most of it is hidden under them, and those pixels are then skipped.
+    this.ground.renderOrder = 5;
     scene.add(this.ground);
   }
 
@@ -370,6 +420,7 @@ export class SkateRushGame {
       this.setBoard(loadout.board);
       this.resetWorld();
       this.resetRun();
+      this.prewarm();
       music.play(this.song, 0);
       this.setPhase("menu");
     } catch (err) {
@@ -444,6 +495,35 @@ export class SkateRushGame {
     made("kerb-a", kerb("#22d3ee"));
     made("kerb-b", kerb("#e879f9"));
     made("lamp-glow", glow());
+    // Coins come dozens at a time: have them ready instead of cloning them mid-run.
+    const coins = Array.from({ length: 80 }, () => this.pool.get(M.coin));
+    for (const coin of coins) this.pool.release(M.coin, coin);
+  }
+
+  /**
+   * Compiles the shaders and uploads the textures of every model of the stage now. Otherwise each
+   * one does it the first time it comes into view — the first taxi of a run froze a phone for a moment.
+   */
+  private prewarm() {
+    const holder = new THREE.Group();
+    const own = `${this.stage.id}|`;
+    for (const [key, proto] of this.protos) if (!key.includes("|") || key.startsWith(own)) holder.add(proto.object);
+    this.scene.add(holder);
+    try {
+      this.renderer.compile(this.scene, this.camera);
+      holder.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+          for (const value of Object.values(material)) if (value instanceof THREE.Texture) this.renderer.initTexture(value);
+        }
+      });
+    } catch (err) {
+      // Only a head start: the game plays without it.
+      console.warn("[skate-rush] prewarm failed", err);
+    }
+    this.scene.remove(holder);
+    holder.clear();
   }
 
   /** Every model of a stage, in the stage's own materials (tint, snow, lit windows). */
@@ -550,6 +630,7 @@ export class SkateRushGame {
         const sea = new THREE.Mesh(new THREE.PlaneGeometry(500, 900), material);
         sea.rotation.x = -Math.PI / 2;
         sea.receiveShadow = true;
+        sea.renderOrder = 5;
         sea.userData.side = side;
         this.water.push(sea);
         scene.add(sea);
@@ -645,7 +726,9 @@ export class SkateRushGame {
     const ticket = ++this.request.skater;
     if (!this.models.has(def.key)) {
       this.events.busy?.({ label: def.name, ratio: 0 });
+      this.downloads++;
       const loaded = await loadModels([def.key], this.renderer, (p) => this.request.skater === ticket && this.events.busy?.({ label: def.name, ratio: p.ratio }));
+      this.downloads--;
       if (this.disposed) return;
       loaded.forEach((m, k) => this.models.set(k, m));
       if (this.request.skater === ticket) this.events.busy?.(null);
@@ -699,7 +782,9 @@ export class SkateRushGame {
     const missing = stageModels(def).filter((k) => !this.models.has(k));
     if (missing.length) {
       this.events.busy?.({ label: def.name, ratio: 0 });
+      this.downloads++;
       const loaded = await loadModels(missing, this.renderer, (p) => this.request.stage === ticket && this.events.busy?.({ label: def.name, ratio: p.ratio }));
+      this.downloads--;
       if (this.disposed) return;
       loaded.forEach((m, k) => this.models.set(k, m));
       if (this.request.stage === ticket) this.events.busy?.(null);
@@ -711,6 +796,7 @@ export class SkateRushGame {
     music.play(this.song);
     const inRun = this.phase !== "menu";
     this.resetWorld(inRun ? this.distance : 0);
+    this.prewarm();
   }
 
   /** The stage's own theme. */
@@ -841,6 +927,7 @@ export class SkateRushGame {
     this.grounded = true;
     this.duckT = 0;
     this.duckQueued = false;
+    this.jumpBuffer = 0;
     this.points = 0;
     this.coins = 0;
     this.shield = false;
@@ -940,7 +1027,15 @@ export class SkateRushGame {
   }
 
   private jump() {
-    if (!this.grounded) return;
+    if (!this.grounded) {
+      // Swiped a moment early: remember it for the landing.
+      if (this.jet <= 0) {
+        this.jumpBuffer = JUMP_BUFFER;
+        this.duckQueued = false;
+      }
+      return;
+    }
+    this.jumpBuffer = 0;
     this.grounded = false;
     this.vy = this.jumpV;
     this.airTime = 0;
@@ -980,6 +1075,7 @@ export class SkateRushGame {
     if (!this.grounded) {
       this.vy = Math.min(this.vy, SLAM_V);
       this.duckQueued = true;
+      this.jumpBuffer = 0;
       return;
     }
     if (this.duckT <= 0) this.sfx.duck();
@@ -1039,7 +1135,9 @@ export class SkateRushGame {
     if (this.disposed || this.suspended) return;
     this.raf = requestAnimationFrame(this.frame);
     this.timer.update(time);
-    const dt = Math.min(this.timer.getDelta(), 1 / 20);
+    const raw = this.timer.getDelta();
+    const dt = Math.min(raw, 1 / 20);
+    this.watchFrameRate(raw);
 
     if (this.phase === "playing") this.updateRun(dt);
     else if (this.phase === "crashed") this.updateCrash(dt);
@@ -1063,7 +1161,50 @@ export class SkateRushGame {
       this.skyAnchor.position.copy(this.camera.position);
       this.renderer.render(this.scene, this.camera);
     }
+    if (this.fps) this.showFps(raw, performance.now() - time);
   };
+
+  /**
+   * Touch screens: when the frame rate stays really low, the picture gets a little less sharp, once
+   * (and never back, so it can't flicker). Not while the autopilot records a video.
+   */
+  private watchFrameRate(raw: number) {
+    if (!this.touch || this.autopilot || this.quality > 0) return;
+    if (this.phase !== "playing" && this.phase !== "menu") return;
+    const p = this.perf;
+    // A single long frame is a hitch (a download, the tab coming back), not the frame rate.
+    if (this.downloads > 0 || raw > 0.25) {
+      p.settle = Math.max(p.settle, 1);
+      return;
+    }
+    if (p.settle > 0) {
+      p.settle -= raw;
+      return;
+    }
+    p.t += raw;
+    if (++p.n < 45) return;
+    const slow = p.t / p.n > SLOW_FRAME;
+    p.t = 0;
+    p.n = 0;
+    p.slow = slow ? p.slow + 1 : 0;
+    if (p.slow < 3) return;
+    p.slow = 0;
+    p.settle = 1;
+    this.quality = 1;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, LOW_RATIO));
+    this.resize();
+  }
+
+  /** `?fps` in the address: frames a second, the time the work of one frame takes and the pixel ratio, on screen. */
+  private showFps(raw: number, drawMs: number) {
+    const f = this.fps;
+    if (!f) return;
+    f.t += raw;
+    f.draw += drawMs;
+    if (++f.n < 30) return;
+    f.el.textContent = `${Math.round(f.n / f.t)} fps · work ${(f.draw / f.n).toFixed(1)} ms · x${this.renderer.getPixelRatio()}`;
+    f.t = f.draw = f.n = 0;
+  }
 
   private readonly tail = new THREE.Vector3();
   /** 0..1: the Boards tab lifts the board up on its own, turning and tilted towards the camera. */
@@ -1135,12 +1276,14 @@ export class SkateRushGame {
         this.grounded = true;
         this.sfx.land();
         this.shake = Math.max(this.shake, 0.08);
-        if (this.duckQueued) {
+        if (this.jumpBuffer > 0) this.jump();
+        else if (this.duckQueued) {
           this.duckQueued = false;
           this.duck();
         } else this.play("skate", { fade: 0.12 });
       }
     }
+    this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
     if (this.duckT > 0) {
       this.duckT -= dt;
       if (this.duckT <= 0 && this.grounded) this.play("skate", { fade: 0.15 });
@@ -1175,7 +1318,7 @@ export class SkateRushGame {
     this.collectPickups(dt);
     this.spawnAhead();
     this.cleanup();
-    this.sfx.rolling(this.grounded ? 0.35 + (0.65 * this.speed) / MAX_SPEED : 0);
+    this.sfx.rolling(this.grounded ? 0.35 + 0.65 * Math.min(1, this.speed / MAX_SPEED) : 0);
     this.sfx.thrust(this.jet > 0 ? 1 : 0);
     music.setIntensity(this.speed > 25 ? 2 : 1);
     this.emitHud();
@@ -1847,6 +1990,9 @@ export class SkateRushGame {
   }
 
   private emitHud(force = false) {
+    // The score changes every frame: ten redraws of the HUD a second are plenty.
+    if (!force && Math.abs(this.elapsed - this.hudAt) < 0.1) return;
+    this.hudAt = this.elapsed;
     const next: Hud = {
       score: Math.floor(this.points),
       coins: this.coins,

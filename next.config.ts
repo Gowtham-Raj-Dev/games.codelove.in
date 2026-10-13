@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   basePath: basePath || undefined,
   images: { unoptimized: true },
+  // Dev server only: lets a phone on the same Wi-Fi open the site by the PC's address (Next blocks its scripts otherwise).
+  allowedDevOrigins: ["192.168.*.*"],
   env: { NEXT_PUBLIC_BASE_PATH: basePath },
 };
 
