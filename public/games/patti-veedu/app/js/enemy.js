@@ -731,6 +731,15 @@
       lp.parent.updateMatrixWorld(true); lp.parent.getWorldQuaternion(_bq).invert(); E.model.getWorldQuaternion(_pq); lp.quaternion.copy(_bq.multiply(_pq).multiply(_rq));
     }
   }
+  // knocked out: keep the arm and finger poses (the lantern grip) and let the reach / raise / grab ease off, instead of
+  // snapping every arm and finger back to the clip's pose for the frames she is down and snapping them again when she wakes
+  function koHold(dt, u) {
+    const k = Math.min(1, dt * 6);
+    u.armK -= u.armK * k; u.grabK -= u.grabK * k; u.raiseK -= u.raiseK * k;
+    armPose(u, u.armK, u.grabK, 1); grip(u, 1, Math.max(u.armK * 0.55, u.grabK * 0.7));
+    u.jawA += (0.05 - u.jawA) * Math.min(1, dt * 10);
+    if (u.bones.jaw) { u.bones.head.getWorldQuaternion(_aq); _f.copy(u.faceFwd).applyQuaternion(_aq); _ax.set(0, 1, 0).cross(_f).normalize(); bend(u.bones.jaw, u.jawA); }
+  }
   function playAnim(name, fade = 0.3, scale = 1) {
     const u = E.model.userData; if (!u.glb) return;
     const a = u.actions[name]; a.timeScale = scale;
@@ -955,7 +964,7 @@
         u.tilt += (want - u.tilt) * Math.min(1, dt * (want ? 3.2 : 1.6));
         m.rotation.set(-u.tilt * 1.42, E.yaw, 0); m.position.y = E.y + u.tilt * 0.12;
       }
-      if (E.state === 'ko') { if (u.pei && u.flkOn > 0) { u.flkOn = 0; ghostVis(u, true); } unstoop(u); u.mixer.update(dt); u.light.intensity = 0.5; return; }
+      if (E.state === 'ko') { if (u.pei && u.flkOn > 0) { u.flkOn = 0; ghostVis(u, true); } unstoop(u); u.mixer.update(dt); if (u.rocket) koHold(dt, u); u.light.intensity = 0.5; return; }
       if (!moving) playAnim(E.state === 'search' ? (u.granny && E.nearHide ? 'bed' : 'search') : 'idle', 0.35, 1);
       else if (chase) playAnim('chase', 0.25, u.rocket ? Math.max(1, sp / u.stride.chase) : u.granny ? Math.max(1.2, sp / 1.6) : Math.max(0.8, sp / 3.0));
       else playAnim('walk', 0.3, u.rocket ? Math.max(0.6, sp / u.stride.walk) : u.granny ? Math.max(0.8, sp / 1.25) : Math.max(0.7, sp / 1.25 * 0.85));

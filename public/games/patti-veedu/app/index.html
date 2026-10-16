@@ -487,10 +487,10 @@ html[data-lang="ta"] .eyebrow,html[data-lang="ta"] .label,html[data-lang="ta"] #
 .lives .d3:nth-child(2) .fl{animation-delay:-.3s}.lives .d3:nth-child(3) .fl{animation-delay:-.7s}.lives .d3:nth-child(4) .fl{animation-delay:-.5s}.lives .d3:nth-child(5) .fl{animation-delay:-.9s}
 @keyframes d3flick{0%{transform:scale(1,1) skewX(0)}50%{transform:scale(.92,1.07) skewX(3deg)}100%{transform:scale(1.04,.95) skewX(-3deg)}}
 .d3 .smk{position:absolute;width:45%;height:70%;transform:translate(-50%,-100%);overflow:visible;display:none}
-.d3 .smk path{fill:none;stroke:rgba(200,200,200,.55);stroke-width:1.3;stroke-linecap:round}
-.d3.out .bl,.d3.out .fl{display:none}.d3.out .bo{opacity:1}.d3.out .smk{display:block;animation:dsmoke 3.2s ease-out infinite}
-.d3.dying .fl{animation:dout 1.2s ease-in forwards}.d3.dying .bo{animation:d3in 1.2s .5s forwards}.d3.dying .bl{animation:d3off 1.2s .5s forwards}.d3.dying .smk{display:block;opacity:0;animation:dsmoke 1.8s .8s ease-out infinite}
-@keyframes d3in{to{opacity:1}}@keyframes d3off{to{opacity:0}}
+.d3 .smk{transform-origin:50% 100%;filter:blur(.35px)}.d3 .smk path{fill:none;stroke:rgba(205,205,210,.6);stroke-width:1.2;stroke-linecap:round}.d3 .smk path+path{stroke:rgba(190,190,196,.4);stroke-width:.9}
+.d3.out .bl,.d3.out .fl{display:none}.d3.out .bo{opacity:1}.d3.out .smk{display:block;animation:d3smoke 3.4s ease-out infinite}.d3.out .smk path+path{animation-delay:0s}
+.d3.dying .fl{animation:dout 1.2s ease-in forwards}.d3.dying .bo{animation:d3in 1.2s .5s forwards}.d3.dying .bl{animation:d3off 1.2s .5s forwards}.d3.dying .smk{display:block;opacity:0;animation:d3smoke 2.2s .8s ease-out infinite}
+@keyframes d3in{to{opacity:1}}@keyframes d3off{to{opacity:0}}@keyframes d3smoke{0%{opacity:0;transform:translate(-50%,-100%) translateY(5px) scale(.7,.5)}22%{opacity:.85}55%{opacity:.5;transform:translate(-50%,-100%) translateY(-1px) scale(1,1) skewX(7deg)}100%{opacity:0;transform:translate(-50%,-100%) translateY(-8px) scale(1.3,1.2) skewX(-9deg)}}
 .endLamps .d3{width:34px;height:34px}
 #lampCanvas{display:block;width:min(480px,84vw);height:clamp(90px,26vh,140px)}
 #cardLampsAlt{display:flex;gap:12px;justify-content:center}#cardLampsAlt:empty{display:none}
@@ -648,6 +648,57 @@ html[data-lang="ta"] .lm:hover,html[data-lang="ta"] .lm:active{letter-spacing:.0
 #menu .seg button[aria-pressed="true"]{color:#e0473a!important;border-bottom-color:rgba(224,71,58,.6)}
 #menu .devBy{background:none!important;border:0!important;padding:0}
 @media (max-height:380px){#menu{row-gap:.45rem}.lm{font-size:.84rem}.lm.main{font-size:.95rem}.lopt{font-size:.64rem}.tseg button{font-size:.66rem}}
+/* ===== lobby 10.5: a proper main menu: the big blood title, hanging anklet bells, real buttons, the hall visible behind ===== */
+#menu{grid-template-columns:minmax(0,27rem) 1fr;row-gap:clamp(.7rem,3.2vh,1.4rem);padding-left:calc(clamp(22px,6vw,84px) + var(--sl));
+  background:linear-gradient(90deg,rgba(2,0,0,.94) 0%,rgba(3,0,0,.8) 28%,rgba(3,0,0,.2) 54%,rgba(0,0,0,0) 68%),radial-gradient(ellipse 120% 100% at 62% 50%,rgba(0,0,0,0) 42%,rgba(2,0,0,.72) 100%)}
+#menu::after{background:linear-gradient(0deg,rgba(120,4,0,.34),rgba(0,0,0,0) 38%)}
+#menu .title-ta{font-size:clamp(2.7rem,16vh,5.8rem)!important;line-height:1.08;filter:drop-shadow(0 0 28px rgba(210,14,4,.55)) drop-shadow(0 4px 0 rgba(0,0,0,.85))}
+#menu .title-en{font-size:.8rem!important;letter-spacing:.52em;color:#b9a68f;text-shadow:0 0 12px rgba(180,10,0,.5)}
+#menu .bells{display:block;width:min(100%,18rem);height:auto;margin-top:.45rem;opacity:.9}
+#menu .tag{display:block;margin:.3rem 0 0;font-size:.95rem;color:#b9a68f}
+#menu .best{font-size:.78rem;color:#c2382c}
+.lmenu{gap:.75rem;width:min(100%,19.5rem)}
+.lm{box-sizing:border-box;width:100%;min-height:52px;padding:.55rem 1.05rem;gap:.85rem;align-items:center;border:1px solid rgba(170,40,30,.4);border-radius:11px;background:linear-gradient(180deg,rgba(44,13,11,.78),rgba(10,4,4,.86));color:#dccab5;font-size:1.02rem;letter-spacing:.05em;box-shadow:0 8px 22px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,140,110,.08);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);transition:transform .25s,border-color .25s,box-shadow .25s,color .25s,background .25s}
+html[data-lang="ta"] .lm{letter-spacing:.02em;font-size:1.05rem}
+.lm::before{display:none}
+.lm .ico{flex:none;width:24px;height:24px;display:inline-grid;place-items:center}
+.lm .ico svg{width:22px;height:22px;fill:#d0453a;transition:fill .25s}
+.lm small{margin-left:auto;font-size:.68rem;color:#b9a68f}
+.lm.main{min-height:62px;font-size:1.22rem;font-weight:900;color:#f6e6d0;background:linear-gradient(180deg,#a3170e,#5c0906 70%,#360403);border-color:#e0433a;box-shadow:0 0 30px rgba(200,20,10,.45),0 8px 22px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,170,140,.38);animation:heartbeat 1.7s ease-in-out infinite}
+.lm.main .ico svg{fill:#f6e6d0}
+.lm.main span:first-child{animation:none}
+.lm:hover,.lm:focus-visible{color:#fff;border-color:#ff5a48;transform:translateX(5px);letter-spacing:.05em;text-shadow:0 0 12px rgba(255,40,20,.5);box-shadow:0 0 24px rgba(220,30,10,.4),0 8px 22px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,170,140,.2)}
+html[data-lang="ta"] .lm:hover{letter-spacing:.02em}
+.lm:hover .ico svg{fill:#ff6a58}
+.lm:active{transform:translateX(2px) scale(.985)}
+.lopts{flex-direction:row;flex-wrap:wrap;align-items:center;gap:.6rem 1.1rem;padding-left:.15rem;margin-top:.2rem}
+.lopt{font-size:.74rem;color:#9a8878}
+.lk{color:#9a8878}
+.tseg{gap:.4rem}
+.tseg i{display:none}
+.tseg button{padding:.28rem .8rem;border:1px solid rgba(170,40,30,.34);border-radius:999px;border-bottom:1px solid rgba(170,40,30,.34);background:rgba(10,4,4,.6);color:#a89886;font-size:.76rem}
+.tseg button[aria-pressed="true"]{color:#fff0e0;background:linear-gradient(180deg,#a8170e,#5c0906);border-color:#e0433a;text-shadow:none;box-shadow:0 0 14px rgba(200,20,10,.35)}
+.tseg button:hover{color:#fff}
+#menu .devFoot{position:fixed;left:calc(clamp(22px,6vw,84px) + var(--sl));bottom:calc(14px + var(--sb));font-size:.7rem;letter-spacing:.14em;color:#7d6e62;pointer-events:none;text-shadow:0 1px 3px #000}
+#menu .devFoot b{color:#b9a68f;font-weight:400}
+#menu[data-panel] .devFoot{display:none}
+/* right side of the lobby: a small card of what the game is, so the hall is not the only thing on that side */
+.menuInfo{grid-column:2;grid-row:1 / span 2;justify-self:end;align-self:center;width:min(18rem,28vw);margin-right:calc(clamp(18px,4vw,64px) + var(--sr));padding:1.1rem 1.15rem;border:1px solid rgba(170,40,30,.34);border-radius:14px;background:linear-gradient(170deg,rgba(26,8,7,.78),rgba(6,2,2,.86));-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);box-shadow:0 0 40px rgba(110,0,0,.25),0 14px 40px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,120,90,.07);animation:fadeIn 3.4s .9s ease both;pointer-events:none}
+.menuInfo .en,html[data-lang="en"] .menuInfo .ta{display:none}
+html[data-lang="en"] .menuInfo .en{display:inline}
+.miHead{font-family:var(--f-display);font-weight:900;font-size:1.15rem;color:#e8473a;letter-spacing:.08em;text-shadow:0 0 14px rgba(200,20,10,.5)}
+.miLamps{display:flex;gap:.55rem;margin:.55rem 0 .8rem}
+.miLamps i{width:11px;height:17px;border-radius:50% 50% 45% 45%/65% 65% 35% 35%;background:radial-gradient(circle at 50% 70%,#fff2b0,#ff9a2a 55%,#a02a00);box-shadow:0 0 12px rgba(255,150,40,.7);animation:flame 2.4s ease-in-out infinite}
+.miLamps i:nth-child(2){animation-delay:.4s}.miLamps i:nth-child(3){animation-delay:.9s}.miLamps i:nth-child(4){animation-delay:1.3s}.miLamps i:nth-child(5){animation-delay:1.8s}
+@keyframes flame{0%,100%{opacity:1;transform:scaleY(1)}40%{opacity:.7;transform:scaleY(.88)}70%{opacity:.95;transform:scaleY(1.06)}}
+.miList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.7rem}
+.miList li{display:flex;align-items:center;gap:.7rem;font-size:.86rem;line-height:1.3;color:#d3c1ac}
+.miList .ic{flex:none;width:30px;height:30px;display:grid;place-items:center;border:1px solid rgba(170,40,30,.38);border-radius:8px;background:rgba(160,20,12,.12)}
+.miList .ic svg{width:17px;height:17px;fill:#d0453a}
+.miFoot{margin-top:.95rem;padding-top:.8rem;border-top:1px solid rgba(170,40,30,.25);font-family:var(--f-hand);font-size:.95rem;color:#b9a68f}
+#menu[data-panel] .menuInfo{display:none}
+@media (max-width:900px),(max-height:420px){.menuInfo{display:none}}
+@media (max-height:470px){#menu{row-gap:.4rem}.lmenu{gap:.4rem}.lm{min-height:40px;font-size:.92rem;padding:.3rem .85rem;gap:.7rem}.lm.main{min-height:46px;font-size:1.05rem}.lm .ico,.lm .ico svg{width:20px;height:20px}.lopts{margin-top:0;gap:.35rem .9rem}.lopt{font-size:.68rem}.tseg button{padding:.2rem .65rem;font-size:.7rem}#menu .title-ta{font-size:clamp(2rem,13vh,3.4rem)!important}#menu .title-en{font-size:.66rem!important}#menu .bells,#menu .tag,#menu .devFoot{display:none}}
 
 /* ===== diary 10.4: tabs on top, nothing scrolls; long things turn pages ===== */
 #journal .jwrap{display:flex!important;flex-direction:column;gap:.5rem;width:min(56rem,100%);height:min(30rem,calc(100vh - 16px - var(--st) - var(--sb)));max-height:none;overflow:hidden!important;padding:.6rem .8rem .7rem;grid-template-columns:none}
@@ -764,19 +815,30 @@ html[data-lang="ta"] .lm:hover,html[data-lang="ta"] .lm:active{letter-spacing:.0
     <p class="tag" data-i18n="tagline"></p>
     <div class="best" id="bestTime"></div>
   </div>
+  <div class="devFoot">DEVELOPED BY <b>GOWTHAM</b> · ZRUBIX</div>
   <div class="side" id="menuMain">
     <nav class="lmenu" aria-label="Menu">
-      <button id="btnContinue" class="lm main" hidden><span data-i18n="continue"></span><small id="contInfo"></small></button>
-      <button id="btnPlay" class="lm main"><span data-i18n="play"></span></button>
-      <button id="btnHow" class="lm"><span data-i18n="how"></span></button>
-      <button id="btnSettings" class="lm"><span data-i18n="settings"></span></button>
-      <button id="btnQuit" class="lm" hidden><span data-i18n="quit"></span></button>
+      <button id="btnContinue" class="lm main" hidden><span class="ico" data-icon="restart"></span><span class="tx" data-i18n="continue"></span><small id="contInfo"></small></button>
+      <button id="btnPlay" class="lm main"><span class="ico" data-icon="play"></span><span class="tx" data-i18n="play"></span></button>
+      <button id="btnHow" class="lm"><span class="ico" data-icon="book"></span><span class="tx" data-i18n="how"></span></button>
+      <button id="btnSettings" class="lm"><span class="ico" data-icon="sound"></span><span class="tx" data-i18n="settings"></span></button>
+      <button id="btnQuit" class="lm" hidden><span class="ico" data-icon="close"></span><span class="tx" data-i18n="quit"></span></button>
     </nav>
     <div class="lopts">
       <div class="lopt"><span class="lk" data-i18n="difficulty"></span><span class="tseg diffSeg" role="group"><button data-d="easy" data-i18n="d_easy"></button><i>·</i><button data-d="normal" data-i18n="d_normal"></button><i>·</i><button data-d="hard" data-i18n="d_hard"></button></span></div>
       <div class="lopt"><span class="tseg langSeg" role="group" aria-label="Language"><button data-l="ta">தமிழ்</button><i>·</i><button data-l="en">English</button></span></div>
     </div>
   </div>
+  <aside class="menuInfo" aria-hidden="true">
+    <div class="miHead"><span class="ta">ஐந்து இரவுகள்</span><span class="en">FIVE NIGHTS</span></div>
+    <div class="miLamps"><i></i><i></i><i></i><i></i><i></i></div>
+    <ul class="miList">
+      <li><span class="ic" data-icon="key"></span><span class="ta">தடயங்களைத் தேடு, கதவுகளைத் திற</span><span class="en">Find the clues, open the doors</span></li>
+      <li><span class="ic" data-icon="hidden"></span><span class="ta">அவள் வந்தால் ஒளிந்துகொள்</span><span class="en">Hide when she comes</span></li>
+      <li><span class="ic" data-icon="clock"></span><span class="ta">விடியும் முன் தப்பி ஓடு</span><span class="en">Escape before dawn</span></li>
+    </ul>
+    <div class="miFoot"><span class="ta">கொலுசு சத்தம் கேட்டால்... ஓடு.</span><span class="en">If you hear the anklets... run.</span></div>
+  </aside>
   <div class="panel" id="menuHow" hidden>
     <h2 data-i18n="how"></h2>
     <div class="howgrid">

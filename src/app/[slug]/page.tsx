@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Download, Gamepad2, Hourglass, Keyboard, ListChecks, Music, Play, Smartphone } from "lucide-react";
+import { ApkDownloadCount, ApkDownloadLink } from "@/components/apk-downloads";
 import { ComingSoonArt, GameCard } from "@/components/game-card";
 import { GameTrailer } from "@/components/game-trailer";
 import { JsonLd } from "@/components/json-ld";
@@ -228,14 +229,15 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
                 <Play className="size-5 fill-current" /> Play now — free
               </Link>
               {app ? (
-                <a
+                <ApkDownloadLink
+                  slug={game.slug}
+                  version={app.version}
                   href={asset(app.apk)}
-                  download={`${game.slug}-${app.version}.apk`}
-                  type="application/vnd.android.package-archive"
+                  filename={`${game.slug}-${app.version}.apk`}
                   className="inline-flex items-center gap-2 rounded-full border-2 border-fg bg-surface px-6 py-3 text-base font-bold text-fg transition hover:bg-accent-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   <Download className="size-5" /> Download for Android
-                </a>
+                </ApkDownloadLink>
               ) : (
                 <span className="text-sm text-subtle">No download · no sign-up</span>
               )}
@@ -251,6 +253,7 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
                   <p className="text-sm font-semibold text-fg">{game.title} for Android</p>
                   <p className="text-xs text-subtle">
                     v{app.version} · {formatBytes(app.bytes)} APK · Android {app.minAndroid}+ · landscape, full screen · plays offline
+                    <ApkDownloadCount slug={game.slug} className="before:content-['·'] before:mx-1 font-semibold text-muted" />
                   </p>
                 </div>
               </div>
@@ -261,7 +264,7 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
                 <ol className="mt-2 list-decimal space-y-1 pl-9 text-xs leading-relaxed text-muted">
                   <li>Tap “Download for Android” on your phone (or copy the APK to it).</li>
                   <li>Open the downloaded file. If Android asks, allow your browser to “Install unknown apps”.</li>
-                  <li>Tap Install, then open {game.title} from your home screen. It always plays in landscape and keeps your village on the phone.</li>
+                  <li>Tap Install, then open {game.title} from your home screen. It plays in landscape and works offline.</li>
                 </ol>
                 <p className="mt-2 pl-4 font-mono text-[10px] break-all text-subtle">SHA-256 {app.sha256}</p>
               </details>

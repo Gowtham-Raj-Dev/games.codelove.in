@@ -16,6 +16,7 @@ import { GAME as orderUp } from "@/components/games/order-up/manifest";
 import { GAME as saucerSiege } from "@/components/games/saucer-siege/manifest";
 import { GAME as skateRush } from "@/components/games/skate-rush/manifest";
 import { GAME as pattiVeedu } from "@/components/games/patti-veedu/manifest";
+import { GAME as aisleZero } from "@/components/games/aisle-zero/manifest";
 
 /**
  * Browser games built entirely from the library's own 3D models, playable at /games/<slug>/.
@@ -114,6 +115,7 @@ export const games: GameEntry[] = [
   novaStrike,
   nightHeist,
   skyCourier,
+  aisleZero,
 ];
 
 export function getGame(slug: string): GameEntry | undefined {

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#080b0c">
+<title>Aisle Zero · Night Shift</title>
+<style>
+@font-face{font-family:"Creepster";font-display:swap;src:url(fonts/creepster-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Hind Madurai";font-weight:400;font-display:swap;src:url(fonts/hind-madurai-latin-400-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:"Hind Madurai";font-weight:600;font-display:swap;src:url(fonts/hind-madurai-latin-600-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+2000-206F}
+:root{--bg:#070a0b;--bone:#e6dfc9;--ash:#a5a18d;--blood:#b3120c;--blood-hi:#e2261a;--green:#46d39a;
+  --f-display:"Creepster","Hind Madurai",serif;--f-body:"Hind Madurai",system-ui,sans-serif;
+  --sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px);--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--bone);overflow:hidden;font-family:var(--f-body);-webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none}
+[hidden],.hidden{display:none!important}
+#game{position:fixed;inset:0}
+#game canvas{display:block;width:100%;height:100%;outline:none;filter:contrast(1.07) saturate(.86)}
+#grain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;opacity:.09;mix-blend-mode:overlay;image-rendering:pixelated}
+#vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.7) 100%)}
+#fear{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(120,0,0,0) 38%,rgba(150,0,0,.7) 100%)}
+#flash{position:fixed;inset:0;pointer-events:none;opacity:0;background:#a00}
+button{font:inherit;color:inherit;touch-action:manipulation;cursor:pointer}
+
+/* ---- HUD ---- */
+#hud{position:fixed;inset:0;display:none;pointer-events:none}
+#cross{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px;border-radius:50%;background:rgba(235,235,215,.7);box-shadow:0 0 4px #000}
+#obj{position:absolute;left:50%;top:calc(14px + var(--st));transform:translateX(-50%);padding:8px 20px;background:rgba(0,0,0,.6);border:1px solid rgba(226,38,26,.45);border-radius:4px;font-weight:600;font-size:clamp(13px,1.9vw,17px);letter-spacing:.04em;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+#list{position:absolute;left:calc(16px + var(--sl));top:calc(14px + var(--st));padding:12px 16px 10px;background:rgba(0,0,0,.62);border-left:3px solid var(--blood);min-width:250px;font-size:15px;line-height:1.55}
+#list{pointer-events:auto;cursor:default;transition:background .2s}
+#listHead{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:0 0 6px;color:#d44;font-size:12px;letter-spacing:.28em;font-weight:600;text-align:left;cursor:pointer}
+#listHead:hover{color:#ff6a5a}
+#listCount{margin-left:auto;color:var(--bone);letter-spacing:.08em;font-size:13px;padding-left:14px}
+#listArrow{display:inline-block;transition:transform .25s;font-size:11px}
+#list.closed #listArrow{transform:rotate(-90deg)}
+#items{display:grid;grid-template-rows:1fr;transition:grid-template-rows .3s ease,opacity .25s;opacity:1}
+#itemsIn{overflow:hidden;min-height:0}
+#list.closed #items{grid-template-rows:0fr;opacity:0}
+#list.closed{min-width:0;padding-bottom:4px}
+#list.closed #listHead{padding-bottom:2px}
+@keyframes pickpulse{0%{background:rgba(255,220,120,.55);transform:translateX(0)}40%{transform:translateX(6px)}100%{background:transparent;transform:translateX(0)}}
+.it.just{animation:pickpulse .9s ease-out}
+#toast{position:absolute;left:50%;top:22%;transform:translate(-50%,0) scale(.92);padding:10px 22px;background:rgba(10,14,10,.78);border:1px solid #6f9a5c;border-radius:4px;font-weight:600;font-size:clamp(15px,2.2vw,20px);letter-spacing:.06em;color:#cfe8bc;opacity:0;transition:opacity .25s,transform .25s;white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,-6px) scale(1)}
+#pickflash{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,225,140,.0) 40%,rgba(255,225,140,.28) 100%)}
+.rip{position:absolute;border-radius:50%;background:rgba(255,255,255,.35);transform:scale(0);animation:rip .55s ease-out forwards;pointer-events:none}
+@keyframes rip{to{transform:scale(1);opacity:0}}
+button{position:relative;overflow:hidden}
+.btn:active,.tbtn:active{transform:scale(.96)}
+.btn2{background:transparent;border:1px solid #4a4a42;padding:8px 20px;font-size:13px;letter-spacing:.22em;color:var(--ash);transition:.2s;margin-top:12px}
+.btn2:hover{border-color:var(--blood-hi);color:var(--bone)}
+#keysBox{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s ease,opacity .25s;opacity:0}
+#keysBox.open{grid-template-rows:1fr;opacity:1}
+#keysBox>div{overflow:hidden;min-height:0}
+.it{display:flex;flex-direction:column;padding:2px 0}
+.it b{font-weight:600}
+.it small{color:var(--ash);font-size:12.5px}
+.it.done b{color:#6f9a5c;text-decoration:line-through}
+.it.done small{color:#4d6445}
+#state{position:absolute;right:calc(18px + var(--sr));top:calc(14px + var(--st));font-size:14px;letter-spacing:.3em;font-weight:600;text-align:right}
+#cans{position:absolute;right:calc(18px + var(--sr));top:calc(40px + var(--st));font-size:13px;color:var(--ash)}
+#stamWrap{position:absolute;left:calc(16px + var(--sl));bottom:calc(18px + var(--sb));width:220px}
+#stamWrap span{font-size:11px;letter-spacing:.25em;color:var(--ash)}
+#stam{height:7px;background:rgba(255,255,255,.12);margin-top:3px}
+#stam i{display:block;height:100%;width:100%;background:#b4b49c}
+#prompt{position:absolute;left:50%;top:62%;transform:translateX(-50%);padding:6px 16px;background:rgba(0,0,0,.55);border-radius:4px;font-size:clamp(16px,2.4vw,21px);font-weight:600;letter-spacing:.04em;text-shadow:0 0 8px #000;opacity:0;transition:opacity .15s;white-space:nowrap}
+#msg{position:absolute;left:50%;bottom:calc(11% + var(--sb));transform:translateX(-50%);max-width:80%;text-align:center;font-size:clamp(16px,2.6vw,24px);font-weight:600;color:#f1e6c4;text-shadow:0 0 10px #000,0 0 3px #000;opacity:0;transition:opacity .5s}
+#keyhint{position:absolute;right:calc(18px + var(--sr));bottom:calc(16px + var(--sb));font-size:12px;color:var(--ash);text-align:right;line-height:1.6;opacity:.85}
+.touch #keyhint,.touch #stamWrap span{display:none}
+
+/* ---- map ---- */
+#mapWrap{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);pointer-events:none}
+#mapWrap.on{display:flex}
+#map{height:min(86vh,720px);aspect-ratio:72/94;border:2px solid #4b5a4b;box-shadow:0 0 40px #000}
+
+/* ---- screens ---- */
+.screen{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;background:radial-gradient(ellipse at center,rgba(10,6,6,.78),rgba(0,0,0,.96));overflow:auto}
+.screen h1{font-family:var(--f-display);font-weight:400;font-size:clamp(46px,11vw,120px);letter-spacing:.06em;margin:0;line-height:1;color:var(--blood-hi);text-shadow:0 0 34px rgba(150,0,0,.8)}
+.screen h2{margin:10px 0 22px;font-size:clamp(11px,1.6vw,15px);letter-spacing:.5em;font-weight:400;color:var(--ash)}
+.screen p{max-width:600px;line-height:1.7;color:#b3ae9a;margin:0 0 10px;font-size:clamp(14px,1.8vw,16.5px)}
+.keys{display:grid;grid-template-columns:auto auto;gap:3px 26px;text-align:left;margin:12px 0 22px;font-size:14px;color:var(--ash)}
+.keys b{color:var(--bone);font-weight:600}
+.touch .keys{display:none}
+.btn{background:transparent;border:1px solid var(--blood);padding:13px 38px;font-size:16px;letter-spacing:.28em;color:var(--bone);transition:.2s}
+.btn:hover{background:var(--blood);box-shadow:0 0 30px rgba(180,18,12,.6)}.langbtn{background:rgba(0,0,0,.5);border:1px solid #444;padding:5px 12px;font-size:13px;border-radius:3px}
+.langbtn.on{border-color:var(--blood-hi);background:rgba(120,12,8,.5)}
+#loading{background:#06090a}
+#loadBarW{width:min(320px,70vw);height:4px;background:rgba(200,44,34,.15);margin-top:16px;border-radius:3px;overflow:hidden}
+#loadBar{height:100%;width:0;background:var(--blood-hi);transition:width .2s}
+#deadTip,#winStats{color:var(--ash);font-size:14px}
+#win h1{color:#8cc08a;text-shadow:0 0 30px rgba(60,160,60,.5)}
+
+/* ---- touch controls ---- */
+#stick{position:fixed;display:none;width:110px;height:110px;border-radius:50%;border:2px solid rgba(230,230,210,.35);background:rgba(0,0,0,.25);pointer-events:none}
+#knob{position:absolute;left:30px;top:30px;width:50px;height:50px;border-radius:50%;background:rgba(230,230,210,.4)}
+#touchUI{display:none}
+.touch #touchUI{display:block}
+.tbtn{position:fixed;pointer-events:auto;width:58px;height:58px;border-radius:50%;border:2px solid rgba(230,230,210,.4);background:rgba(0,0,0,.45);color:var(--bone);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;letter-spacing:.04em}
+.tbtn.hot{border-color:var(--blood-hi);background:rgba(150,20,10,.6)}
+#tAct{right:calc(22px + var(--sr));bottom:calc(30px + var(--sb));width:78px;height:78px;font-size:15px}
+#tCrouch{right:calc(112px + var(--sr));bottom:calc(24px + var(--sb))}
+#tThrow{right:calc(36px + var(--sr));bottom:calc(122px + var(--sb))}
+#tFlash{right:calc(112px + var(--sr));bottom:calc(92px + var(--sb))}
+#tMap{right:calc(18px + var(--sr));top:calc(78px + var(--st));width:46px;height:46px}
+#tPause{right:calc(18px + var(--sr));top:calc(130px + var(--st));width:46px;height:46px}
+.touch #list{min-width:0;font-size:12px;padding:8px 10px;max-width:42vw}
+.touch #list small{display:none}
+.touch #obj{font-size:12px;top:calc(8px + var(--st))}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<canvas id="grain" width="200" height="112"></canvas>
+<div id="pickflash"></div>
+<div id="vignette"></div><div id="fear"></div><div id="flash"></div>
+
+<div id="hud">
+  <div id="cross"></div>
+  <div id="obj"></div>
+  <div id="list"><button id="listHead" aria-expanded="true"><span id="listArrow">&#9660;</span><span id="listTitle">SHOPPING LIST</span><span id="listCount">0/8</span></button><div id="items"><div id="itemsIn"></div></div></div>
+  <div id="toast"></div>
+  <div id="state"></div><div id="cans"></div>
+  <div id="stamWrap"><span>STAMINA</span><div id="stam"><i id="stamI"></i></div></div>
+  <div id="prompt"></div>
+  <div id="msg"></div>
+</div>
+<div id="mapWrap"><canvas id="map" width="576" height="752"></canvas></div>
+
+<div id="touchUI">
+  <div id="stick"><div id="knob"></div></div>
+  <button class="tbtn" id="tAct">USE</button>
+  <button class="tbtn" id="tCrouch">SNEAK</button>
+  <button class="tbtn" id="tFlash">LIGHT</button>
+  <button class="tbtn" id="tThrow">THROW</button>
+  <button class="tbtn" id="tMap">MAP</button>
+  <button class="tbtn" id="tPause">II</button>
+</div>
+
+<div id="loading" class="screen"><h1 style="font-size:clamp(38px,8vw,80px)">AISLE ZERO</h1><h2 id="loadTxt">LOADING THE STORE...</h2><div id="loadBarW"><div id="loadBar"></div></div></div>
+
+<div id="menu" class="screen hidden">
+  <h1 style="font-size:clamp(40px,9vw,100px)">AISLE ZERO</h1>
+  <h2>NIGHT SHIFT</h2>
+  <p>Sri Velan Super Market closed in 1998.</p>
+  <p>It hunts by sight and sound.</p>
+  <button class="btn" id="startBtn">ENTER THE STORE</button>
+  <button class="btn2" id="ctrlBtn" aria-expanded="false">CONTROLS</button>
+  <div id="keysBox"><div><div class="keys">
+    <div><b>W A S D</b> — move</div><div><b>Mouse</b> — look</div>
+    <div><b>Shift</b> — run (noisy)</div><div><b>C</b> — crouch (quiet)</div>
+    <div><b>E</b> — pick up / hide / pay</div><div><b>F</b> — flashlight</div>
+    <div><b>Q</b> — throw a can</div><div><b>M</b> — store map</div>
+    <div><b>L</b> — shopping list</div><div><b>N</b> — mute</div>
+  </div></div></div>
+  <p style="font-size:12.5px;color:#7a7664;margin-top:14px" >Headphones recommended. The creature's breathing tells you where it is.</p>
+  <p style="font-size:11.5px;color:#625f52;margin-top:6px;max-width:640px">Models: Wendigo &ldquo;The Human Deer&rdquo; by ceeleste and the hooded ghost by PurplePoint (both CC BY 4.0, via Sketchfab). The store is built in code.</p>
+</div>
+
+<div id="pause" class="screen hidden"><h1 style="font-size:clamp(40px,8vw,80px)">PAUSED</h1><h2></h2><button class="btn" id="resumeBtn">RESUME</button>
+  <div class="keys" style="margin-top:22px">
+    <div><b>W A S D</b> — move</div><div><b>Mouse</b> — look</div>
+    <div><b>Shift</b> — run (noisy)</div><div><b>C</b> — crouch (quiet)</div>
+    <div><b>E</b> — pick up / hide / pay</div><div><b>F</b> — flashlight</div>
+    <div><b>Q</b> — throw a can</div><div><b>M</b> — store map</div>
+    <div><b>L</b> — shopping list</div><div><b>N</b> — mute</div>
+  </div></div>
+
+<div id="dead" class="screen hidden"><h1>IT GOT YOU</h1><h2>THE CART STANDS ALONE</h2><p id="deadTxt"></p><p id="deadTip"></p><button class="btn" id="retryBtn">TRY AGAIN</button></div>
+
+<div id="win" class="screen hidden"><h1>ESCAPED</h1><h2>YOU MADE IT OUT</h2><p>You escaped.</p><p id="winStats"></p><button class="btn" id="againBtn">PLAY AGAIN</button></div>
+
+<script src="three.min.js"></script>
+<script src="js/GLTFLoader.js"></script>
+<script src="js/meshopt_decoder.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/models.js"></script>
+<script src="js/world.js"></script>
+<script src="js/creature.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

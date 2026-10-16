@@ -859,7 +859,7 @@
     const st = document.createElement('style');
     st.textContent = `.d3 .bl{background-image:url(${im.lit})}.d3 .bo{background-image:url(${im.out})}.d3 .fl{background-image:url(${im.flame});transform-origin:${im.wx} ${im.wy}}.d3 .smk{left:${im.wx};top:${im.wy}}`;
     document.head.appendChild(st);
-    K.diya = (state) => `<span class="d3 ${state}"><i class="bl"></i><i class="bo"></i><i class="fl"></i><svg class="smk" viewBox="0 0 10 24" aria-hidden="true"><path d="M5 24C3 19 7 16 5 12C3.4 9 6.4 6 5 2" /></svg></span>`;
+    K.diya = (state) => `<span class="d3 ${state}"><i class="bl"></i><i class="bo"></i><i class="fl"></i><svg class="smk" viewBox="0 0 10 24" aria-hidden="true"><path d="M5 24C3 19 7 16 5 12C3.4 9 6.4 6 5 2" /><path d="M5.5 24C7.6 20 3.5 17 6 13C7.4 10.5 4.6 8 6 5" /></svg></span>`;
   }
 
   /* ---------------- notes / journal / keypad / pause ---------------- */
@@ -1406,8 +1406,25 @@
      when she is close enough the light dies once more, and her face is in yours. Then the dark, the heartbeat, and she is far again. ---------------- */
   const CAMZ = 18.45, CAMX = 11.95;
   const LSTAGES = [[12.95, 11.8], [12.8, 13.6], [12.62, 15.1], [12.48, 16.3], [12.36, 17.15]];
-  const LB = { stage: 0, next: 6, flick: 0, dim: -1, look: new THREE.Vector3(12.3, 1.3, 12), wT: 9, gT: 0, ex: 0.85, vT: 14, scare: 0, post: 0, intro: 2.2, vallT: 0 };
+  const LB = { stage: 0, next: 6, flick: 0, dim: -1, look: new THREE.Vector3(12.3, 1.3, 12), wT: 9, gT: 0, ex: 0.95, vT: 14, scare: 0, post: 0, intro: 2.2, vallT: 0 };
   G._lobby = LB; // for tests
+  // low mist drifting over the hall floor, cold blue from the courtyard's moon; only while the menu is up
+  const MIST = []; let mistTex = null;
+  function lobbyMist(on) {
+    if (!MIST.length && on) {
+      mistTex = K.makeGlowTex('rgba(150,172,215,0.55)', 'rgba(60,84,140,0)');
+      for (let i = 0; i < 6; i++) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, color: 0x9db2da, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+        sp.scale.set(6.5 + (i % 3), 1.5 + (i % 2) * 0.5, 1); sp.userData.noTrack = true; sp.userData.i = i; scene.add(sp); MIST.push(sp);
+      }
+    }
+    for (const sp of MIST) {
+      sp.visible = on; if (!on) continue;
+      const i = sp.userData.i, t = menuT;
+      sp.position.set(CAMX - 0.6 + i * 0.5 + Math.sin(t * 0.07 + i * 1.7) * 1.4, 0.28 + (i % 3) * 0.16 + Math.sin(t * 0.21 + i) * 0.04, 10.4 + i * 1.25);
+      sp.material.opacity = (0.26 + Math.sin(t * 0.18 + i * 2.1) * 0.08) * (LB.dim >= 1 ? 0 : 1);
+    }
+  }
   const LWH = { ta: ['வள்ளி...', 'ஜல்... ஜல்...', 'யார் அங்கே?', 'போகாதே...', 'என் கொலுசு எங்கே?', 'பாப்பா...', 'திரும்பிப் பார்க்காதே...'], en: ['Valli...', 'jhal... jhal...', "Who's there?", "Don't go...", 'Where is my anklet?', 'Little one...', "Don't look back..."] };
   function lobby(dt) {
     const last = LSTAGES.length - 1, sh = LB.scare > 0 ? 0.02 : 0;
@@ -1450,7 +1467,7 @@
     if (LB.intro > 0) { LB.intro -= dt; dim = Math.max(dim, Math.min(1, LB.intro / 1.2)); } // the menu opens on black; the lantern comes up out of it
     if (LB.vallT > 0) { LB.vallT -= dt; if (K.Valli) { K.Valli.update(dt, camera.position); K.Valli.setOpacity(Math.min(0.9, LB.vallT * 1.2) * (Math.random() < 0.06 ? 0.2 : 1)); if (LB.vallT <= 0) K.Valli.hide(); } }
     // the dark is the scene going black, not a curtain over it: only her eyes stay lit
-    if (dim !== LB.dim) { LB.dim = dim; LB.ex = 0.85 * (1 - dim * 0.985); const d = $('menuDark'); if (d) d.style.opacity = dim >= 1 ? 0.3 : 0; }
+    if (dim !== LB.dim) { LB.dim = dim; LB.ex = 0.95 * (1 - dim * 0.985); const d = $('menuDark'); if (d) d.style.opacity = dim >= 1 ? 0.3 : 0; }
     // and sometimes, out of the dark, she speaks
     LB.vT -= dt;
     if (LB.vT <= 0) { LB.vT = 22 + Math.random() * 20; const keys = ['anyone', 'come', 'valli', 'hiding', 'seeyou']; if (!$('menu').hidden && LB.scare <= 0) A.voice && A.voice(keys[Math.floor(Math.random() * keys.length)], { x: E.pos.x, y: 1.4, z: E.pos.z }, 0.9); }
@@ -1596,6 +1613,7 @@
     if (roomTimer > 0) { roomTimer -= dt; if (roomTimer <= 0) $('roomLbl').classList.remove('show'); }
     const tsec = now / 1000;
     W.update(dt, tsec); updateWeather(dt); A.update();
+    lobbyMist(G.state === 'menu');
     if (G.state === 'menu') {
       menuT += dt; lobby(dt);
       E.model.visible = true; E.model.position.set(E.pos.x, 0, E.pos.z); E.model.rotation.set(0, Math.atan2(camera.position.x - E.pos.x, camera.position.z - E.pos.z), 0);

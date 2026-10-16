@@ -1,0 +1,12 @@
+Aisle Zero - third-party notices
+
+3D models, loaded at run time from the Models.codelove.in library (https://models.codelove.in):
+- "The Human Deer" (the Wendigo) by ceeleste, CC BY 4.0
+  https://sketchfab.com/3d-models/the-human-deer-7644694337404bb18eb68e6b637740a1
+- Hooded horror woman (the ghost) by PurplePoint, CC BY 4.0, via Sketchfab
+  (see the model's page on https://models.codelove.in for the exact link)
+
+The supermarket (shelving, products, carts, freezers, lockers, signs) is built in code with textures generated in the
+browser. The soundtrack and every sound effect are synthesised in the browser (Web Audio); there are no audio files.
+
+Fonts: Creepster and Hind Madurai (SIL OFL 1.1). three.js (MIT). Meshoptimizer decoder (MIT, Arseny Kapoulkine).

@@ -9,7 +9,7 @@
 
   // night look per model: colour multiplier (moonlit, desaturated) and the faint blue of outM()
   const MOOD = {
-    tree: [0.62, 0.68, 0.66], palm: [0.6, 0.64, 0.6], banana: [0.6, 0.66, 0.6], tulasi: [0.7, 0.75, 0.7], fern: [0.4, 0.47, 0.42],
+    tree: [0.8, 1.0, 1.0], palm: [0.8, 1.0, 0.95], banana: [0.8, 1.0, 0.95], tulasi: [0.7, 0.8, 0.74], fern: [0.4, 0.5, 0.46],
     stoneFlat: [0.34, 0.35, 0.4], stone: [0.36, 0.37, 0.42], deadTree: [0.55, 0.5, 0.48], deadTreeM: [0.55, 0.5, 0.48],
     lantern: [0.8, 0.8, 0.8], lanternStand: [0.8, 0.8, 0.8]
   };
@@ -54,6 +54,9 @@
         if (mt.transparent || mt.alphaTest > 0) { mt.transparent = false; mt.alphaTest = 0.5; mt.depthWrite = true; } // leaves: cut-out, not blended
         const t = MAT_MOOD[mt.name] || tint; mt.color.setRGB(mt.color.r * t[0], mt.color.g * t[1], mt.color.b * t[2]);
         if (mt.emissive) { mt.emissive.setHex(0x03050a); mt.emissiveIntensity = 1; } // like outM(): the moon's faint blue
+        // leaves and fronds: a third of the texture stays lit whatever the baked light, so the foliage reads as moonlit green
+        // leaves instead of a black mass with holes in it
+        if (mt.alphaTest > 0 && mt.emissive && /^(tree|palm|banana|tulasi|fern)$/.test(key)) mt.emissive.copy(mt.color).multiplyScalar(0.33);
         mt.roughness = Math.max(0.75, mt.roughness === undefined ? 1 : mt.roughness); mt.metalness = key.startsWith('lantern') ? 0.4 : 0;
       }
     });

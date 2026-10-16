@@ -82,6 +82,7 @@ const pattiBody = Hind_Madurai({ subsets: ["latin"], display: "swap", preload: f
 
 export const GAME_FONTS: Record<string, { display: Font; body: Font }> = {
   "patti-veedu": { display: pattiDisplay, body: pattiBody },
+  "aisle-zero": { display: pattiDisplay, body: pattiBody },
   "skate-rush": { display: skateDisplay, body: skateBody },
   "saucer-siege": { display: saucerDisplay, body: saucerBody },
   "cannon-cove": { display: coveDisplay, body: coveBody },

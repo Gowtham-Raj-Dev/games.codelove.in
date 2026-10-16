@@ -350,6 +350,148 @@ window.K = window.K || {};
     blotches(g, W, H, r, 10, '20,24,40', 0.6, 40, 120);
     return toTex(c, false);
   };
+
+  /* ---------- the night sky: a dome that follows the camera, drawn in a shader ----------
+     A real-looking night: two layers of stars with colour and twinkle, the Milky Way with dust lanes, a cratered gibbous
+     moon with glow and a faint ring, drifting thin cloud lit from behind by the moon, haze at the horizon, and a painted
+     tree line (coconut palms, mango and neem canopies) standing against it on every side. */
+  // the tree line: 360° around, from just under the horizon (bottom) to ~20° up (top). R = far trees (hazy), G = near trees
+  // (black), B = moonlit rim on the near trees. Channels are added with 'lighter' so the layers do not cover each other.
+  function makeTreeLine() {
+    const W = 2048, H = 256, c = canvas(W, H), g = c.getContext('2d'), r = rng(2024);
+    g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = 'lighter';
+    const base = H * 0.78; // the ground line, a little under the horizon
+    const wrapX = (x, fn) => { fn(x); if (x < 160) fn(x + W); if (x > W - 160) fn(x - W); }; // seamless around 360°
+    const canopy = (x, y, rx, ry, col) => wrapX(x, xx => { // a rounded crown built from overlapping blobs
+      g.fillStyle = col; const n = 7 + (rx / 12 | 0);
+      for (let i = 0; i < n; i++) { const a = r() * 6.283, d = Math.sqrt(r()); g.beginPath(); g.ellipse(xx + Math.cos(a) * rx * 0.6 * d, y + Math.sin(a) * ry * 0.5 * d, rx * (0.35 + r() * 0.3), ry * (0.35 + r() * 0.3), 0, 0, 7); g.fill(); }
+    });
+    const palm = (x, top, lean, col, scale) => wrapX(x, xx => {
+      g.strokeStyle = col; g.fillStyle = col; g.lineCap = 'round';
+      const tx = xx + lean, ty = base - top; // the crown
+      g.lineWidth = 5 * scale; g.beginPath(); g.moveTo(xx, base + 6); g.quadraticCurveTo(xx + lean * 0.15, base - top * 0.55, tx, ty); g.stroke();
+      const nf = 11;
+      for (let i = 0; i < nf; i++) { // each frond: an arch with feathery leaflets hanging from it
+        const a = -Math.PI * 0.95 + (i / (nf - 1)) * Math.PI * 0.9 + (r() - 0.5) * 0.2, len = (46 + r() * 22) * scale;
+        const ex = tx + Math.cos(a) * len, ey = ty + Math.sin(a) * len * 0.55 + len * 0.42 * Math.abs(Math.cos(a)); // the tip droops
+        const mx = tx + Math.cos(a) * len * 0.5, my = ty + Math.sin(a) * len * 0.75;
+        g.lineWidth = 2.6 * scale; g.beginPath(); g.moveTo(tx, ty); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
+        g.lineWidth = 1.5 * scale;
+        for (let k = 1; k < 13; k++) {
+          const t = k / 13, px = (1 - t) * (1 - t) * tx + 2 * (1 - t) * t * mx + t * t * ex, py = (1 - t) * (1 - t) * ty + 2 * (1 - t) * t * my + t * t * ey, ll = (13 - Math.abs(k - 5)) * 1.5 * scale;
+          for (const s of [-1, 1]) { g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(a + s * 1.15) * ll * 0.5 + 1, py + Math.sin(a + s * 1.15) * ll * 0.4 + ll * 0.75); g.stroke(); }
+        }
+      }
+      g.beginPath(); g.arc(tx, ty + 2, 4 * scale, 0, 7); g.fill();
+    });
+    // far: a dense, low, uneven wall of canopy, with a few palms standing above it
+    for (let x = 0; x < W; x += 9) { const hgt = 22 + 26 * (0.5 + 0.5 * Math.sin(x * 0.011 + 1) * Math.sin(x * 0.0043 + 2)) + r() * 12; canopy(x, base - hgt * 0.55, 26 + r() * 22, hgt * 0.62, 'rgb(255,0,0)'); }
+    for (let i = 0; i < 26; i++) palm(r() * W, 70 + r() * 44, (r() - 0.5) * 40, 'rgb(255,0,0)', 0.62);
+    // near: fewer, bigger and black; the moon catches the tops
+    const nearTrees = [];
+    for (let i = 0; i < 46; i++) nearTrees.push({ x: (i + r() * 0.8) * (W / 46), mango: r() < 0.55, top: 92 + r() * 70, lean: (r() - 0.5) * 60, rx: 34 + r() * 40 });
+    for (const t of nearTrees) {
+      if (t.mango) {
+        g.fillStyle = 'rgb(0,255,0)'; wrapX(t.x, xx => { g.fillRect(xx - 3, base - t.top * 0.5, 6, t.top * 0.5 + 8); });
+        canopy(t.x, base - t.top * 0.62, t.rx, t.top * 0.46, 'rgb(0,255,0)');
+      } else palm(t.x, t.top * 1.15, t.lean, 'rgb(0,255,0)', 1);
+    }
+    g.fillStyle = 'rgb(0,255,0)'; g.fillRect(0, base, W, H - base); // the ground and the compound wall's far side
+    // moonlit rims: redraw the near layer's upper edge as blue, using the same trees, clipped to a thin top band
+    g.globalCompositeOperation = 'source-atop';
+    const rim = g.createLinearGradient(0, 0, 0, H); rim.addColorStop(0, 'rgba(0,0,255,1)'); rim.addColorStop(0.42, 'rgba(0,0,255,0.0)');
+    g.fillStyle = rim; g.fillRect(0, 0, W, H);
+    const tx = toTex(c, false, false); tx.wrapS = THREE.RepeatWrapping; tx.wrapT = THREE.ClampToEdgeWrapping; tx.minFilter = THREE.LinearMipmapLinearFilter; tx.generateMipmaps = true; tx.needsUpdate = true;
+    return tx;
+  }
+  const SKY_VERT = 'varying vec3 vD; void main() { vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+  const SKY_FRAG = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+varying vec3 vD; uniform float uT; uniform sampler2D uTrees; uniform vec3 uMoon;
+float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float h31(vec3 p) { p = fract(p * vec3(.1031, .1030, .0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(h21(i), h21(i + vec2(1., 0.)), f.x), mix(h21(i + vec2(0., 1.)), h21(i + vec2(1., 1.)), f.x), f.y); }
+float fbm(vec2 p) { float a = .5, s = 0.; for (int i = 0; i < 5; i++) { if (i >= OCT) break; s += a * vn(p); p = p * 2.03 + vec2(17., 9.); a *= .5; } return s; }
+// one layer of stars: a point in each cell of a 3-D grid laid over the sphere
+vec3 stars(vec3 d, float scale, float thr, float size) {
+  vec3 p = d * scale, id = floor(p), f = fract(p) - .5; float r = h31(id); if (r < thr) return vec3(0.);
+  vec3 o = vec3(h31(id + 1.7), h31(id + 3.1), h31(id + 5.3)) - .5; float dd = length(f - o * .55), m = (r - thr) / (1. - thr);
+  float tw = .78 + .22 * sin(uT * (1.5 + r * 5.) + r * 80.);
+  vec3 tint = mix(vec3(.62, .75, 1.), vec3(1., .84, .66), h31(id + 9.));
+  return tint * smoothstep(size, 0., dd) * (.25 + m * m * 2.4) * tw;
+}
+void main() {
+  vec3 d = normalize(vD); vec3 M = normalize(uMoon);
+  float up = clamp(d.y, 0., 1.);
+  // sky colour: deep blue overhead, hazy moonlit blue at the horizon
+  vec3 col = mix(vec3(.050, .075, .125), vec3(.003, .007, .020), pow(up, .42));
+  col += vec3(.050, .060, .085) * pow(1. - up, 7.) * .8;
+  float cm = max(dot(d, M), 0.), ang = acos(clamp(dot(d, M), -1., 1.));
+  col += vec3(.020, .032, .070) * pow(cm, 6.) + vec3(.030, .042, .082) * pow(cm, 24.);   // the sky brightens around the moon
+  // clouds: a drifting, stretched fbm on a plane overhead; silver at the edges near the moon, near-black elsewhere
+  vec2 cuv = d.xz / (d.y + .62) * 1.25 + vec2(uT * .006, uT * .0021);
+  float c1 = fbm(cuv * 1.5), c2 = fbm(cuv * 3.6 + vec2(7., 3.)), cd = smoothstep(.48, .84, c1 * .72 + c2 * .38) * smoothstep(.04, .42, d.y);
+  float thin = smoothstep(.34, .62, c1) * smoothstep(.02, .3, d.y);
+  // the Milky Way: a band along a great circle, broken by dust
+  vec3 gn = normalize(vec3(.34, .78, -.52)); float gd = dot(d, gn);
+  vec3 t1 = normalize(cross(gn, vec3(0., 1., 0.))), t2 = cross(gn, t1);
+  vec2 gp = vec2(dot(d, t1), dot(d, t2)) * 7.;
+  float band = exp(-pow(gd / .2, 2.)), mw = band * (.30 + .70 * fbm(gp)) * (1. - .55 * smoothstep(.45, .8, fbm(gp * 1.9 + 11.)));
+  col += vec3(.20, .24, .36) * mw * .20 * step(0., d.y + .06);
+  // stars
+  vec3 st = stars(d, 52., .975, .11) * 1.1 + stars(d, 118., .965, .17) * .7 + STAR3;
+  float clear = (1. - cd * .96) * (1. - thin * .45) * smoothstep(-.02, .12, d.y) * (1. - smoothstep(.2, 1.6, ang) * 0.);
+  col += st * clear * (1. - smoothstep(.0, .6, cm) * .7);
+  // the moon: a disc with maria, a few bright craters, limb darkening and a lit side, plus halo and a 22° ring through thin cloud
+  vec3 T = normalize(cross(vec3(0., 1., 0.), M)), B = cross(M, T);
+  float R0 = .05; vec2 mu = vec2(dot(d, T), dot(d, B)) / R0; float mr = length(mu);
+  if (dot(d, M) > 0. && mr < 1.) {
+    vec3 n = vec3(mu, sqrt(1. - mr * mr));
+    float maria = smoothstep(.40, .66, fbm(mu * 1.7 + vec2(3.1, 1.3)));
+    float crat = vn(mu * 9. + 2.) * .5 + vn(mu * 21.) * .35;
+    float alb = .95 - maria * .38 - (1. - crat) * .06 + smoothstep(.82, .9, vn(mu * 15. + 8.)) * .10;
+    float lit = smoothstep(-.12, .38, dot(n, normalize(vec3(.32, .18, .9))));
+    vec3 mc = vec3(.97, .96, .90) * alb * (.18 + .82 * lit) * (.55 + .45 * n.z);
+    col = mix(col, mc * 2.2 * (1. - cd * .55), smoothstep(1., .94, mr));
+  }
+  float veil = .35 + .65 * (1. - cd * .5);
+  col += vec3(.34, .42, .66) * exp(-ang * ang / .0016) * veil * .55;               // close glow
+  col += vec3(.16, .22, .40) * exp(-ang * ang / .020) * veil * .6;                 // wide glow
+  col += vec3(.06, .09, .17) * exp(-pow((ang - .385) / .028, 2.)) * thin * 1.2;    // faint 22° ring in thin cloud
+  // cloud body: dark blue-grey, silvered where the moon is behind it
+  float edge = cd * (1. - cd) * 4.; float behind = exp(-ang * ang / .09);
+  vec3 cc = vec3(.016, .022, .040) + vec3(.22, .27, .40) * behind * (.35 + edge * .9) + vec3(.03, .04, .07) * pow(1. - up, 3.);
+  col = mix(col, cc, cd * .88);
+  // ground haze below the horizon
+  col = mix(col, vec3(.010, .013, .019), smoothstep(.0, -.12, d.y));
+  // the tree line, 360° around: far canopy in haze, near trees black with a moonlit rim
+  float az = atan(d.z, d.x) / 6.2831853 + .5, el = asin(clamp(d.y, -1., 1.)), v = (el + .045) / .33;
+  if (v > 0. && v < 1.) {
+    vec3 tr = texture2D(uTrees, vec2(az, v)).rgb;
+    vec3 farC = mix(col, vec3(.020, .030, .050), .86), nearC = vec3(.0018, .0028, .0042) + vec3(.030, .042, .075) * tr.b * (.4 + .6 * cm);
+    col = mix(col, farC, clamp(tr.r, 0., 1.)); col = mix(col, nearC, clamp(tr.g, 0., 1.));
+  } else if (v <= 0.) col = vec3(.0018, .0028, .0042);
+  gl_FragColor = vec4(col, 1.);
+  #include <tonemapping_fragment>
+  #include <encodings_fragment>
+}`;
+  /** The dome mesh. Radius 52 sits inside the game's camera far plane (60); it is drawn last, depth-tested, so walls hide it
+   *  (and its shader costs nothing where they do). `moon` is the direction of the moon, shared with the baked moonlight. */
+  K.makeNightSky = function (moon) {
+    const u = { uT: { value: 0 }, uTrees: { value: makeTreeLine() }, uMoon: { value: moon.clone() } };
+    // phones and tablets: fewer noise octaves and no third star layer (the sky is most of the screen on a terrace)
+    const low = !!window.KOLUSU_MOBILE, defs = '#define OCT ' + (low ? 3 : 5) + '\n#define STAR3 ' + (low ? 'vec3(0.)' : 'stars(d, 260., .93, .24) * .32 * (.4 + band)') + '\n';
+    const mat = new THREE.ShaderMaterial({ uniforms: u, vertexShader: SKY_VERT, fragmentShader: defs + SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false });
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(52, 56, 36), mat);
+    sky.frustumCulled = false; sky.renderOrder = 999; sky.matrixAutoUpdate = false;
+    sky.onBeforeRender = (renderer, scene, cam) => { sky.matrixWorld.makeTranslation(cam.position.x, cam.position.y, cam.position.z); u.uT.value = performance.now() * 0.001; };
+    return sky;
+  };
 })(window.K);
 
 /* ---------- Paatti: painted face, grey hair, maroon silk saree with a temple border ---------- */

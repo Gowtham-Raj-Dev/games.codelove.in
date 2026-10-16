@@ -199,9 +199,10 @@
   /* ---------------- walls ---------------- */
   const wallGeos = [];
   let WALLGEOS = wallGeos, WB = 0, WT = HT; // target geometry list and base/top height for wallX/wallZ
+  let SOLID_WALLS = true; // false: draw the wall only (the wing's roof parapet sits above the first floor and must not block the doors below it)
   function wallBox(x0, x1, y0, y1, z0, z1) {
     WALLGEOS.push(worldUV(boxGeo(x0, x1, y0, y1, z0, z1), 2, HT));
-    if (y0 < WB + 1.5) { solidBox(x0, x1, z0, z1, { wall: true }); W.losBoxes.push({ minX: x0, maxX: x1, minZ: z0, maxZ: z1, lv: LV }); }
+    if (SOLID_WALLS && y0 < WB + 1.5) { solidBox(x0, x1, z0, z1, { wall: true }); W.losBoxes.push({ minX: x0, maxX: x1, minZ: z0, maxZ: z1, lv: LV }); }
   }
   function wallX(z, x0, x1, gaps = []) {
     let c = x0; gaps.sort((a, b) => a.c - b.c);
@@ -381,9 +382,9 @@
     add(new THREE.Mesh(merge(bg), M.dark));
     // light-well above the courtyard: short parapet, sloping tiled roofs, sky
     const pg = [];
-    const skyTex = K.makeSkyTex(); skyTex.wrapS = skyTex.wrapT = THREE.RepeatWrapping; skyTex.repeat.set(2, 2);
-    const sky = new THREE.Mesh(new THREE.PlaneGeometry(90, 90), new THREE.MeshBasicMaterial({ map: skyTex, fog: false }));
-    sky.rotation.x = Math.PI / 2; sky.position.set(12, 20, 9); add(sky); W.sky = sky; sky.userData.dyn = true;
+    // the night sky: a dome around the camera (shader, tree line, moon in the direction the baked moonlight comes from)
+    const sky = K.makeNightSky(new THREE.Vector3(0.38, 1, 0.22).normalize());
+    add(sky); W.sky = sky; sky.userData.dyn = true;
 
     // ---- walls ----
     wallX(0, 0, 24, [{ c: 6.5, w: 1.0 }]); wallX(20, 0, 24, [{ c: 12, w: 1.6, h: 2.5 }]);
@@ -919,7 +920,7 @@
     const reg = []; for (const b of [[24, 46, -0.1, 0.1], [24, 46, 19.9, 20.1], [45.9, 46.1, 0, 20], [23.9, 24.1, 0, 20]]) reg.push(worldUV(boxGeo(b[0], b[1], T7, T7 + 0.4, b[2], b[3]), 2, 2));
     add(new THREE.Mesh(merge(reg), parM));
     const pgw = [];
-    withWalls(pgw, T7 + 0.4, T7 + 1.2, () => { wallX(0, 24, 46); wallX(20, 24, 46); wallZ(46, 0, 20); wallZ(24, 0, 20); wallX(7.5, 31, 39); wallX(12.5, 31, 39); wallZ(31, 7.5, 12.5); wallZ(39, 7.5, 12.5); });
+    withWalls(pgw, T7 + 0.4, T7 + 1.2, () => { wallX(0, 24, 46); wallX(20, 24, 46); wallZ(46, 0, 20); SOLID_WALLS = false; wallZ(24, 0, 20); SOLID_WALLS = true; wallX(7.5, 31, 39); wallX(12.5, 31, 39); wallZ(31, 7.5, 12.5); wallZ(39, 7.5, 12.5); });
     extraWalls(pgw, parM);
     // ---------- stairs from the wedding hall
     LV = 0;
