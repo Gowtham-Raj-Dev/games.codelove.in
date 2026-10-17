@@ -6,7 +6,7 @@ import { SiteChrome } from "@/components/site-chrome";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { ADSENSE_CLIENT } from "@/lib/adsense";
-import { DEFAULT_IMAGE } from "@/lib/seo";
+import { DEFAULT_IMAGE, ROBOTS } from "@/lib/seo";
 import { absoluteUrl, CODELOVE, SITE } from "@/lib/site";
 import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
@@ -49,11 +49,7 @@ export const metadata: Metadata = {
   // every page. No canonical here on purpose — a page that forgot its own would inherit it and point at the wrong URL.
   openGraph: { type: "website", siteName: SITE.brand, locale: SITE.locale, images: [DEFAULT_IMAGE] },
   twitter: { card: "summary_large_image", images: [DEFAULT_IMAGE.url] },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
-  },
+  robots: ROBOTS,
   ...(googleVerification ? { verification: { google: googleVerification } } : {}),
   // <meta name="google-adsense-account">: how AdSense checks that the site belongs to the publisher.
   ...(ADSENSE_CLIENT ? { other: { "google-adsense-account": ADSENSE_CLIENT } } : {}),

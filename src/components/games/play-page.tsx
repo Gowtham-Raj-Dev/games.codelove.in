@@ -32,7 +32,6 @@ export function playMetadata(game: GameEntry): Metadata {
     return {
       ...pageMetadata({ title: `${game.title} — Coming Soon`, description: game.description, path: `/${game.slug}/play/` }),
       ...credits,
-      robots: { index: false, follow: true },
     };
   }
   return {
@@ -79,7 +78,48 @@ export function PlayPage({ game, Player }: { game: GameEntry; Player: ComponentT
       <div className={gameFontVars(game.slug)}>
         <Player sizes={modelSizes(game.models)} />
       </div>
+      <PlayAbout game={game} />
     </>
+  );
+}
+
+/**
+ * A few lines about the game in the page's HTML, under the full-screen player (which covers it once it runs): what the
+ * game is, its controls — the same ones as the in-game "How to play" — and a link to its page. All from the manifest.
+ */
+function PlayAbout({ game }: { game: GameEntry }) {
+  return (
+    <section aria-labelledby="play-about" className="mx-auto max-w-3xl space-y-4 px-4 py-10 text-sm leading-relaxed text-white/70">
+      <h2 id="play-about" className="text-base font-semibold text-white">
+        About {game.title}
+      </h2>
+      <p>
+        {game.title} is a free {game.genre.charAt(0).toLowerCase() + game.genre.slice(1)} game you play right here in your browser, on a PC or a phone. {game.tagline}
+      </p>
+      <p>{game.description}</p>
+      {game.controls.length > 0 && (
+        <>
+          <h3 className="font-semibold text-white">How to play</h3>
+          <ul className="list-disc space-y-1 pl-5">
+            {game.controls.map((c) => (
+              <li key={c.action}>
+                {c.action}: {c.keys.join(" / ")}
+                {c.touch ? ` (touch: ${c.touch})` : ""}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p>
+        <Link href={`/${game.slug}/`} className="underline underline-offset-2 hover:text-white">
+          About {game.title}: {game.trailer ? "trailer, " : ""}tips and the 3D models it is built from
+        </Link>
+        {" · "}
+        <Link href="/" className="underline underline-offset-2 hover:text-white">
+          More free 3D games
+        </Link>
+      </p>
+    </section>
   );
 }
 
@@ -98,6 +138,7 @@ export function ComingSoonPlay({ game }: { game: GameEntry }) {
           {game.title}
         </h1>
         <p className="text-lg text-white/80">{game.tagline}</p>
+        <p className="text-sm leading-relaxed text-white/65">{game.description}</p>
         <p className="text-sm text-white/55">This game is still being built. Check back soon!</p>
         <div className="flex flex-wrap justify-center gap-3 pt-2">
           <Link

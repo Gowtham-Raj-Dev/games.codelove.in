@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
-import { SITE } from "@/lib/site";
+import { absoluteUrl, SITE } from "@/lib/site";
 
 /** The share image of pages without their own, and the root layout's fallback card. */
 export const DEFAULT_IMAGE = { url: "/og/default.jpg", width: 1200, height: 630, alt: `${SITE.name} — free 3D games online` };
+
+/** Robots meta of every page: open to every search engine, with full-size image, snippet and video previews. */
+export const ROBOTS: NonNullable<Metadata["robots"]> = {
+  index: true,
+  follow: true,
+  googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
+};
 
 /**
  * Search results show about 160 characters of a description, so longer text is cut at the last whole
@@ -45,7 +52,8 @@ export function pageMetadata({
     title: absoluteTitle ? { absolute: title } : title,
     description,
     ...(keywords ? { keywords: [...new Set(keywords.filter(Boolean))] } : {}),
-    alternates: { canonical: path },
+    alternates: { canonical: absoluteUrl(path) },
+    robots: ROBOTS,
     openGraph: {
       type: "website",
       siteName: SITE.brand,

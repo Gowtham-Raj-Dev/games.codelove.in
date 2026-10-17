@@ -46,11 +46,16 @@ export const CODELOVE = {
   name: "CodeLove",
   url: "https://codelove.in",
   tools: [
-    { name: "3D Models", url: MODELS_SITE.url },
-    { name: "Downloader", url: "https://downloader.codelove.in" },
+    { name: "Free 3D Models", url: MODELS_SITE.url },
+    { name: "Instagram & Pinterest Downloader", url: "https://downloader.codelove.in" },
     { name: "Link in Bio", url: "https://linkinbio.codelove.in" },
     { name: "Video to GIF", url: "https://videotogif.codelove.in" },
     { name: "Video to Images", url: "https://videotoimages.codelove.in" },
+  ],
+  /** Guides on the main site about the games and the models they are built from (footer "Guides"). */
+  guides: [
+    { name: "CodeLove Games", url: "https://codelove.in/products/games" },
+    { name: "How to use free 3D models", url: "https://codelove.in/learn/guide/how-to-use-free-3d-models" },
   ],
 };
 

@@ -30,7 +30,6 @@ export async function generateMetadata({ params }: PageProps<"/[slug]">): Promis
     return {
       ...pageMetadata({ title: `${game.title} — Coming Soon`, description: game.description, path: `/${game.slug}/` }),
       ...credits,
-      robots: { index: false, follow: true },
     };
   }
   const name = game.title.toLowerCase();

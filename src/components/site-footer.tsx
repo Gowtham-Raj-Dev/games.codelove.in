@@ -101,11 +101,11 @@ export function SiteFooter() {
               ))}
             </ul>
           </div>
-          {/* The main CodeLove site and its other tools. */}
-          <div>
-            <h2 className={heading}>{CODELOVE.name}</h2>
+          {/* The CodeLove network: the main site, its other tools and the guides there about these games. */}
+          <nav aria-label={`${CODELOVE.name} network`}>
+            <h2 className={heading}>{CODELOVE.name} network</h2>
             <ul className="space-y-2.5 text-sm text-muted">
-              {[{ name: `${CODELOVE.name} home`, url: CODELOVE.url }, ...CODELOVE.tools].map((site) => (
+              {[{ name: CODELOVE.name, url: CODELOVE.url }, ...CODELOVE.tools].map((site) => (
                 <li key={site.url}>
                   <a href={site.url} className="transition-colors hover:text-fg">
                     {site.name}
@@ -113,10 +113,20 @@ export function SiteFooter() {
                 </li>
               ))}
             </ul>
-          </div>
-          {/* The parent brand, bottom right: on desktop it is pinned to the free space under the last two link columns (the Play
-              list beside them is always the tallest). Two files: dark lettering for the cream theme, white for the dark one. */}
-          <a href={CODELOVE.url} aria-label={`${CODELOVE.name} — codelove.in`} className="col-span-2 w-fit lg:absolute lg:right-6 lg:bottom-14">
+            <h2 className={`${heading} mt-8`}>Guides</h2>
+            <ul className="space-y-2.5 text-sm text-muted">
+              {CODELOVE.guides.map((guide) => (
+                <li key={guide.url}>
+                  <a href={guide.url} className="transition-colors hover:text-fg">
+                    {guide.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          {/* The parent brand, bottom right on desktop, on a row of its own under the link columns (the network column with its
+              guides can be as tall as the Play list). Two files: dark lettering for the cream theme, white for the dark one. */}
+          <a href={CODELOVE.url} aria-label={`${CODELOVE.name} — codelove.in`} className="col-span-2 w-fit lg:col-span-4 lg:justify-self-end">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={asset("/codelove/codelove-footer-on-light.png")}
