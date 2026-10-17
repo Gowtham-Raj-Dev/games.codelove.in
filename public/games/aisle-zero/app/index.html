@@ -18,7 +18,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--bone);overflow:h
 [hidden],.hidden{display:none!important}
 #game{position:fixed;inset:0}
 #game canvas{display:block;width:100%;height:100%;outline:none;filter:contrast(1.07) saturate(.86)}
-#grain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;opacity:.09;mix-blend-mode:overlay;image-rendering:pixelated}
+#grain{position:fixed;inset:0;pointer-events:none;opacity:.05;mix-blend-mode:overlay;background-repeat:repeat}
 #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.7) 100%)}
 #fear{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(120,0,0,0) 38%,rgba(150,0,0,.7) 100%)}
 #flash{position:fixed;inset:0;pointer-events:none;opacity:0;background:#a00}
@@ -112,7 +112,7 @@ button{position:relative;overflow:hidden}
 </head>
 <body>
 <div id="game"></div>
-<canvas id="grain" width="200" height="112"></canvas>
+<div id="grain"></div>
 <div id="pickflash"></div>
 <div id="vignette"></div><div id="fear"></div><div id="flash"></div>
 

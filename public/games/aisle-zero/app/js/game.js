@@ -30,8 +30,25 @@
 
   /* ---------------- renderer / scene ---------------- */
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, touchMode ? 1.25 : 1.75));
+  // Sharp on phones too: render at the screen's own density (up to 2x). If a device can't keep up, the
+  // resolution steps down a little at a time (see fitQuality) instead of starting low and looking blocky.
+  const DPR = window.devicePixelRatio || 1, PR_MAX = Math.min(DPR, 2), PR_MIN = Math.min(DPR, touchMode ? 1.3 : 1);
+  let pixelRatio = PR_MAX;
+  renderer.setPixelRatio(pixelRatio);
   renderer.setSize(innerWidth, innerHeight);
+  K.maxAniso = renderer.capabilities.getMaxAnisotropy();
+  let qT = 0, qN = 0, qWait = 4;
+  function fitQuality(dt) {
+    if (state !== "play") return;
+    if ((qWait -= dt) > 0) return; // let shaders compile and the first frames settle
+    qT += dt; qN++;
+    if (qT < 2.5) return;
+    const fps = qN / qT; qT = 0; qN = 0;
+    let next = pixelRatio;
+    if (fps < 42 && pixelRatio > PR_MIN) next = Math.max(PR_MIN, pixelRatio - 0.25);
+    else if (fps > 57 && pixelRatio < PR_MAX) next = Math.min(PR_MAX, pixelRatio + 0.25);
+    if (next !== pixelRatio) { pixelRatio = next; renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight); qWait = 2; }
+  }
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; K.renderer = renderer;
@@ -118,13 +135,29 @@
   }
   function hideAll() { ["menu", "pause", "dead", "win"].forEach((id) => $(id).classList.add("hidden")); }
   function lock() { if (!touchMode && renderer.domElement.requestPointerLock) { try { const p = renderer.domElement.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }
+  // Phones: full screen + lock to landscape (browsers only allow that from a tap, on a full screen page).
+  // Where the browser can't lock (iPhone Safari), the page around the game turns it sideways instead.
+  function goLandscape() {
+    if (!touchMode) return;
+    let doc = document; try { if (parent !== window && parent.document) doc = parent.document; } catch (e) {}
+    const root = doc.documentElement, isFs = doc.fullscreenElement || doc.webkitFullscreenElement;
+    const lock = () => { try { const o = screen.orientation; if (o && o.lock) o.lock("landscape").catch(() => {}); } catch (e) {} };
+    if (isFs) { lock(); return; }
+    const full = (el, onFail) => {
+      try {
+        const req = el.requestFullscreen ? el.requestFullscreen({ navigationUI: "hide" }) : el.webkitRequestFullscreen && el.webkitRequestFullscreen();
+        if (req && req.then) req.then(lock, onFail); else lock();
+      } catch (e) { onFail(); }
+    };
+    full(root, () => { if (root !== document.documentElement) full(document.documentElement, () => {}); });
+  }
   function startGame() {
-    SFX.init(); SFX.resume(); SFX.uiConfirm(); resetGame(); hideAll(); $("hud").style.display = "block"; state = "play"; lock();
+    goLandscape(); SFX.init(); SFX.resume(); SFX.uiConfirm(); resetGame(); hideAll(); $("hud").style.display = "block"; state = "play"; lock();
     setTimeout(() => state === "play" && showMsg(t("start"), 5200), 700);
     setTimeout(() => state === "play" && msgKey("sound"), 11000);
   }
   function pauseGame() { if (state !== "play") return; $("pause").classList.remove("hidden"); SFX.uiBack(); setTimeout(() => $("pause").classList.contains("hidden") || SFX.suspend(), 180); IN.fwd = IN.str = 0; }
-  function resumeGame() { if (state !== "play") return; $("pause").classList.add("hidden"); SFX.resume(); SFX.uiToggle(true); lock(); }
+  function resumeGame() { if (state !== "play") return; goLandscape(); $("pause").classList.add("hidden"); SFX.resume(); SFX.uiToggle(true); lock(); }
   $("startBtn").onclick = startGame; $("retryBtn").onclick = startGame; $("againBtn").onclick = startGame; $("resumeBtn").onclick = resumeGame;
   document.addEventListener("pointerlockchange", () => {
     const locked = document.pointerLockElement === renderer.domElement;
@@ -381,7 +414,8 @@
   let last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const rawDt = (now - last) / 1000, dt = Math.min(0.05, rawDt); last = now;
+    if (rawDt < 0.25 && $("pause").classList.contains("hidden")) fitQuality(rawDt);
     if (state === "play") { if (!$("pause").classList.contains("hidden")) { /* paused */ } else update(dt); }
     else if (state === "caught") update(dt);
     else if (state === "menu" || state === "dead" || state === "win") {
@@ -395,8 +429,16 @@
     if (window.AZ) window.AZ.frames = (window.AZ.frames || 0) + 1;
   }
 
-  const grainC = $("grain"), gg = grainC.getContext("2d"), gimg = gg.createImageData(200, 112); let gframe = 0;
-  function drawGrain() { if (gframe++ % 3) return; const dd = gimg.data; for (let i = 0; i < dd.length; i += 4) { const v = Math.random() * 255; dd[i] = dd[i + 1] = dd[i + 2] = v; dd[i + 3] = 255; } gg.putImageData(gimg, 0, 0); }
+  // film grain: a few fine noise tiles, repeated at screen-pixel size (not one tiny image blown up into blocks)
+  const grainEl = $("grain"), GRAIN = [];
+  for (let n = 0; n < 4; n++) {
+    const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), img = g.createImageData(256, 256), dd = img.data;
+    for (let i = 0; i < dd.length; i += 4) { const v = Math.random() * 255; dd[i] = dd[i + 1] = dd[i + 2] = v; dd[i + 3] = 255; }
+    g.putImageData(img, 0, 0); GRAIN.push("url(" + c.toDataURL("image/png") + ")");
+  }
+  grainEl.style.backgroundSize = 256 / DPR + "px " + 256 / DPR + "px";
+  let gframe = 0;
+  function drawGrain() { if (gframe++ % 4) return; grainEl.style.backgroundImage = GRAIN[(gframe >> 2) % 4]; grainEl.style.backgroundPosition = ((Math.random() * 256) | 0) + "px " + ((Math.random() * 256) | 0) + "px"; }
 
   async function boot() {
     $("loadTxt").textContent = t("ldg");

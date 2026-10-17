@@ -16,6 +16,7 @@ import {
   Plane,
   Rocket,
   Sailboat,
+  ShoppingCart,
   Skull,
   Star,
   Target,
@@ -504,7 +505,34 @@ function CourierBar({ pct }: BarProps) {
   );
 }
 
+/** Aisle Zero: a row of ceiling tubes coming on one by one; the last lit one flickers. */
+function AisleBar({ pct }: BarProps) {
+  const TUBES = 10;
+  const lit = Math.max(1, Math.round((pct / 100) * TUBES));
+  return (
+    <div>
+      <div className="flex gap-1.5">
+        {Array.from({ length: TUBES }, (_, i) => (
+          <span
+            key={i}
+            className={`h-2.5 flex-1 rounded-full transition-[background-color,box-shadow] duration-300 ${i === lit - 1 && pct < 100 ? "motion-safe:animate-[g-tube_1.6s_steps(1)_infinite]" : ""}`}
+            style={i < lit ? { background: "#e8f0d8", boxShadow: "0 0 10px #d8f0c0, 0 0 22px #b8d8a088" } : { background: "#1d2422", boxShadow: "inset 0 0 0 1px #2e3634" }}
+          />
+        ))}
+      </div>
+      <div className="mt-2 h-[2px] bg-[#e2261a26]">
+        <div className={`h-full bg-[#e2261a] shadow-[0_0_10px_#e2261a] ${GROW}`} style={fill(pct)} />
+      </div>
+    </div>
+  );
+}
+
 // --- Ambient effects --------------------------------------------------------------------------------
+
+/** A failing fluorescent light: the whole screen dims for a blink now and then. */
+function BlackoutFx() {
+  return <span className="pointer-events-none absolute inset-0 bg-black opacity-0 motion-safe:animate-[g-dim_6s_steps(1)_infinite]" />;
+}
 
 /** A sensor sweep rolling down the screen. */
 function ScanFx() {
@@ -1024,6 +1052,36 @@ export const LOADING_LOOKS: Record<string, LoadingLook> = {
       spark: "#f8f1e3",
       clouds: true,
       sky: ["#13294b", "#1e3a5f"],
+    },
+  },
+  "aisle-zero": {
+    shade: "#050707",
+    lines: ["Unlocking the shutters…", "Flicking the lights on…", "Stocking the shelves…", "Something is moving in aisle 6…"],
+    Bar: AisleBar,
+    Fx: BlackoutFx,
+    title: {
+      emblem: ShoppingCart,
+      motto: "Collect · Hide · Escape",
+      tips: [
+        "Collect the 8 items on your shopping list, pay at register 4, then run for the exit.",
+        "It hunts by sight and sound. Running is loud, sneaking is quiet.",
+        "Your flashlight makes you easy to spot. Switch it off to slip past.",
+        "Hide in a locker marked HIDE, but not where it can see you go in.",
+        "Throw a can to send it the other way.",
+        "Wear headphones: its breathing tells you where it is.",
+      ],
+      top: "#e6dfc9 30%, #a5a18d 95%",
+      main: "#ff8a7a 5%, #e2261a 45%, #8a0d08 100%",
+      outline: "#050707",
+      stroke: 0.04,
+      depth: "drop-shadow(0 .08em 0 #000) drop-shadow(0 0 .7em #b3120ccc)",
+      charW: 0.5,
+      medal: { bg: "radial-gradient(circle, #1a0605, #050707 75%)", icon: "#e2261a", ring: "#e2261a", glow: "#b3120c" },
+      ribbon: { bg: "linear-gradient(180deg, #161d1c, #0a0f0e)", text: "#e6dfc9", edge: "#b3120c", shadow: "0 .1em 0 #000", depth: "drop-shadow(0 .3em .5em #000c)" },
+      glow: "#e2261a",
+      rays: 0,
+      spark: "#d8f0c0",
+      sky: ["#160505", "#0d1312"],
     },
   },
 };

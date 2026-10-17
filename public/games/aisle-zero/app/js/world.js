@@ -39,7 +39,7 @@
 
   /* ---------------- generated textures ---------------- */
   function cv(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
-  function tex(c, rx, ry, color) { const t = new THREE.CanvasTexture(c); if (color !== false) t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; if (rx) t.repeat.set(rx, ry); t.anisotropy = 8; return t; }
+  function tex(c, rx, ry, color) { const t = new THREE.CanvasTexture(c); if (color !== false) t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; if (rx) t.repeat.set(rx, ry); t.anisotropy = Math.min(16, K.maxAniso || 8); return t; }
   function noise(g, w, h, n, a, dark) { for (let i = 0; i < n; i++) { const v = dark ? Math.random() * 60 : 150 + Math.random() * 100; g.fillStyle = `rgba(${v},${v},${v},${Math.random() * a})`; g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2.5, 1 + Math.random() * 2.5); } }
   function stains(g, w, h, n, rmax, col) { for (let i = 0; i < n; i++) { const x = Math.random() * w, y = Math.random() * h, r = 8 + Math.random() * rmax; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${col},${0.18 + Math.random() * 0.3})`); gr.addColorStop(1, `rgba(${col},0)`); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); } }
 
