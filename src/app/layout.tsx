@@ -78,7 +78,7 @@ const siteJsonLd = [
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: SITE.brand,
-    alternateName: SITE.shortName,
+    alternateName: [SITE.shortName, "CodeLove 3D Games", "CodeLove Games"],
     url: absoluteUrl("/"),
     description: SITE.description,
     inLanguage: "en",

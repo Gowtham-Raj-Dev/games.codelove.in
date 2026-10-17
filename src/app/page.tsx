@@ -19,14 +19,20 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   ...pageMetadata({
     // The home page: the root layout's "%s | site" template doesn't reach it, so the title names the site itself.
-    title: `Free 3D Games Online — Play Free, No Download | ${SITE.name}`,
+    title: "Free 3D Games Online — No Download | CodeLove Games",
     absoluteTitle: true,
     description: DESCRIPTION,
     path: "/",
     keywords: [
+      "CodeLove games",
+      "codelove 3d games",
       "free 3D games online",
       "free 3D games",
       "3D games",
+      "browser games no download",
+      "games to play when bored",
+      "unblocked 3D games",
+      "free mobile browser games",
       "3D games online",
       "free games",
       "free games online",

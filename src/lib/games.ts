@@ -94,6 +94,20 @@ export const GAME_BUTTONS: { action: string; icon: LucideIcon; fullscreen?: bool
 export const genreTitle = (game: GameEntry) =>
   game.genre.replace(/^3D\s+/i, "").replace(/(^|[\s-])([a-z])/g, (_, sep: string, ch: string) => sep + ch.toUpperCase());
 
+/**
+ * Page title (before the " | games.codelove.in" suffix) that keeps the whole title within 70 characters, the most
+ * search results show: the full genre if it fits, then without "3D", then just "Free 3D Game".
+ */
+export function gameTitle(game: GameEntry, prefix = "", suffixLength = " | games.codelove.in".length): string {
+  const genre = genreTitle(game);
+  const options = [
+    `${prefix}${game.title} — Free 3D ${genre} Game`,
+    `${prefix}${game.title} — Free ${genre} Game`,
+    `${prefix}${game.title} — Free 3D Game`,
+  ];
+  return options.find((t) => t.length + suffixLength <= 70) ?? options[options.length - 1];
+}
+
 /** Tips for the player's device: the touch ones on touch screens, when the game has them. */
 export const howToFor = (game: GameEntry, touch: boolean) => (touch && game.touchHowTo) || game.howTo;
 

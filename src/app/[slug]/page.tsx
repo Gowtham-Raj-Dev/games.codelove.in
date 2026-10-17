@@ -11,7 +11,7 @@ import { androidApp } from "@/lib/game-apps";
 import { formatBytes, formatNumber } from "@/lib/catalog";
 import { gameDisplayClass } from "@/lib/game-fonts";
 import { gameDownloadBytes, gameModels } from "@/lib/game-models";
-import { GAME_BUTTONS, GAME_SHORTCUTS, games, genreTitle, getGame } from "@/lib/games";
+import { GAME_BUTTONS, GAME_SHORTCUTS, gameTitle, games, genreTitle, getGame } from "@/lib/games";
 import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl, GAME_CREDIT, MODELS_SITE, modelsUrl, SITE } from "@/lib/site";
 
@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: PageProps<"/[slug]">): Promis
   const app = androidApp(game.slug);
   return {
     ...pageMetadata({
-      title: `${game.title} — Free 3D ${genreTitle(game)} Game Online`,
+      title: gameTitle(game),
       description: `Play ${game.title} free online — no download, no sign-up. ${game.description} ${GAME_CREDIT}.`,
       path: `/${game.slug}/`,
       image: { url: game.cover, alt: `${game.title} gameplay` },

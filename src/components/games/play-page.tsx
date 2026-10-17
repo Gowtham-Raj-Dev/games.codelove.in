@@ -5,9 +5,9 @@ import { Hourglass } from "lucide-react";
 import { JsonLd } from "@/components/json-ld";
 import { gameDisplayClass, gameFontVars } from "@/lib/game-fonts";
 import { modelSizes } from "@/lib/game-models";
-import { genreTitle, type GameEntry } from "@/lib/games";
+import { gameTitle, genreTitle, type GameEntry } from "@/lib/games";
 import { pageMetadata } from "@/lib/seo";
-import { absoluteUrl, GAME_CREDIT, SITE } from "@/lib/site";
+import { absoluteUrl, SITE } from "@/lib/site";
 
 /**
  * Server side of a game's full-screen player route (/games/<slug>/play/). Each game has its own
@@ -37,8 +37,8 @@ export function playMetadata(game: GameEntry): Metadata {
   }
   return {
     ...pageMetadata({
-      title: `Play ${game.title} — Free 3D ${genreTitle(game)} Game`,
-      description: `Play ${game.title} free online — no download, no sign-up. ${game.description} ${GAME_CREDIT}.`,
+      title: gameTitle(game, "Play "),
+      description: `${game.title} full-screen player: start playing now in your browser, on PC or phone. ${game.description}`,
       path: `/${game.slug}/play/`,
       image: { url: game.cover, alt: `${game.title} gameplay` },
       keywords: [

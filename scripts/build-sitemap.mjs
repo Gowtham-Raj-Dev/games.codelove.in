@@ -18,11 +18,27 @@ const games = fs
   .sort();
 
 const today = new Date().toISOString().slice(0, 10);
-const PAGES = ["/about/", "/contact/", "/privacy/"];
-const urls = ["/", ...games.flatMap((slug) => [`/${slug}/`, `/${slug}/play/`]), ...PAGES];
+const PAGES = [
+  { path: "/about/", changefreq: "monthly", priority: 0.5 },
+  { path: "/contact/", changefreq: "yearly", priority: 0.4 },
+  { path: "/privacy/", changefreq: "yearly", priority: 0.3 },
+];
+const urls = [
+  { path: "/", changefreq: "weekly", priority: 1 },
+  ...games.flatMap((slug) => [
+    { path: `/${slug}/`, changefreq: "weekly", priority: 0.9 },
+    { path: `/${slug}/play/`, changefreq: "monthly", priority: 0.7 },
+  ]),
+  ...PAGES,
+];
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `  <url>\n    <loc>${SITE}${u}</loc>\n    <lastmod>${today}</lastmod>\n  </url>`).join("\n")}
+${urls
+  .map(
+    (u) =>
+      `  <url>\n    <loc>${SITE}${u.path}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority.toFixed(1)}</priority>\n  </url>`,
+  )
+  .join("\n")}
 </urlset>
 `;
 fs.mkdirSync(path.join(ROOT, "public"), { recursive: true });
