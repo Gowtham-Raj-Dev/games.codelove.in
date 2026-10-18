@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Download, Gamepad2, Hourglass, Keyboard, ListChecks, Music, Play, Smartphone } from "lucide-react";
-import { ApkDownloadCount, ApkDownloadLink } from "@/components/apk-downloads";
+import { ApkDownloadLink } from "@/components/apk-downloads";
+import { AppStats } from "@/components/app-stats";
 import { ComingSoonArt, GameCard } from "@/components/game-card";
 import { GameTrailer } from "@/components/game-trailer";
 import { JsonLd } from "@/components/json-ld";
@@ -252,21 +253,10 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
                   <p className="text-sm font-semibold text-fg">{game.title} for Android</p>
                   <p className="text-xs text-subtle">
                     v{app.version} · {formatBytes(app.bytes)} APK · Android {app.minAndroid}+ · landscape, full screen · plays offline
-                    <ApkDownloadCount slug={game.slug} className="before:content-['·'] before:mx-1 font-semibold text-muted" />
                   </p>
                 </div>
               </div>
-              <details className="group mt-3 text-sm">
-                <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted hover:text-fg">
-                  <ChevronRight className="size-3.5 transition group-open:rotate-90" /> How to install
-                </summary>
-                <ol className="mt-2 list-decimal space-y-1 pl-9 text-xs leading-relaxed text-muted">
-                  <li>Tap “Download for Android” on your phone (or copy the APK to it).</li>
-                  <li>Open the downloaded file. If Android asks, allow your browser to “Install unknown apps”.</li>
-                  <li>Tap Install, then open {game.title} from your home screen. It plays in landscape and works offline.</li>
-                </ol>
-                <p className="mt-2 pl-4 font-mono text-[10px] break-all text-subtle">SHA-256 {app.sha256}</p>
-              </details>
+              <AppStats slug={game.slug} title={game.title} />
             </div>
           )}
         </div>
