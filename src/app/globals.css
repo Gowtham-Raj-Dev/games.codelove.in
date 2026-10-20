@@ -31,6 +31,15 @@
   --color-ok: #15803d;
   /* Text on a yellow or game-accent fill: dark in both themes. */
   --color-ink: #1b1425;
+
+  /* Footer HeartButton: hearts burst outwards from the heart. */
+  --animate-fly-up: fly-up 2s ease-out forwards;
+}
+
+@keyframes fly-up {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+  50% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(1.5) rotate(var(--r)); opacity: 0; }
 }
 
 /*

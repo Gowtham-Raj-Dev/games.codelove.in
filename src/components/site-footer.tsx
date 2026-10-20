@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BadgeCheck, Download, Play, UserX } from "lucide-react";
+import { HeartButton } from "@/components/heart-button";
 import { Logo } from "@/components/site-header";
 import { asset } from "@/lib/asset";
 import { games } from "@/lib/games";
@@ -28,7 +29,11 @@ const PROMISES = [
   { icon: UserX, label: "No sign-up" },
 ];
 
-const heading = "mb-4 font-display text-xs font-bold tracking-[0.16em] text-accent uppercase";
+/** The standard CodeLove credit, same on every site in the network. */
+const AUTHOR_URL = "https://gowtham.codelove.in";
+const creditLink = "font-medium text-fg transition-colors hover:text-accent";
+
+const heading ="mb-4 font-display text-xs font-bold tracking-[0.16em] text-accent uppercase";
 
 export function SiteFooter() {
   const playable = games.filter((g) => !g.comingSoon);
@@ -155,6 +160,16 @@ export function SiteFooter() {
                 {MODELS_SITE.name}
               </a>
               .
+            </p>
+            <p className="flex items-center gap-1.5 text-sm text-muted">
+              Built with <HeartButton /> by{" "}
+              <a href={AUTHOR_URL} target="_blank" rel="noopener noreferrer" className={creditLink}>
+                Gowtham
+              </a>
+              <span aria-hidden="true">·</span>
+              <a href={CODELOVE.url} target="_blank" rel="noopener noreferrer" className={creditLink}>
+                CodeLove
+              </a>
             </p>
             <nav aria-label="About this site" className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
               {ABOUT.map((l) =>
