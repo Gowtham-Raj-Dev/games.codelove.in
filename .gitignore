@@ -44,3 +44,8 @@ next-env.d.ts
 .firebase/
 
 dist-playables/
+
+# Promo/gameplay videos live in ..\video-files\games.codelove.in (not deployed)
+/recordings/
+/public/games/*/shorts*.mp4
+/public/games/*/promo*.mp4
