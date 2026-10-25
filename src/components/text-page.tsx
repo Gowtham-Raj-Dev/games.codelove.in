@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Eyebrow } from "@/components/ui";
 
 /**
- * Layout of the pages that are mostly text (/about/, /contact/, /privacy/): a header, then sections in one
+ * Layout of the pages that are mostly text (/about/, /contact/, /privacy/, /terms/): a header, then sections in one
  * column narrow enough to read comfortably.
  */
 

@@ -40,3 +40,15 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+      # Tells Bing, Yandex and the other IndexNow search engines about every page in the sitemap after each
+      # deploy, so new and changed pages get crawled within minutes. Never fails the deploy.
+      - name: Ping IndexNow
+        continue-on-error: true
+        env:
+          HOST: games.codelove.in
+          KEY: 2c7c5ee4ac3ac04bee95a85d3a1eb7e2
+        run: |
+          sleep 30
+          urls=$(curl -fsSL "https://$HOST/sitemap.xml" | grep -o '<loc>[^<]*' | sed 's/<loc>//' | head -n 10000 | jq -R . | jq -s .)
+          jq -n --arg host "$HOST" --arg key "$KEY" --argjson urls "$urls" '{host: $host, key: $key, keyLocation: ("https://" + $host + "/" + $key + ".txt"), urlList: $urls}' \
+            | curl -sS -X POST https://api.indexnow.org/indexnow -H 'Content-Type: application/json; charset=utf-8' --data-binary @- -o /dev/null -w 'IndexNow: HTTP %{http_code}\n'

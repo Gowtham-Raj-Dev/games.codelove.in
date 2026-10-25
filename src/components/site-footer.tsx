@@ -15,12 +15,12 @@ const LIBRARY = [
   { href: modelsUrl("/license/"), label: "Licensing" },
 ];
 
-/** Who runs the site, how to reach them and the policies. The terms of use are shared with the model library. */
+/** Who runs the site, how to reach them and the policies. */
 const ABOUT = [
   { href: "/about/", label: "About" },
   { href: "/contact/", label: "Contact" },
   { href: "/privacy/", label: "Privacy policy" },
-  { href: modelsUrl("/terms/"), label: "Terms of use" },
+  { href: "/terms/", label: "Terms of use" },
 ];
 
 const PROMISES = [
