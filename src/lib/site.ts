@@ -47,7 +47,7 @@ export const CODELOVE = {
   url: "https://codelove.in",
   tools: [
     { name: "Free 3D Models", url: MODELS_SITE.url },
-    { name: "Instagram & Pinterest Downloader", url: "https://downloader.codelove.in" },
+    { name: "Insta Downloader", url: "https://downloader.codelove.in" },
     { name: "Link in Bio", url: "https://linkinbio.codelove.in" },
     { name: "Video to GIF", url: "https://videotogif.codelove.in" },
     { name: "Video to Images", url: "https://videotoimages.codelove.in" },

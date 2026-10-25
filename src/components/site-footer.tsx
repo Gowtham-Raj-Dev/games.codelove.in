@@ -131,7 +131,13 @@ export function SiteFooter() {
           </nav>
           {/* The parent brand, bottom right on desktop, on a row of its own under the link columns (the network column with its
               guides can be as tall as the Play list). Two files: dark lettering for the cream theme, white for the dark one. */}
-          <a href={CODELOVE.url} aria-label={`${CODELOVE.name} — codelove.in`} className="col-span-2 w-fit lg:col-span-4 lg:justify-self-end">
+          <div className="col-span-2 flex flex-col gap-3 lg:col-span-4 lg:flex-row lg:items-center lg:justify-end lg:gap-6">
+          {/* What CodeLove is, in one line — same text on every CodeLove site. */}
+          <p className="max-w-md text-sm leading-relaxed text-muted lg:order-first lg:text-right">
+            CodeLove makes free web tools, apps and games for creators, students and developers — simple to use, no hidden
+            fees.
+          </p>
+          <a href={CODELOVE.url} aria-label={`${CODELOVE.name} — codelove.in`} className="w-fit shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={asset("/codelove/codelove-footer-on-light.png")}
@@ -151,6 +157,7 @@ export function SiteFooter() {
               className="hidden h-14 w-auto [:root[data-theme=dark]_&]:block"
             />
           </a>
+          </div>
         </div>
         <div className="border-t border-line">
           <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 text-xs leading-relaxed text-subtle sm:px-6 lg:flex-row lg:items-center lg:justify-between">
