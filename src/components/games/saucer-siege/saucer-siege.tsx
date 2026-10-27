@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { ChevronRight, ChevronsUp, CircleHelp, Coins, Crosshair, FastForward, Gamepad2, Heart, Home, Pause, Play, RotateCcw, Skull, Snowflake, Star, Swords, Trophy, X } from "lucide-react";
 import type { LoadProgress } from "../shared/assets";
+import { audio } from "../shared/audio";
+import { music } from "../shared/music";
+import { SAUCER_MARCH } from "../shared/songs";
 import { above, ControlLayer, ControlsButton, ControlsEditor, createControls } from "../shared/touch-layout";
 import {
   BigButton,
@@ -109,6 +112,8 @@ export function SaucerSiege({ sizes }: { sizes: Record<string, number> }) {
       },
     });
     gameRef.current = game;
+    // Dev server only: scripts/record-saucer-gameplay.mjs drives the game (and renders its sound) through this.
+    if (process.env.NODE_ENV !== "production") Object.assign(window, { __saucerSiege: { game, records, audio, music, song: SAUCER_MARCH } });
     void game.load(modelSizes, Math.min(MAPS.length - 1, Math.max(0, records.get().map)));
     return () => {
       gameRef.current = null;
