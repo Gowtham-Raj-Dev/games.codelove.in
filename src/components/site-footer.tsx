@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BadgeCheck, Download, Play, UserX } from "lucide-react";
 import { HeartButton } from "@/components/heart-button";
+import { ContactLinks } from "@/components/contact-links";
 import { Logo } from "@/components/site-header";
 import { asset } from "@/lib/asset";
 import { games } from "@/lib/games";
@@ -168,7 +169,7 @@ export function SiteFooter() {
               </a>
               .
             </p>
-            <p className="flex items-center gap-1.5 text-sm text-muted">
+            <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted">
               Built with <HeartButton /> by{" "}
               <a href={AUTHOR_URL} target="_blank" rel="noopener noreferrer" className={creditLink}>
                 Gowtham
@@ -177,6 +178,8 @@ export function SiteFooter() {
               <a href={CODELOVE.url} target="_blank" rel="noopener noreferrer" className={creditLink}>
                 CodeLove
               </a>
+              <span aria-hidden="true">·</span>
+              <ContactLinks className="text-fg" />
             </p>
             <nav aria-label="About this site" className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
               {ABOUT.map((l) =>

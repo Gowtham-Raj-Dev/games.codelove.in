@@ -1,242 +1,308 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
   <url>
     <loc>https://games.codelove.in/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/aisle-zero/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/aisle-zero/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/beat-street/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/beat-street/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/cannon-cove/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <video:video>
+      <video:thumbnail_loc>https://games.codelove.in/games/cannon-cove/trailer-poster.webp</video:thumbnail_loc>
+      <video:title>Cannon Cove — free 3D game by CodeLove (gameplay trailer)</video:title>
+      <video:description>Trade across the open sea, build a fleet, battle friends online. A 3D open-world sailing and trading game. Captain a merchant ship between ten island ports: buy goods cheap where they're made and sell them where they're wanted, take freight, express, bounty and salvage contracts, and follow bottled maps to buried treasure. Earn gold to buy bigger ships — from a little sailboat to galleons and steam freighters — while pirates prowl the far waters and a ghost ship haunts her sea. Auto-sail steers you to any port and docks. Online, make a room and battle friends with its code, or quick-match against captains from anywhere; the classic cove battle against waves of navy ships is still there too. Play it free in your browser on games.codelove.in, part of CodeLove.</video:description>
+      <video:content_loc>https://games.codelove.in/games/cannon-cove/trailer-1080.mp4</video:content_loc>
+      <video:player_loc>https://games.codelove.in/cannon-cove/</video:player_loc>
+      <video:duration>39</video:duration>
+      <video:publication_date>2026-10-07</video:publication_date>
+      <video:tag>CodeLove</video:tag>
+      <video:tag>free 3D games</video:tag>
+      <video:tag>Cannon Cove</video:tag>
+    </video:video>
   </url>
   <url>
     <loc>https://games.codelove.in/cannon-cove/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/castaway/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/castaway/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/crypt-knight/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <video:video>
+      <video:thumbnail_loc>https://games.codelove.in/games/crypt-knight/trailer-poster.webp</video:thumbnail_loc>
+      <video:title>Crypt Knight — free 3D game by CodeLove (gameplay trailer)</video:title>
+      <video:description>Sword, shield and a crypt full of restless skeletons. A 3D action roguelite. Fight stage by stage through five cursed worlds — 50 stages in all, up to 3 stars each: chain combos, block, parry and dodge-roll through attacks, and later stages bless you with random powers. Skeletons claw their way out of the floor and a skeleton king guards the last stage of every world. Coins are saved after every stage: unlock 5 heroes, 10 skins and new worlds in the shop. Play it free in your browser on games.codelove.in, part of CodeLove.</video:description>
+      <video:content_loc>https://games.codelove.in/games/crypt-knight/trailer-1080.mp4</video:content_loc>
+      <video:player_loc>https://games.codelove.in/crypt-knight/</video:player_loc>
+      <video:duration>40</video:duration>
+      <video:publication_date>2026-10-07</video:publication_date>
+      <video:tag>CodeLove</video:tag>
+      <video:tag>free 3D games</video:tag>
+      <video:tag>Crypt Knight</video:tag>
+    </video:video>
   </url>
   <url>
     <loc>https://games.codelove.in/crypt-knight/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/hex-haven/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/hex-haven/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/kingdom-clash/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/kingdom-clash/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/night-heist/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/night-heist/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/nova-strike/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/nova-strike/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/order-up/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/order-up/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/patti-veedu/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <video:video>
+      <video:thumbnail_loc>https://games.codelove.in/games/patti-veedu/trailer-poster.webp</video:thumbnail_loc>
+      <video:title>Patti Veedu — free 3D game by CodeLove (gameplay trailer)</video:title>
+      <video:description>Grandma's house. Five nights. Listen for her anklet bells. A first-person Tamil horror puzzle game set in a Chettinad mansion. Paatti walks the halls with her lantern, hunting by sound: sneak, hide in wardrobes and under cots, and solve the house's puzzles to unlock the four locks on the front door before the fifth night ends. In Tamil and English. Play it free in your browser on games.codelove.in, part of CodeLove.</video:description>
+      <video:content_loc>https://games.codelove.in/games/patti-veedu/trailer-1080.mp4</video:content_loc>
+      <video:player_loc>https://games.codelove.in/patti-veedu/</video:player_loc>
+      <video:duration>50</video:duration>
+      <video:publication_date>2026-10-07</video:publication_date>
+      <video:tag>CodeLove</video:tag>
+      <video:tag>free 3D games</video:tag>
+      <video:tag>Patti Veedu</video:tag>
+    </video:video>
   </url>
   <url>
     <loc>https://games.codelove.in/patti-veedu/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/putt-paradise/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/putt-paradise/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/saucer-siege/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/saucer-siege/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/siege-smash/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/siege-smash/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/skate-rush/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <video:video>
+      <video:thumbnail_loc>https://games.codelove.in/games/skate-rush/trailer-poster.webp</video:thumbnail_loc>
+      <video:title>Skate Rush — free 3D game by CodeLove (gameplay trailer)</video:title>
+      <video:description>Skate through the city, dodge the traffic, grab every coin. An endless 3D skateboard runner. Switch lanes past taxis and fire trucks, kickflip over barriers, duck under gates and collect coins, shields, magnets, jetpacks and spring shoes — then spend your coins on 18 skaters, 10 skins, 13 boards and 7 stages, from Snow Village to a low-gravity Moon Base. Play it free in your browser on games.codelove.in, part of CodeLove.</video:description>
+      <video:content_loc>https://games.codelove.in/games/skate-rush/trailer-1080.mp4</video:content_loc>
+      <video:player_loc>https://games.codelove.in/skate-rush/</video:player_loc>
+      <video:duration>37</video:duration>
+      <video:publication_date>2026-10-07</video:publication_date>
+      <video:tag>CodeLove</video:tag>
+      <video:tag>free 3D games</video:tag>
+      <video:tag>Skate Rush</video:tag>
+    </video:video>
   </url>
   <url>
     <loc>https://games.codelove.in/skate-rush/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/sky-courier/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/sky-courier/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/sky-hop/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <video:video>
+      <video:thumbnail_loc>https://games.codelove.in/games/sky-hop/trailer-poster.webp</video:thumbnail_loc>
+      <video:title>Sky Hop — free 3D game by CodeLove (gameplay trailer)</video:title>
+      <video:description>Run, double-jump and stomp across floating sky islands. A 3D platformer across six worlds of floating sky islands — Sunny Meadow, Autumn Woods, Frosty Peaks, Desert Canyon, Candy Clouds and Volcano Peak — with ten stages in each. Double-jump over gaps, ride moving platforms and lifts, bounce on springs, dodge spikes and saws, stomp crabs, bees, hogs, penguins and polar bears, ground-pound crates, and find the three hidden stars in every stage. Save your coins to unlock new worlds, 15 heroes with their own powers (glide, triple jump, coin magnet…) and 10 skins. Play it free in your browser on games.codelove.in, part of CodeLove.</video:description>
+      <video:content_loc>https://games.codelove.in/games/sky-hop/trailer-1080.mp4</video:content_loc>
+      <video:player_loc>https://games.codelove.in/sky-hop/</video:player_loc>
+      <video:duration>41</video:duration>
+      <video:publication_date>2026-10-07</video:publication_date>
+      <video:tag>CodeLove</video:tag>
+      <video:tag>free 3D games</video:tag>
+      <video:tag>Sky Hop</video:tag>
+    </video:video>
   </url>
   <url>
     <loc>https://games.codelove.in/sky-hop/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/turbo-karts/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/turbo-karts/play/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/about/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/contact/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://games.codelove.in/privacy/</loc>
-    <lastmod>2026-10-25</lastmod>
+    <lastmod>2026-10-29</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://games.codelove.in/terms/</loc>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
