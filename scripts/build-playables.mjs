@@ -271,7 +271,8 @@ async function buildReact(slug) {
 
 /** Replaces `from` (which must be there exactly once) in a file of the copied game. */
 function patch(file, from, to) {
-  const text = fs.readFileSync(file, "utf8");
+  // A Windows checkout may have CRLF line endings; the patterns use "\n".
+  const text = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
   const n = text.split(from).length - 1;
   if (n !== 1) fail(`patti-veedu: expected one "${from.slice(0, 60)}…" in ${path.basename(file)}, found ${n} — the game changed; update scripts/build-playables.mjs`);
   fs.writeFileSync(file, text.replace(from, () => to));
@@ -290,22 +291,31 @@ function pattiStyles(html) {
   if (/url\(\s*["']?data:/.test(css)) fail("patti-veedu: the stylesheet has data: URLs now — check the vw / vh rewrite in scripts/build-playables.mjs");
   let out = "";
   let i = 0;
-  const media = /@media\s*\(\s*(max-height|max-width|orientation)\s*:\s*([a-z0-9]+)\s*\)\s*\{/g;
+  // One condition, or several joined by "," (any of them): `(max-width:900px),(max-height:420px)`.
+  const media = /@media\s*((?:\(\s*(?:max-height|max-width|orientation)\s*:\s*[a-z0-9]+\s*\)\s*,?\s*)+)\{/g;
+  const SIZES = { mh: [340, 380, 400, 420, 470], mw: [560, 900] };
   for (let hit = media.exec(css); hit; hit = media.exec(css)) {
     let depth = 1;
     let j = media.lastIndex;
     for (; depth && j < css.length; j++) depth += css[j] === "{" ? 1 : css[j] === "}" ? -1 : 0;
     const body = css.slice(media.lastIndex, j - 1);
     out += css.slice(i, hit.index);
-    if (hit[1] !== "orientation") {
-      const px = Number.parseInt(hit[2], 10);
-      const cls = `${hit[1] === "max-height" ? "mh" : "mw"}-${px}`;
-      if (![340, 380, 400, 420, 560].includes(px)) fail(`patti-veedu: a new size rule (${hit[1]}: ${hit[2]}) — add it to SIZES in scripts/playables/patti-veedu.js`);
+    const classes = [...hit[1].matchAll(/\(\s*(max-height|max-width|orientation)\s*:\s*([a-z0-9]+)\s*\)/g)]
+      .filter((c) => c[1] !== "orientation")
+      .map((c) => {
+        const px = Number.parseInt(c[2], 10);
+        const kind = c[1] === "max-height" ? "mh" : "mw";
+        if (!SIZES[kind].includes(px)) fail(`patti-veedu: a new size rule (${c[1]}: ${c[2]}) — add it to SIZES here and in scripts/playables/patti-veedu.js`);
+        return `${kind}-${px}`;
+      });
+    if (classes.length) {
       out += body.replace(/(^|\})([^{}]+)\{/g, (_, close, selectors) => {
-        const scoped = selectors.split(",").map((sel) => {
-          const s = sel.trim();
-          return s.startsWith("html") ? `html.${cls}${s.slice(4)}` : `html.${cls} ${s}`;
-        });
+        const scoped = classes.flatMap((cls) =>
+          selectors.split(",").map((sel) => {
+            const s = sel.trim();
+            return s.startsWith("html") ? `html.${cls}${s.slice(4)}` : `html.${cls} ${s}`;
+          }),
+        );
         return `${close}${scoped.join(",")}{`;
       });
     }
@@ -317,6 +327,8 @@ function pattiStyles(html) {
   css = css.replace(/(\d*\.?\d+)v([wh])\b/g, (_, n, axis) => `calc(var(--v${axis}) * ${n})`);
   // The canvas and every "fixed" layer sit inside the body, which PV sizes; nothing shows around the box but black.
   css += "\nhtml{background:#000}\n#rotate{display:none!important}\n";
+  // Very narrow screens (9:32): the title shrinks with the width and the option rows wrap.
+  css += "html.mw-300 #menu .title-ta{font-size:calc(var(--vw) * 11)!important}\nhtml.mw-300 .lopts,html.mw-300 .tseg{flex-wrap:wrap}\n";
   return html.slice(0, m.index) + m[0].replace(m[1], () => css) + html.slice(m.index + m[0].length);
 }
 

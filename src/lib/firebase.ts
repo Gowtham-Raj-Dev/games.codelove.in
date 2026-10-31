@@ -14,9 +14,18 @@ export const FIREBASE_CONFIG = {
   databaseURL: "https://d-models-bfb95-default-rtdb.asia-southeast1.firebasedatabase.app",
 };
 
+/**
+ * The games site's own GA4 property. Visits also go to the network property above (G-65L0LB1CJT, shared by
+ * the CodeLove sites), so both keep counting.
+ */
+export const GAMES_GA_ID = "G-MEHYR05XXV";
+
 let analytics: Promise<void> | undefined;
 
-/** Starts Google Analytics for Firebase once. The SDK is loaded on demand, so it stays out of the main bundle. */
+/**
+ * Starts Google Analytics for Firebase once, then adds the games property to the same gtag. The SDK is loaded
+ * on demand, so it stays out of the main bundle.
+ */
 export function startAnalytics(): Promise<void> {
   analytics ??= (async () => {
     const [{ getApp, getApps, initializeApp }, { getAnalytics, isSupported }] = await Promise.all([
@@ -25,6 +34,15 @@ export function startAnalytics(): Promise<void> {
     ]);
     if (!(await isSupported())) return;
     getAnalytics(getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG));
+    // Straight into gtag.js's queue: Firebase's wrapped window.gtag holds back IDs that aren't its own.
+    const w = window as unknown as { dataLayer?: unknown[] };
+    w.dataLayer ??= [];
+    // gtag.js only reads entries pushed as an `arguments` object.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    (function (_command: string, _id: string) {
+      // eslint-disable-next-line prefer-rest-params
+      w.dataLayer!.push(arguments);
+    })("config", GAMES_GA_ID);
   })().catch((error: unknown) => console.warn("Firebase Analytics failed to start", error));
   return analytics;
 }

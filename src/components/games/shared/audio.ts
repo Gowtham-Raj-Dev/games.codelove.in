@@ -143,17 +143,20 @@ class AudioHub {
       this.applyLevels(true);
 
       // The system can stop audio (a call, another app, the phone locked, a tab in the background):
-      // start it again as soon as the game is back on screen.
+      // start it again as soon as the game is back on screen. YouTube forbids the Page Visibility API
+      // and resumes through its SDK (playablesLifecycle), so in Playables only the context's own event.
       ctx.addEventListener("statechange", () => this.wake());
-      document.addEventListener("visibilitychange", () => this.wake());
-      window.addEventListener("pageshow", () => this.wake());
+      if (!inYouTube()) {
+        document.addEventListener("visibilitychange", () => this.wake());
+        window.addEventListener("pageshow", () => this.wake());
+      }
     }
     if (!this.held) this.resume();
   }
 
   /** Restarts audio the system stopped, once the page is visible again (not while a game holds it). */
   private wake() {
-    if (this.ctx && this.ctx.state !== "running" && !this.held && !document.hidden) this.resume();
+    if (this.ctx && this.ctx.state !== "running" && !this.held && (inYouTube() || !document.hidden)) this.resume();
   }
 
   /** Resumes the context (also from "interrupted", after a phone call on iOS), then starts what waited for it. */

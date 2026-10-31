@@ -36,11 +36,12 @@
   var box = { w: 1, h: 1 };
   PV.w = function () { return box.w; };
   PV.h = function () { return box.h; };
-  var SIZES = { mh: [340, 380, 400, 420], mw: [560] };
+  var SIZES = { mh: [340, 380, 400, 420, 470], mw: [300, 560, 900] }; // mw-300: the build's own rules for very narrow screens
   function layout() {
     var W = window.innerWidth, H = window.innerHeight;
     if (!W || !H) return; // YouTube first loads the game in a hidden, zero-sized view: wait for a real one
-    var h = W / H < 1.3 ? Math.min(H, Math.round(W / 1.5)) : H;
+    // at least 420 px tall, so the menu and the panels fit on a narrow screen too
+    var h = W / H < 1.3 ? Math.min(H, Math.max(Math.round(W / 1.5), 420)) : H;
     box.w = W; box.h = h;
     var root = document.documentElement, b = document.body;
     root.style.setProperty('--vw', W / 100 + 'px');

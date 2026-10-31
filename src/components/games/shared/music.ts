@@ -802,7 +802,8 @@ class MusicPlayer {
     const gap = (now - this.lastTick) / 1000;
     this.lastTick = now;
     this.jank = Math.max(gap, this.jank * Math.pow(0.5, gap / JANK_HALF_LIFE));
-    if (typeof document !== "undefined" && document.hidden) return hidden;
+    // (Not in YouTube Playables, which forbids the Page Visibility API: there the game is paused instead.)
+    if (typeof document !== "undefined" && !("ytgame" in window) && document.hidden) return hidden;
     return Math.min(max, Math.max(min, this.jank * 1.4 + 0.08));
   }
 
