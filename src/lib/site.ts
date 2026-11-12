@@ -8,22 +8,27 @@ export const SITE = {
   brand: "games.codelove.in",
   /** Who made the site and its games. */
   author: "Gowtham",
+  authorUrl: "https://gowtham.codelove.in",
   /** Contact address. */
   email: "support@codelove.in",
   /** Production origin, no trailing slash. Override with NEXT_PUBLIC_SITE_URL. */
   url: (process.env.NEXT_PUBLIC_SITE_URL ?? "https://games.codelove.in").replace(/\/$/, ""),
   tagline: "Free 3D games",
   description:
-    "Free 3D games you play in the browser — kart racing, skating, tower defense, a dungeon crawler, cooking, mini golf, puzzles and strategy. No download, no sign-up, on PC or phone.",
+    "Play free 3D games online — kart racing, skating, tower defense, a dungeon crawler, cooking, mini golf, puzzles and strategy. No download, no sign-up, on PC or phone.",
   keywords: [
+    "games",
+    "free games",
     "free 3D games online",
     "free 3D games",
     "3D games",
     "free games online",
     "free online games no download",
     "browser games",
+    "3d games free no download",
     "three.js games",
     "games.codelove.in",
+    "codelove games",
   ],
   locale: "en_US",
   themeColor: "#1b1425",
@@ -40,15 +45,16 @@ export const modelsUrl = (path = "/") => `${MODELS_SITE.url}${path}`;
 
 /**
  * CodeLove, the network this site is part of: its main site and its other tools, linked from the footer.
- * These are all the CodeLove sites there are — don't link any other codelove.in subdomain.
  */
 export const CODELOVE = {
   name: "CodeLove",
   url: "https://codelove.in",
   tools: [
+    { name: "Gowtham", url: "https://gowtham.codelove.in" },
     { name: "Free 3D Models", url: MODELS_SITE.url },
     { name: "Insta Downloader", url: "https://downloader.codelove.in" },
     { name: "Link in Bio", url: "https://linkinbio.codelove.in" },
+    { name: "Video Cut", url: "https://videocut.codelove.in" },
     { name: "Video to GIF", url: "https://videotogif.codelove.in" },
     { name: "Video to Images", url: "https://videotoimages.codelove.in" },
     { name: "Free YouTube Automation", url: "https://utubeflow.codelove.in" },

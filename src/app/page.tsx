@@ -14,27 +14,29 @@ import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl, MODELS_SITE, modelsUrl, SITE } from "@/lib/site";
 
 const DESCRIPTION =
-  "Play free 3D games online — no download, no sign-up. Kart racing, skating, tower defense, a dungeon crawler, cooking, mini golf, puzzles and strategy, on PC or phone.";
+  "Play free 3D games online — no download, no sign-up. Kart racing, naval cannon battles, skating, tower defense, dungeon crawler, cooking, mini golf and puzzles on PC or phone.";
 
 export const metadata: Metadata = {
   ...pageMetadata({
-    // The home page: the root layout's "%s | site" template doesn't reach it, so the title names the site itself.
-    title: "Free 3D Games Online — No Download | CodeLove Games",
+    // The home page: the root layout's "%s | site" template doesn't reach it, so the title leads with "Games".
+    title: "Games — Play Free 3D Browser Games Online (No Download) | CodeLove",
     absoluteTitle: true,
     description: DESCRIPTION,
     path: "/",
     keywords: [
+      "games",
+      "free games",
       "CodeLove games",
       "codelove 3d games",
       "free 3D games online",
       "free 3D games",
       "3D games",
+      "3d games free no download",
       "browser games no download",
       "games to play when bored",
       "unblocked 3D games",
       "free mobile browser games",
       "3D games online",
-      "free games",
       "free games online",
       "free online games no download",
       "play free games online",
@@ -44,6 +46,7 @@ export const metadata: Metadata = {
       "3D games for Android",
       "free 3D racing game",
       "free kart racing game",
+      "cannon cove game",
       "free tower defense game",
       "free endless runner game",
       "free strategy game",
@@ -55,7 +58,7 @@ export const metadata: Metadata = {
       "codelove games",
     ],
   }),
-  authors: [{ name: SITE.author }],
+  authors: [{ name: SITE.author, url: SITE.authorUrl }],
   creator: SITE.author,
   publisher: SITE.brand,
 };
@@ -123,11 +126,12 @@ export default function GamesPage() {
           {
             "@context": "https://schema.org",
             "@type": "CollectionPage",
-            name: "Free 3D Games Online",
+            name: "Games — Free 3D Games Online",
             description: DESCRIPTION,
             url: absoluteUrl("/"),
             isAccessibleForFree: true,
-            publisher: { "@type": "Organization", name: SITE.brand, url: absoluteUrl("/") },
+            creator: { "@id": `${SITE.authorUrl}/#person` },
+            publisher: { "@id": "https://codelove.in/#organization" },
             mainEntity: {
               "@type": "ItemList",
               numberOfItems: playable.length,

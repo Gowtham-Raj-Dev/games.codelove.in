@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: PageProps<"/[slug]">): Promis
   const { slug } = await params;
   const game = getGame(slug);
   if (!game) return {};
-  const credits = { authors: [{ name: SITE.author }], creator: SITE.author, publisher: SITE.brand };
+  const credits = { authors: [{ name: SITE.author, url: SITE.authorUrl }], creator: SITE.author, publisher: SITE.brand };
   if (game.comingSoon) {
     return {
       ...pageMetadata({ title: `${game.title} — Coming Soon`, description: game.description, path: `/${game.slug}/` }),
@@ -36,6 +36,14 @@ export async function generateMetadata({ params }: PageProps<"/[slug]">): Promis
   const name = game.title.toLowerCase();
   const genre = genreTitle(game).toLowerCase();
   const app = androidApp(game.slug);
+  const extraAliases =
+    game.slug === "cannon-cove"
+      ? ["cannon game", "cannon ship battle", "pirate cannon game", "cannon battle online"]
+      : game.slug === "turbo-karts"
+        ? ["kart game", "cart racing game", "3d kart racing free"]
+        : game.slug === "aisle-zero"
+          ? ["shopping cart horror game", "supermarket horror game"]
+          : [];
   return {
     ...pageMetadata({
       title: gameTitle(game),
@@ -47,6 +55,7 @@ export async function generateMetadata({ params }: PageProps<"/[slug]">): Promis
         `${name} game`,
         `play ${name} online`,
         `${name} free`,
+        ...extraAliases,
         ...(app ? [`${name} apk`, `${name} android`] : []),
         `free 3D ${genre} game`,
         `free ${genre} game`,
@@ -54,7 +63,9 @@ export async function generateMetadata({ params }: PageProps<"/[slug]">): Promis
         "free 3D games online",
         "free 3D games",
         "3D games",
+        "3d games free no download",
         "free games",
+        "games",
         "free games online",
         "free online games no download",
         `${SITE.author} games`,
@@ -94,11 +105,32 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
   const packs = [...new Map(models.map((m) => [m.collectionKey, m.collection])).entries()];
   const withThumbs = models.filter((m) => m.thumb);
   const shown = withThumbs.slice(0, 48);
-  const others = games.filter((g) => g.slug !== game.slug && !g.comingSoon).slice(0, 3);
+  const playable = games.filter((g) => !g.comingSoon);
+  const selfIdx = playable.findIndex((g) => g.slug === game.slug);
+  const pool = playable.filter((g) => g.slug !== game.slug);
+  const start = selfIdx >= 0 ? selfIdx % Math.max(1, pool.length) : 0;
+  const others = Array.from({ length: Math.min(6, pool.length) }, (_, i) => pool[(start + i) % pool.length]);
   const playHref = `/${game.slug}/play/`;
   const soon = game.comingSoon === true;
   const app = soon ? null : androidApp(game.slug);
   const trailer = soon ? null : game.trailer;
+  const isMultiplayer = /\b(online|multiplayer|friends)\b/i.test(`${game.tagline} ${game.description}`);
+  const gameFaqs = [
+    {
+      q: `Is ${game.title} free to play online?`,
+      a: `Yes. ${game.title} is 100% free to play right in your browser on games.codelove.in with no download, no sign-up and no in-app purchases.`,
+    },
+    {
+      q: `Can I play ${game.title} on mobile and PC?`,
+      a: app
+        ? `Yes. ${game.title} supports keyboard/mouse on PC, touch controls in mobile browsers, and can also be downloaded as a free Android APK (${app.version}).`
+        : `Yes. ${game.title} works on desktop keyboards and mice as well as mobile touch screens directly in your browser.`,
+    },
+    {
+      q: `How do you play ${game.title}?`,
+      a: game.howTo.slice(0, 2).join(" "),
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-10">
@@ -110,20 +142,22 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
                 {
                   "@context": "https://schema.org",
                   "@type": "VideoGame",
+                  "@id": `${absoluteUrl(`/${game.slug}/`)}#game`,
                   name: game.title,
                   description: game.description,
                   url: absoluteUrl(`/${game.slug}/`),
+                  mainEntityOfPage: absoluteUrl(`/${game.slug}/`),
                   image: absoluteUrl(game.cover),
                   genre: game.genre,
                   gamePlatform: app ? ["Web browser", "Android"] : "Web browser",
                   applicationCategory: "Game",
-                  operatingSystem: app ? "Any (browser), Android (app)" : "Any",
-                  playMode: "SinglePlayer",
+                  operatingSystem: app ? "Any (browser), Android (app)" : "Any (WebGL2 browser)",
+                  playMode: isMultiplayer ? ["SinglePlayer", "MultiPlayer"] : "SinglePlayer",
                   isAccessibleForFree: true,
                   offers: { "@type": "Offer", price: 0, priceCurrency: "USD" },
-                  author: { "@type": "Person", name: SITE.author },
-                  creator: { "@type": "Person", name: SITE.author },
-                  publisher: { "@type": "Organization", name: SITE.brand, url: absoluteUrl("/") },
+                  author: { "@id": `${SITE.authorUrl}/#person` },
+                  creator: { "@id": `${SITE.authorUrl}/#person` },
+                  publisher: { "@id": "https://codelove.in/#organization" },
                   ...(trailer ? { trailer: { "@id": absoluteUrl(trailer.src) } } : {}),
                 },
               ]),
@@ -144,11 +178,16 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
                   inLanguage: "en",
                   isFamilyFriendly: true,
                   keywords: ["CodeLove", "free 3D games", game.title, game.genre].join(", "),
-                  author: { "@type": "Person", name: SITE.author, url: "https://gowtham.codelove.in" },
-                  publisher: { "@type": "Organization", "@id": "https://codelove.in/#organization", name: "CodeLove", url: "https://codelove.in" },
+                  author: { "@id": `${SITE.authorUrl}/#person` },
+                  publisher: { "@id": "https://codelove.in/#organization" },
                 },
               ]
             : []),
+          {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: gameFaqs.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+          },
           {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
@@ -210,7 +249,11 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
           </h1>
           <p className="text-lg font-medium text-fg">{game.tagline}</p>
           <p className="text-sm text-muted">
-            Created by <span className="font-medium text-fg">{SITE.author}</span> · Published by{" "}
+            Created by{" "}
+            <a href={SITE.authorUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-fg hover:underline">
+              {SITE.author}
+            </a>{" "}
+            · Published by{" "}
             <Link href="/" className="font-medium text-fg hover:underline">
               {SITE.brand}
             </Link>
@@ -425,6 +468,19 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
           {withThumbs.length > shown.length && <p className="mt-3 text-sm text-subtle">+ {withThumbs.length - shown.length} more models</p>}
         </section>
       )}
+
+      {/* Per-game FAQ */}
+      <section className="mt-12">
+        <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">{game.title} — FAQ</h2>
+        <dl className="mt-4 grid gap-4 md:grid-cols-3">
+          {gameFaqs.map(({ q, a }) => (
+            <div key={q} className="rounded-2xl border border-line bg-surface p-5">
+              <dt className="font-semibold text-fg">{q}</dt>
+              <dd className="mt-1.5 text-sm leading-relaxed text-muted">{a}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       {/* More games */}
       <section className="mt-16">

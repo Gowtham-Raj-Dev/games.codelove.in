@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   applicationName: SITE.name,
   keywords: SITE.keywords,
   category: "games",
-  authors: [{ name: SITE.author }],
+  authors: [{ name: SITE.author, url: SITE.authorUrl }],
   creator: SITE.author,
   publisher: SITE.brand,
   formatDetection: { telephone: false, email: false, address: false },
@@ -66,22 +66,39 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-/** CodeLove's "@id" is on its own domain, so every CodeLove site's structured data names the same publisher. */
+/** CodeLove's and Gowtham's "@id"s, shared across every CodeLove site. */
 const publisherId = `${CODELOVE.url}/#organization`;
+const creatorId = `${SITE.authorUrl}/#person`;
 
 const siteJsonLd = [
   {
     "@context": "https://schema.org",
+    "@type": "Person",
+    "@id": creatorId,
+    name: SITE.author,
+    alternateName: ["Gowthamraj", "Gowtham Raj"],
+    url: SITE.authorUrl,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": publisherId,
+    name: CODELOVE.name,
+    url: CODELOVE.url,
+    founder: { "@id": creatorId },
+  },
+  {
+    "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": absoluteUrl("/#website"),
     name: SITE.brand,
-    alternateName: [SITE.shortName, "CodeLove 3D Games", "CodeLove Games"],
+    alternateName: ["Games", "Free Games", SITE.shortName, "CodeLove 3D Games", "CodeLove Games"],
     url: absoluteUrl("/"),
     description: SITE.description,
     inLanguage: "en",
-    creator: { "@type": "Person", name: SITE.author },
+    creator: { "@id": creatorId },
     publisher: { "@id": publisherId },
   },
-  { "@context": "https://schema.org", "@type": "Organization", "@id": publisherId, name: CODELOVE.name, url: CODELOVE.url },
 ];
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

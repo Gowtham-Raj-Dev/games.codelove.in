@@ -27,7 +27,7 @@ export const playViewport: Viewport = {
 };
 
 export function playMetadata(game: GameEntry): Metadata {
-  const credits = { authors: [{ name: SITE.author }], creator: SITE.author, publisher: SITE.brand };
+  const credits = { authors: [{ name: SITE.author, url: SITE.authorUrl }], creator: SITE.author, publisher: SITE.brand };
   if (game.comingSoon) {
     return {
       ...pageMetadata({ title: `${game.title} — Coming Soon`, description: game.description, path: `/${game.slug}/play/` }),
@@ -47,6 +47,7 @@ export function playMetadata(game: GameEntry): Metadata {
         `free 3D ${genreTitle(game).toLowerCase()} game`,
         "free 3D games online",
         "free games",
+        "3d games free no download",
         SITE.brand,
       ],
     }),
@@ -55,23 +56,43 @@ export function playMetadata(game: GameEntry): Metadata {
 }
 
 export function PlayPage({ game, Player }: { game: GameEntry; Player: ComponentType<{ sizes: Record<string, number> }> }) {
+  const playUrl = absoluteUrl(`/${game.slug}/play/`);
+  const detailsUrl = absoluteUrl(`/${game.slug}/`);
   return (
     <>
       <JsonLd
-        data={{
-          "@context": "https://schema.org",
-          "@type": "VideoGame",
-          name: game.title,
-          description: game.description,
-          url: absoluteUrl(`/${game.slug}/`),
-          image: absoluteUrl(game.cover),
-          genre: game.genre,
-          gamePlatform: "Web browser",
-          isAccessibleForFree: true,
-          author: { "@type": "Person", name: SITE.author },
-          creator: { "@type": "Person", name: SITE.author },
-          publisher: { "@type": "Organization", name: SITE.brand, url: absoluteUrl("/") },
-        }}
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "VideoGame",
+            "@id": `${playUrl}#game`,
+            name: `Play ${game.title}`,
+            alternateName: game.title,
+            description: game.description,
+            url: playUrl,
+            mainEntityOfPage: playUrl,
+            sameAs: detailsUrl,
+            image: absoluteUrl(game.cover),
+            genre: game.genre,
+            applicationCategory: "Game",
+            operatingSystem: "Any (WebGL2 browser)",
+            gamePlatform: "Web browser",
+            isAccessibleForFree: true,
+            offers: { "@type": "Offer", price: 0, priceCurrency: "USD" },
+            author: { "@id": `${SITE.authorUrl}/#person` },
+            creator: { "@id": `${SITE.authorUrl}/#person` },
+            publisher: { "@id": "https://codelove.in/#organization" },
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Games", item: absoluteUrl("/") },
+              { "@type": "ListItem", position: 2, name: game.title, item: detailsUrl },
+              { "@type": "ListItem", position: 3, name: `Play ${game.title}`, item: playUrl },
+            ],
+          },
+        ]}
       />
       <h1 className="sr-only">{game.title}</h1>
       {/* The game's own fonts; bytes per model make the loading bar exact from the first frame. */}
