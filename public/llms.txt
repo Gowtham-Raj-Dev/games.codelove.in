@@ -1,0 +1,19 @@
+# Games by CodeLove (games.codelove.in)
+
+> 14+ free 3D WebGL browser games built with Three.js and CodeLove's free GLB model library — play instantly on PC or mobile with no download or sign-up.
+
+## Playable Games
+- [Patti Veedu](https://games.codelove.in/patti-veedu/): 3D horror puzzle inside Grandma's house.
+- [Aisle Zero](https://games.codelove.in/aisle-zero/): Supermarket horror stealth game.
+- [Cannon Cove](https://games.codelove.in/cannon-cove/): Naval cannon battle and pirate trading across open seas.
+- [Turbo Karts](https://games.codelove.in/turbo-karts/): 3D kart racing with drift boosts.
+- [Skate Rush](https://games.codelove.in/skate-rush/): Endless 3D street skating runner.
+- [Crypt Knight](https://games.codelove.in/crypt-knight/): Dungeon action roguelite.
+- [Kingdom Clash](https://games.codelove.in/kingdom-clash/), [Sky Hop](https://games.codelove.in/sky-hop/), [Saucer Siege](https://games.codelove.in/saucer-siege/), [Order Up!](https://games.codelove.in/order-up/), [Siege Smash](https://games.codelove.in/siege-smash/), [Beat Street](https://games.codelove.in/beat-street/), [Putt Paradise](https://games.codelove.in/putt-paradise/), [Hex Haven](https://games.codelove.in/hex-haven/)
+
+## CodeLove Ecosystem
+- [CodeLove](https://codelove.in)
+- [Free 3D Models](https://models.codelove.in)
+- [Video Cut](https://videocut.codelove.in)
+- [JavaPlay](https://javaplay.codelove.in)
+

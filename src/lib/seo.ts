@@ -20,7 +20,7 @@ export function clampDescription(text: string, max = 160): string {
   if (clean.length <= max) return clean;
   const head = clean.slice(0, max);
   const sentenceEnd = head.lastIndexOf(". ");
-  if (sentenceEnd >= 80) return head.slice(0, sentenceEnd + 1);
+  if (sentenceEnd >= 115) return head.slice(0, sentenceEnd + 1);
   return `${head.slice(0, head.lastIndexOf(" ")).replace(/[,;:—-]+$/, "")}…`;
 }
 

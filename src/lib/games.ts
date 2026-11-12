@@ -105,7 +105,7 @@ export function gameTitle(game: GameEntry, prefix = "", suffixLength = " | games
     `${prefix}${game.title} — Free ${genre} Game`,
     `${prefix}${game.title} — Free 3D Game`,
   ];
-  return options.find((t) => t.length + suffixLength <= 70) ?? options[options.length - 1];
+  return options.find((t) => t.length + suffixLength <= 60) ?? options[options.length - 1];
 }
 
 /** Tips for the player's device: the touch ones on touch screens, when the game has them. */

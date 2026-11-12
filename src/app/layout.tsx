@@ -106,11 +106,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     // THEME_SCRIPT sets data-theme and data-mode on <html> before React hydrates: suppressHydrationWarning keeps them.
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`} suppressHydrationWarning>
       {/* The AdSense loader, on every page once a publisher ID is set. The site has no ad units, so ads show only where Auto ads is switched on in the AdSense account. */}
-      {ADSENSE_CLIENT ? (
-        <head>
+      <head>
+        <link rel="sitemap" type="application/xml" href="https://games.codelove.in/sitemap.xml" />
+        {ADSENSE_CLIENT ? (
           <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`} crossOrigin="anonymous" />
-        </head>
-      ) : null}
+        ) : null}
+      </head>
       <body className="flex min-h-full flex-col">
         {/* First in <body>, not in <head>: AdSense adds its own scripts to <head>, which React would then compare with this one. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
