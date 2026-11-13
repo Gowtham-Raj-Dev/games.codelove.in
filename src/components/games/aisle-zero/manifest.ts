@@ -49,5 +49,6 @@ export const GAME: GameEntry = {
   ],
   features: ["A huge store: 10 aisles, frozen wall, produce corner, stock room", "A Wendigo that roams, hunts by sight and sound", "Hide, crouch, throw cans, use the map", "Real-time shadows and a flashlight beam"],
   music: "Procedural horror score",
+  comingSoon: true,
   // CC BY credits: "The Human Deer" by ceeleste and the hooded ghost by PurplePoint (Sketchfab, CC BY 4.0); also in the game menu and THIRD_PARTY.txt.
 };

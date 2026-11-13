@@ -4,12 +4,15 @@
 
 ## Playable Games
 - [Patti Veedu](https://games.codelove.in/patti-veedu/): 3D horror puzzle inside Grandma's house.
-- [Aisle Zero](https://games.codelove.in/aisle-zero/): Supermarket horror stealth game.
 - [Cannon Cove](https://games.codelove.in/cannon-cove/): Naval cannon battle and pirate trading across open seas.
 - [Turbo Karts](https://games.codelove.in/turbo-karts/): 3D kart racing with drift boosts.
 - [Skate Rush](https://games.codelove.in/skate-rush/): Endless 3D street skating runner.
 - [Crypt Knight](https://games.codelove.in/crypt-knight/): Dungeon action roguelite.
 - [Kingdom Clash](https://games.codelove.in/kingdom-clash/), [Sky Hop](https://games.codelove.in/sky-hop/), [Saucer Siege](https://games.codelove.in/saucer-siege/), [Order Up!](https://games.codelove.in/order-up/), [Siege Smash](https://games.codelove.in/siege-smash/), [Beat Street](https://games.codelove.in/beat-street/), [Putt Paradise](https://games.codelove.in/putt-paradise/), [Hex Haven](https://games.codelove.in/hex-haven/)
+
+## Coming Soon
+- [Aisle Zero](https://games.codelove.in/aisle-zero/): Supermarket horror stealth game.
+- [Castaway](https://games.codelove.in/castaway/), [Night Heist](https://games.codelove.in/night-heist/), [Nova Strike](https://games.codelove.in/nova-strike/), [Sky Courier](https://games.codelove.in/sky-courier/)
 
 ## CodeLove Ecosystem
 - [CodeLove](https://codelove.in)

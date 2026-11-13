@@ -1,10 +1,13 @@
-import { AisleZero } from "@/components/games/aisle-zero/aisle-zero";
 import { GAME } from "@/components/games/aisle-zero/manifest";
-import { PlayPage, playMetadata, playViewport } from "@/components/games/play-page";
+import { ComingSoonPlay, playMetadata, playViewport } from "@/components/games/play-page";
+
+// Coming soon: Aisle Zero is held back for now, so this route doesn't import the game.
+// To bring it back, drop `comingSoon` from the manifest and render
+// <PlayPage game={GAME} Player={AisleZero} /> (from "@/components/games/aisle-zero/aisle-zero") instead.
 
 export const metadata = playMetadata(GAME);
 export const viewport = playViewport;
 
 export default function Page() {
-  return <PlayPage game={GAME} Player={AisleZero} />;
+  return <ComingSoonPlay game={GAME} />;
 }
