@@ -15,5 +15,6 @@
 - [CodeLove](https://codelove.in)
 - [Free 3D Models](https://models.codelove.in)
 - [Video Cut](https://videocut.codelove.in)
+- [Free AI Video Maker](https://videomaker.codelove.in)
 - [JavaPlay](https://javaplay.codelove.in)
 

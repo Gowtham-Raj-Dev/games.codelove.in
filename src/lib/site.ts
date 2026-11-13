@@ -55,6 +55,7 @@ export const CODELOVE = {
     { name: "Insta Downloader", url: "https://downloader.codelove.in" },
     { name: "Link in Bio", url: "https://linkinbio.codelove.in" },
     { name: "Video Cut", url: "https://videocut.codelove.in" },
+    { name: "Free AI Video Maker", url: "https://videomaker.codelove.in" },
     { name: "Video to GIF", url: "https://videotogif.codelove.in" },
     { name: "Video to Images", url: "https://videotoimages.codelove.in" },
     { name: "Free YouTube Automation", url: "https://utubeflow.codelove.in" },
