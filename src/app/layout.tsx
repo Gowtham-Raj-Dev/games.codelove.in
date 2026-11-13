@@ -111,6 +111,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {ADSENSE_CLIENT ? (
           <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`} crossOrigin="anonymous" />
         ) : null}
+        {/* CodeLove Analytics (admin.codelove.in) */}
+        <script defer src="https://admin.codelove.in/t.js" />
       </head>
       <body className="flex min-h-full flex-col">
         {/* First in <body>, not in <head>: AdSense adds its own scripts to <head>, which React would then compare with this one. */}
