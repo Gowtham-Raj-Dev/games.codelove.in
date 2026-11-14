@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { AdaptiveRes } from "../shared/adaptive-res";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { audio } from "../shared/audio";
 import { disposeTree, loadModels, type LoadedModel, type LoadProgress } from "../shared/assets";
@@ -262,6 +263,7 @@ class Particles {
 
 export class HexHavenGame {
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly autoRes: AdaptiveRes;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(36, 1, 0.1, 400);
   private readonly sun = new THREE.DirectionalLight("#fff4e2", 2.3);
@@ -354,7 +356,8 @@ export class HexHavenGame {
   ) {
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    // Starts at a safe sharpness and climbs to the screen's own (up to 2x) while frames stay smooth.
+    this.autoRes = new AdaptiveRes(this.renderer, () => this.resize(), { start: 1.5 });
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
@@ -1658,6 +1661,7 @@ export class HexHavenGame {
 
     if (this.shadowDirty) {
       this.renderer.shadowMap.needsUpdate = true;
+    this.autoRes.tick(dt);
       this.shadowDirty = false;
     }
     this.renderer.render(this.scene, this.camera);

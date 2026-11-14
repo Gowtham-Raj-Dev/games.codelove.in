@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { AdaptiveRes } from "../shared/adaptive-res";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { audio } from "../shared/audio";
 import { disposeTree, loadModels, makeProto, type Fit, type LoadedModel, type LoadProgress, type Proto } from "../shared/assets";
@@ -440,6 +441,7 @@ const SPIKE_HIDE = -0.26;
 export class SkyHopGame {
   readonly sfx = new Sfx();
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly autoRes: AdaptiveRes;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(60, 1, 0.1, 700);
   private readonly sun = new THREE.DirectionalLight("#fff4df", 2.5);
@@ -617,7 +619,8 @@ export class SkyHopGame {
   ) {
     this.coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.coarse ? 1.75 : 2));
+    // Starts at a safe sharpness and climbs to the screen's own (up to 2x) while frames stay smooth.
+    this.autoRes = new AdaptiveRes(this.renderer, () => this.resize(), { start: this.coarse ? 1.75 : 2 });
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.08;
     this.renderer.shadowMap.enabled = true;
@@ -1530,6 +1533,7 @@ export class SkyHopGame {
     }
     if (this.phase !== "loading" && this.phase !== "error") {
       this.updateCamera(live ? dt : 0);
+      this.autoRes.tick(dt);
       this.updateShadowCamera();
       const scale = this.renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
       this.particles.uniforms.scale.value = scale;

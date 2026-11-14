@@ -53,7 +53,7 @@ const TOP_SPEED = 52;
  * quarter fewer pixels to shade than 1.75); video recordings (the autopilot) at 1.75. A phone that
  * still can't keep up (under ~35 frames a second) goes to LOW_RATIO.
  */
-const TOUCH_RATIO = 1.5;
+const TOUCH_RATIO = 1.75;
 const RECORD_RATIO = 1.75;
 const LOW_RATIO = 1.3;
 const SLOW_FRAME = 1 / 35;

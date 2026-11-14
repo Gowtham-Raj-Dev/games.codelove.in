@@ -328,7 +328,7 @@ export class SkyCourierGame {
   private view = { w: 1, h: 1, dpr: 1 };
   private font = "ui-sans-serif, system-ui, sans-serif";
   private readonly coarse: boolean;
-  private readonly res = { cur: 1, max: 1, min: 0.6, acc: 0, n: 0, good: 0 };
+  private readonly res = { safe: 1, cur: 1, max: 1, min: 0.6, acc: 0, n: 0, good: 0 };
 
   private phase: Phase = "loading";
   private mode: Mode = "shift";
@@ -436,8 +436,8 @@ export class SkyCourierGame {
   ) {
     this.coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.res.max = Math.min(window.devicePixelRatio || 1, this.coarse ? 1.6 : 2);
-    this.res.cur = this.res.max;
+    this.res.max = Math.min(window.devicePixelRatio || 1, 2);
+    this.res.safe = this.res.cur = Math.min(this.res.max, this.coarse ? 1.6 : 2);
     this.renderer.setPixelRatio(this.res.cur);
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.02;
@@ -2278,6 +2278,7 @@ export class SkyCourierGame {
     let next = r.cur;
     if (avg > 1 / 50 && r.cur > r.min) {
       next = Math.max(r.min, r.cur * 0.85);
+      r.max = Math.max(next, Math.min(r.max, r.safe));
       r.good = 0;
     } else if (avg < 1 / 58 && r.cur < r.max) {
       if (++r.good >= 3) {

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { AdaptiveRes } from "../shared/adaptive-res";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { audio } from "../shared/audio";
@@ -362,6 +363,7 @@ interface Popup {
 
 export class OrderUpGame {
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly autoRes: AdaptiveRes;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
   private readonly timer = new THREE.Timer();
@@ -449,7 +451,8 @@ export class OrderUpGame {
   ) {
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.75 : 2));
+    // Starts at a safe sharpness and climbs to the screen's own (up to 2x) while frames stay smooth.
+    this.autoRes = new AdaptiveRes(this.renderer, () => {}, { start: coarse ? 1.75 : 2 });
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
@@ -2225,6 +2228,7 @@ export class OrderUpGame {
       if (this.hudDirty) this.refreshMatches();
     }
     this.placeCamera(this.phase === "menu" ? Math.sin(this.elapsed * 0.15) * 0.06 : 0);
+    this.autoRes.tick(dt);
     if (live) this.emitHud();
     this.renderer.render(this.scene, this.camera);
   };

@@ -233,7 +233,7 @@ export class CryptKnightGame implements EnemyCtx {
   private readonly boltGeo = new THREE.IcosahedronGeometry(0.2, 1);
   private roomMat: THREE.MeshLambertMaterial | null = null;
   /** Adaptive resolution: drops the pixel ratio when frames run long, restores it when there is headroom. */
-  private readonly res = { max: 1, min: 0.75, cur: 1, acc: 0, n: 0, good: 0 };
+  private readonly res = { safe: 1, max: 1, min: 0.75, cur: 1, acc: 0, n: 0, good: 0 };
   private pickups: Pickup[] = [];
   private pickupPool!: Pool;
 
@@ -317,8 +317,8 @@ export class CryptKnightGame implements EnemyCtx {
   ) {
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.res.max = Math.min(window.devicePixelRatio, coarse ? 1.5 : 2);
-    this.res.cur = this.res.max;
+    this.res.max = Math.min(window.devicePixelRatio, 2);
+    this.res.safe = this.res.cur = Math.min(this.res.max, coarse ? 1.5 : 2);
     this.res.min = Math.min(this.res.max, 0.75);
     this.renderer.setPixelRatio(this.res.cur);
     this.renderer.toneMapping = THREE.NeutralToneMapping;
@@ -2442,6 +2442,7 @@ export class CryptKnightGame implements EnemyCtx {
     let next = r.cur;
     if (avg > 1 / 50 && r.cur > r.min) {
       next = Math.max(r.min, r.cur * 0.85);
+      r.max = Math.max(next, Math.min(r.max, r.safe));
       r.good = 0;
     } else if (avg < 1 / 58 && r.cur < r.max) {
       // Only climb back after a few smooth windows in a row.

@@ -290,7 +290,7 @@ export class CastawayGame {
   private raf = 0;
   private disposed = false;
   private resizeObserver: ResizeObserver | null = null;
-  private readonly res = { max: 1, min: 0.6, cur: 1, acc: 0, n: 0, good: 0 };
+  private readonly res = { safe: 1, max: 1, min: 0.6, cur: 1, acc: 0, n: 0, good: 0 };
   private readonly coarse: boolean;
 
   // Environment
@@ -390,8 +390,8 @@ export class CastawayGame {
   ) {
     this.coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.res.max = Math.min(window.devicePixelRatio, this.coarse ? 1.5 : 2);
-    this.res.cur = this.res.max;
+    this.res.max = Math.min(window.devicePixelRatio, 2);
+    this.res.safe = this.res.cur = Math.min(this.res.max, this.coarse ? 1.5 : 2);
     this.res.min = Math.min(this.res.max, 0.6);
     this.renderer.setPixelRatio(this.res.cur);
     this.renderer.toneMapping = THREE.NeutralToneMapping;
@@ -2983,6 +2983,7 @@ export class CastawayGame {
     let next = r.cur;
     if (avg > 1 / 48 && r.cur > r.min) {
       next = Math.max(r.min, r.cur * 0.85);
+      r.max = Math.max(next, Math.min(r.max, r.safe));
       r.good = 0;
     } else if (avg < 1 / 57 && r.cur < r.max) {
       if (++r.good >= 3) {

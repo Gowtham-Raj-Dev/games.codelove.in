@@ -433,7 +433,7 @@ export class SaucerSiegeGame {
   /** The theme's display font (set by the play route), for floating numbers in the world. */
   private font = "system-ui";
   /** Adaptive resolution: drops the pixel ratio on GPUs that can't keep up, raises it back with headroom. */
-  private readonly perf = { t: 0, frames: 0, max: 2, ratio: 2 };
+  private readonly perf = { t: 0, frames: 0, max: 2, ratio: 2, safe: 2 };
 
   // Rigs and pools
   private readonly rigPool = new Map<SaucerKind, Rig[]>();
@@ -484,7 +484,8 @@ export class SaucerSiegeGame {
   ) {
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.perf.max = this.perf.ratio = Math.min(window.devicePixelRatio, coarse ? 1.75 : 2);
+    this.perf.max = Math.min(window.devicePixelRatio, 2);
+    this.perf.safe = this.perf.ratio = Math.min(this.perf.max, coarse ? 1.75 : 2);
     this.renderer.setPixelRatio(this.perf.ratio);
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -2194,7 +2195,11 @@ export class SaucerSiegeGame {
     p.t = 0;
     p.frames = 0;
     let next = p.ratio;
-    if (fps < 42 && p.ratio > 1) next = Math.max(1, p.ratio - 0.25);
+    if (fps < 42 && p.ratio > 1) {
+      next = Math.max(1, p.ratio - 0.25);
+      // A ratio above the starting one that proved too slow is not tried again.
+      p.max = Math.max(next, Math.min(p.max, p.safe));
+    }
     else if (fps > 58 && p.ratio < p.max) next = Math.min(p.max, p.ratio + 0.25);
     if (next === p.ratio) return;
     p.ratio = next;

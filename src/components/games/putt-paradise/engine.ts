@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { AdaptiveRes } from "../shared/adaptive-res";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { audio } from "../shared/audio";
 import { disposeTree, loadModels, type LoadedModel, type LoadProgress } from "../shared/assets";
@@ -115,6 +116,7 @@ export function scoreName(strokes: number, par: number) {
 export class PuttParadiseGame {
   readonly sfx = new Sfx();
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly autoRes: AdaptiveRes;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(50, 1, 0.02, 900);
   private readonly sun = new THREE.DirectionalLight("#fff3dc", 2.5);
@@ -201,7 +203,8 @@ export class PuttParadiseGame {
   ) {
     this.coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.coarse ? 1.75 : 2));
+    // Starts at a safe sharpness and climbs to the screen's own (up to 2x) while frames stay smooth.
+    this.autoRes = new AdaptiveRes(this.renderer, () => this.resize(), { start: this.coarse ? 1.75 : 2 });
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
@@ -656,6 +659,7 @@ export class PuttParadiseGame {
       }
     }
     if (this.phase !== "loading" && this.phase !== "error") {
+      this.autoRes.tick(dt);
       this.updateCamera(paused ? 0 : dt);
       this.renderer.render(this.scene, this.camera);
     }

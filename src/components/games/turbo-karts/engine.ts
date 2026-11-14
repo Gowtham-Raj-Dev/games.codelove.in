@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { AdaptiveRes } from "../shared/adaptive-res";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { audio } from "../shared/audio";
@@ -323,6 +324,7 @@ interface Racer {
 export class TurboKartsGame {
   readonly sfx = new Sfx();
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly autoRes: AdaptiveRes;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(62, 1, 0.1, 900);
   private readonly sun = new THREE.DirectionalLight("#fff2dc", 2.4);
@@ -503,7 +505,8 @@ export class TurboKartsGame {
     this.coarse = window.matchMedia("(pointer: coarse)").matches;
     this.autoGas = this.coarse;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.coarse ? 1.6 : 2));
+    // Starts at a safe sharpness and climbs to the screen's own (up to 2x) while frames stay smooth.
+    this.autoRes = new AdaptiveRes(this.renderer, () => this.resize(), { start: this.coarse ? 1.6 : 2 });
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
@@ -1547,6 +1550,7 @@ export class TurboKartsGame {
       }
     }
     this.updateCamera(phase === "paused" ? 0 : dt);
+    this.autoRes.tick(dt);
     this.updateSun();
     this.renderer.render(this.scene, this.camera);
     this.drawMinimap();
