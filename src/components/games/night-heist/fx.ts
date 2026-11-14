@@ -48,6 +48,59 @@ export function squareTexture() {
   });
 }
 
+/** Deterministic speckle positions for the floor textures. */
+function scatter(n: number, seed: number) {
+  const out: [number, number, number][] = [];
+  let a = seed;
+  const next = () => {
+    a = (a * 1664525 + 1013904223) >>> 0;
+    return a / 4294967296;
+  };
+  for (let i = 0; i < n; i++) out.push([next(), next(), next()]);
+  return out;
+}
+
+/** Creaky floorboards: pale planks with dark gaps and a few nail heads (white: tinted by the material). */
+export function plankTexture() {
+  return canvasTexture(128, 128, (c) => {
+    c.fillStyle = "rgba(255,255,255,0.92)";
+    c.fillRect(0, 0, 128, 128);
+    c.fillStyle = "rgba(60,40,25,0.75)";
+    for (let i = 0; i <= 4; i++) c.fillRect(0, i * 32 - 2, 128, 4);
+    for (const [x, y] of [
+      [40, 16],
+      [96, 48],
+      [22, 80],
+      [70, 112],
+    ])
+      c.fillRect(x, y - 14, 3, 28);
+    c.fillStyle = "rgba(40,25,15,0.8)";
+    for (const [x, y] of scatter(14, 7)) c.fillRect(6 + x * 116, 4 + y * 120, 3, 3);
+    c.strokeStyle = "rgba(120,90,60,0.35)";
+    c.lineWidth = 1;
+    for (const [x, y, w] of scatter(18, 21)) {
+      c.beginPath();
+      c.moveTo(x * 128, y * 128);
+      c.lineTo(x * 128 + 10 + w * 30, y * 128 + (w - 0.5) * 3);
+      c.stroke();
+    }
+  });
+}
+
+/** Loose gravel / grating: pale pebbles over the floor (white: tinted by the material). */
+export function gravelTexture() {
+  return canvasTexture(128, 128, (c) => {
+    c.fillStyle = "rgba(255,255,255,0.28)";
+    c.fillRect(0, 0, 128, 128);
+    for (const [x, y, s] of scatter(150, 3)) {
+      c.fillStyle = `rgba(${s > 0.5 ? "255,255,255" : "150,150,150"},${0.55 + s * 0.4})`;
+      c.beginPath();
+      c.ellipse(x * 128, y * 128, 2.5 + s * 4.5, 2 + s * 3, s * 3, 0, Math.PI * 2);
+      c.fill();
+    }
+  });
+}
+
 /** Ring with soft edges (noise rings, markers). */
 function ringTexture() {
   return canvasTexture(128, 128, (c) => {

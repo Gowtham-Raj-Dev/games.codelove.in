@@ -1,12 +1,16 @@
 import type { GameEntry } from "@/lib/games";
+import { THIEVES } from "./content";
 
 /** Night Heist — every model it uses, from the site's own library (public/library). No three.js here. */
 
-/** Characters: the thief (a gentleman burglar in a dark suit) and the two kinds of night guard. */
+/** Characters: the night guards, their dogs and the patrol drone (the crew's own models are in content.ts). */
 export const CH = {
-  thief: "mini-characters/character-male-d",
   guard: "mini-characters/character-male-c",
   warden: "mini-characters/character-female-d",
+  sentry: "mini-characters/character-male-e",
+  captain: "mini-characters/character-male-b",
+  dog: "cube-pets/animal-dog",
+  drone: "crystal-crossroads/sci-fi-drone",
 } as const;
 
 /** Architecture and props, by role. */
@@ -33,7 +37,6 @@ export const M = {
   coins: "tomb-chaser-1/coins-art",
   plate: "tomb-chaser-1/platform-art",
   web: "tomb-chaser-1/spiderweb-art",
-  lance: "tomb-chaser-1/lance-art",
   sarcophagus: "tomb-chaser-1/trap-art",
   pedestal: "avatar-garden/avatar-pedestal01",
   rope: "platformer-kit/fence-rope",
@@ -47,17 +50,41 @@ export const M = {
   crate: "retro-fantasy-kit/detail-crate",
   key: "mini-dungeon/key",
   coin: "mini-dungeon/coin",
+  safe: "mini-dungeon/chest",
+  // Hillcrest Manor
+  statue: "mini-arena/statue",
+  plant: "furniture-kit/potted-plant",
+  sofa: "furniture-kit/lounge-sofa",
+  wallLamp: "furniture-kit/lamp-wall",
+  floorLamp: "furniture-kit/lamp-round-floor",
+  portrait: "furniture-bits/pictureframe-standing-a",
+  // Harbor Depot
+  container: "city-kit-industrial/shipping-container-a",
+  barrel: "survival-kit/barrel",
+  // Grand Meridian
+  slots: "mini-arcade/gambling-machine",
+  arcade: "mini-arcade/arcade-machine",
+  vending: "mini-arcade/vending-machine",
+  wheel: "mini-arcade/prize-wheel",
+  cardTable: "mini-arcade/air-hockey",
+  register: "mini-arcade/cash-register",
+  trophy: "mini-arena/trophy",
+  // Apex Tower
+  rack: "space-station-kit/container-tall",
+  canister: "space-station-kit/container",
+  display: "space-station-kit/table-display",
+  hologram: "space-station-kit/table-display-planet",
 } as const;
 
-/** Load order matters: what the first screen needs goes first. */
-export const MODELS: string[] = [CH.thief, CH.guard, CH.warden, ...Object.values(M)];
+/** Load order matters: what the first screen needs goes first (the first six are required). */
+export const MODELS: string[] = [THIEVES[0].key, CH.guard, CH.warden, M.wall, M.floor, M.exit, ...Object.values(CH), ...Object.values(M), ...THIEVES.map((t) => t.key)];
 
 export const GAME: GameEntry = {
   slug: "night-heist",
   title: "Night Heist",
-  tagline: "Slip past the guards. Lift the pharaoh's gems. Vanish.",
+  tagline: "Slip past the guards. Lift the gems. Vanish.",
   description:
-    "A 3D stealth heist in eight cases. Sneak through a museum's Egyptian wing after closing time: stay out of the guards' torch beams, keep to the shadows, time the sweeping cameras and laser gates, step around pressure plates, toss coins to lure guards away, find key cards for locked vaults and slip out with the gems before the alarm rings.",
+    "A 3D stealth game with forty heists in five districts — a museum, a manor, the docks, a casino and a tower. Stay out of the guards' sight, keep to the shadows, time the cameras, laser gates and patrol drones, keep away from the dogs, step around pressure plates and creaky floors, crack safes, toss coins to lure guards away and get out with the gem. The loot you carry out buys new thieves, outfits, gadgets and upgrades.",
   genre: "Stealth",
   accent: "#f87171",
   cover: "/games/night-heist/cover.webp",
@@ -75,35 +102,44 @@ export const GAME: GameEntry = {
     "Racing Kit",
     "Space Station Kit",
     "Mini Dungeon",
+    "Mini Arena",
+    "Mini Arcade",
+    "City Kit Industrial",
+    "Survival Kit",
+    "Cube Pets",
+    "Crystal Crossroads",
   ],
   controls: [
     { action: "Move", keys: ["W", "A", "S", "D"], touch: "Left stick" },
-    { action: "Sneak — slow and silent", keys: ["Shift (hold)", "C (toggle)"], touch: "Sneak toggle" },
-    { action: "Run — fast but loud", keys: ["Space (hold)"], touch: "Run (hold)" },
-    { action: "Grab / open / knock out", keys: ["E"], touch: "Use button" },
+    { action: "Sneak — slow and silent", keys: ["Shift (hold)", "C (toggle)"], touch: "Sneak button (toggle)" },
+    { action: "Run — fast but loud", keys: ["Space (hold)"], touch: "Run button (hold)" },
+    { action: "Grab / crack a safe / open / knock out", keys: ["E"], touch: "Use button" },
     { action: "Throw a coin", keys: ["Click"], touch: "Tap a spot on the floor" },
+    { action: "Use your gadget", keys: ["G"], touch: "Gadget button" },
     { action: "Overview map", keys: ["Q"], touch: "Map button" },
+    { action: "Zoom", keys: ["Mouse wheel"] },
     { action: "Restart the heist", keys: ["R"], touch: "Pause → Restart" },
   ],
   howTo: [
-    "Guards see along their torch beams. Stay out of the cones, or put a statue, column or crate between you.",
-    "Shadows hide you: in the dark a guard only spots you up close. Torchlight and moonlight give you away from afar.",
-    "Walking makes a little noise and running makes a lot. Sneak when a guard is near.",
-    "Click a spot to throw a coin — guards walk over to check the noise.",
-    "Cameras sweep, lasers switch on and off and pressure plates never forgive. Key cards open vault doors.",
-    "Sneak up behind an unaware guard and press E to knock him out for a while.",
-    "Grab the target gem and reach the exit. No alarm plus all the loot earns three stars.",
+    "Grab the target gem and reach the exit. Escaping earns a star, raising no alarm earns another, and taking every valuable earns the third.",
+    "Guards see along their beams. Stay out of the cones, or put a statue, crate or shelf between you. In the dark they only spot you up close.",
+    "Walking makes a little noise and running a lot. Sneak when someone is near. Click a spot to throw a coin — guards go and check the noise.",
+    "Cameras sweep, laser gates blink (some slide), pressure plates never forgive, and creaky floors give away even a careful step.",
+    "Dogs smell you all around them, flashlight sentries see just as far in the dark, captains cannot be knocked out and drones scan the floor under them.",
+    "Sneak up behind an unaware guard and press E to knock him out for a while. Stand by a safe and press E to crack it — walk away and you give it up.",
+    "Some targets are on a timer: once you lift them, get out before the silent alarm trips.",
+    "The cash you carry out is banked. Spend it in the shop on thieves with perks, outfits, a gadget (smoke bomb, lockpick or jammer — press G) and upgrades.",
   ],
   touchHowTo: [
-    "Guards see along their torch beams. Stay out of the cones, or put a statue, column or crate between you.",
-    "Shadows hide you: in the dark a guard only spots you up close. Torchlight and moonlight give you away from afar.",
-    "Walking makes a little noise and running makes a lot. Turn Sneak on when a guard is near; hold Run only when nobody can hear.",
-    "Tap a spot on the floor to throw a coin there — guards walk over to check the noise.",
-    "Cameras sweep, lasers switch on and off and pressure plates never forgive. Key cards open vault doors.",
-    "Sneak up behind an unaware guard and tap Use when Knock out appears.",
-    "Tap Use to grab the target gem, then reach the exit. No alarm plus all the loot earns three stars.",
+    "Grab the target gem and reach the exit. Escaping earns a star, raising no alarm earns another, and taking every valuable earns the third.",
+    "Guards see along their beams. Stay out of the cones, or put a statue, crate or shelf between you. In the dark they only spot you up close.",
+    "Walking makes a little noise and running a lot. Turn Sneak on when someone is near; hold Run only when nobody can hear. Tap a spot on the floor to throw a coin there — guards go and check the noise.",
+    "Cameras sweep, laser gates blink (some slide), pressure plates never forgive, and creaky floors give away even a careful step.",
+    "Dogs smell you all around them, flashlight sentries see just as far in the dark, captains cannot be knocked out and drones scan the floor under them.",
+    "Sneak up behind an unaware guard and tap Use to knock him out for a while. Stand by a safe and tap Use to crack it — walk away and you give it up.",
+    "Some targets are on a timer: once you lift them, get out before the silent alarm trips.",
+    "The cash you carry out is banked. Spend it in the shop on thieves with perks, outfits, a gadget (smoke bomb, lockpick or jammer — the Gadget button) and upgrades.",
   ],
-  features: ["Eight handcrafted heists", "Vision cones, cameras & lasers", "Light, shadow & noise", "Coin lures and knockouts", "Three-star case files"],
+  features: ["40 heists in 5 districts", "Guards, dogs, cameras, lasers & drones", "Light, shadow & noise", "Shop: thieves, outfits, gadgets & upgrades", "Three stars on every heist"],
   music: "After Hours",
-  comingSoon: true,
 };

@@ -64,6 +64,8 @@ export class Grid {
   readonly opaque: Uint8Array;
   /** Blocks only the thief (pressure plates for the bot, the exit before the gem…). */
   readonly avoid: Uint8Array;
+  /** Floor that makes a noise even under a careful foot (creaky boards, gravel). */
+  readonly noisy: Uint8Array;
   /** 0..1 brightness per cell (torches, moonlight). */
   readonly light: Float32Array;
   private readonly g: Float32Array;
@@ -81,6 +83,7 @@ export class Grid {
     this.solid = new Uint8Array(n);
     this.opaque = new Uint8Array(n);
     this.avoid = new Uint8Array(n);
+    this.noisy = new Uint8Array(n);
     this.light = new Float32Array(n);
     this.g = new Float32Array(n);
     this.f = new Float32Array(n);

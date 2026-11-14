@@ -161,6 +161,62 @@ export class Sfx {
     audio.tone(330, 0.12, { type: "triangle", volume: 0.06 });
   }
 
+  /** A dog: two short rough barks. */
+  bark() {
+    for (const d of [0, 0.19]) {
+      audio.tone(300, 0.11, { type: "sawtooth", volume: 0.14, slide: -150, delay: d, attack: 0.005 });
+      audio.noise(0.09, { volume: 0.16, freq: 900, q: 1.5, type: "bandpass", delay: d });
+    }
+  }
+
+  growl() {
+    audio.tone(95, 0.5, { type: "sawtooth", volume: 0.07, slide: -15, attack: 0.08 });
+    audio.noise(0.45, { volume: 0.05, freq: 260, type: "lowpass" });
+  }
+
+  /** A floorboard (or gravel) under a careful foot. */
+  creak() {
+    audio.tone(520 + Math.random() * 120, 0.2, { type: "sawtooth", volume: 0.07, slide: -260, attack: 0.02 });
+    audio.noise(0.16, { volume: 0.12, freq: 1800, q: 2, type: "bandpass", slide: -600 });
+  }
+
+  /** One click of a safe's dial. */
+  crack() {
+    audio.tone(1900 + Math.random() * 500, 0.03, { type: "square", volume: 0.045 });
+    audio.noise(0.03, { volume: 0.07, freq: 4000, type: "highpass", delay: 0.05 });
+  }
+
+  safeOpen() {
+    audio.noise(0.3, { volume: 0.2, freq: 260, type: "lowpass" });
+    audio.tone(110, 0.3, { type: "sine", volume: 0.16, slide: -30 });
+    audio.jingle([79, 84, 88], { type: "triangle", volume: 0.08, step: 0.07 });
+  }
+
+  smoke() {
+    audio.noise(0.9, { volume: 0.22, freq: 1400, type: "lowpass", slide: -900 });
+    audio.tone(140, 0.25, { type: "sine", volume: 0.12, slide: -60 });
+  }
+
+  jam() {
+    audio.tone(1500, 0.5, { type: "sawtooth", volume: 0.06, slide: -1300 });
+    audio.noise(0.5, { volume: 0.1, freq: 3200, q: 3, type: "bandpass", slide: -2400 });
+  }
+
+  /** The vault timer's last seconds. */
+  timerTick() {
+    audio.tone(1040, 0.06, { type: "square", volume: 0.06 });
+  }
+
+  timerOut() {
+    audio.tone(880, 0.5, { type: "square", volume: 0.09, slide: -500 });
+  }
+
+  /** A drone's rotors nearby; `level` 0..1 by how close it is. */
+  drone(level: number) {
+    audio.noise(0.9, { volume: 0.02 + level * 0.06, freq: 520, q: 7, type: "bandpass" });
+    audio.tone(118, 0.9, { type: "sawtooth", volume: 0.008 + level * 0.022, attack: 0.25 });
+  }
+
   stopLoops() {
     this.laserHum(0);
   }

@@ -1,20 +1,11 @@
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { Proto } from "../shared/assets";
-import { Badge, Cone } from "./fx";
-import { angleDiff, turnTowards, type Grid, type Vec2 } from "./grid";
-import { deg, type CameraDef, type GuardDef } from "./levels";
+import { Badge, Cone, floorGlow, lightBeam } from "./fx";
+import type { Grid } from "./grid";
+import { CAM_DARK, CAM_HALF, type Drone, type Guard, type SecurityCamera } from "./watchers";
 
-// --- Tuning ----------------------------------------------------------------------------------------------
-
-export const GUARD_RANGE = 6.2;
-export const GUARD_HALF = 0.62;
-export const CAM_RANGE = 6.6;
-export const CAM_HALF = 0.42;
-/** Darkness shrinks sight to this share of the range (the bright core of the cone). */
-export const DARK_SHARE = 0.5;
-export const SUSPICIOUS = 0.34;
-const CATCH_DIST = 0.72;
+/** What the watchers of watchers.ts look like: animated models, vision cones, awareness badges. */
 
 // --- Animation -------------------------------------------------------------------------------------------
 
@@ -38,6 +29,10 @@ export class Animator {
       crouch.weight = 0;
       this.crouchAction = crouch;
     }
+  }
+
+  has(name: string) {
+    return this.clips.has(name);
   }
 
   private action(name: string) {
@@ -70,15 +65,6 @@ export class Animator {
     next.play();
     this.current = next;
     this.name = name;
-  }
-
-  set speed(s: number) {
-    if (this.current) this.current.timeScale = s;
-  }
-
-  get finished() {
-    const a = this.current;
-    return !a || (a.loop === THREE.LoopOnce && a.time >= a.getClip().duration - 1e-3);
   }
 
   update(dt: number) {
@@ -119,429 +105,95 @@ export class CharView {
   }
 }
 
-// --- Shared context ----------------------------------------------------------------------------------------
+// --- Guards and dogs -----------------------------------------------------------------------------------------
 
-export interface Thief {
-  x: number;
-  z: number;
-  sneaking: boolean;
-  running: boolean;
-  moving: boolean;
-}
+const CONE_COLOR = { guard: "#ffe7a3", warden: "#ffe7a3", sentry: "#fff6c2", captain: "#ffc2b0", dog: "#c9b0ff" } as const;
 
-export interface WatchCtx {
-  grid: Grid;
-  player: Thief;
-  alarm: boolean;
-  lastKnown: Vec2;
-  guards: Guard[];
-  time: number;
-  rand(): number;
-  /** Someone saw enough: ring the alarm. */
-  raiseAlarm(x: number, z: number, by: string): void;
-  /** During the alarm: a guard or camera has eyes on the thief. */
-  spotted(x: number, z: number): void;
-  caught(by: Guard): void;
-  voice(kind: "huh" | "hey" | "shrug" | "wake" | "lock", pitch: number): void;
-  /** A guard reached a thrown coin. */
-  pickCoin(x: number, z: number): void;
-}
-
-// --- Guards --------------------------------------------------------------------------------------------------
-
-export type GuardState = "wait" | "patrol" | "suspicious" | "investigate" | "search" | "return" | "hunt" | "ko" | "wake";
-
-interface Point {
-  x: number;
-  z: number;
-  wait: number;
-  face: number | null;
-}
-
-export class Guard {
-  x: number;
-  z: number;
-  yaw: number;
-  state: GuardState = "wait";
-  t = 0;
-  awareness = 0;
-  sees = false;
-  koT = 0;
+export class GuardView {
   readonly view: CharView;
-  readonly cone = new Cone(34);
+  readonly cone: Cone;
   readonly badge: Badge;
-  readonly route: Point[];
-  readonly pitch: number;
-  private wp = 0;
-  private path: Vec2[] = [];
-  private pi = 0;
-  private stim: Vec2 = { x: 0, z: 0 };
-  private lookBase = 0;
-  private repathT = 0;
-  private unseenT = 0;
-  private wanderT = 0;
-  private stepT = 0;
-  private readonly walkSpeed: number;
-  private readonly runSpeed: number;
-  /** A knocked-out colleague this guard is walking over to. */
-  private body: Guard | null = null;
-  private coinSpot: Vec2 | null = null;
+  private wasDown = false;
+  private lastX: number;
+  private lastZ: number;
 
   constructor(
-    readonly def: GuardDef,
+    readonly guard: Guard,
     proto: Proto,
     atlas: THREE.Texture,
-    readonly index: number,
-    grid: Grid,
   ) {
-    this.route = def.route.map(([x, z, wait = 0, face]) => ({ x, z, wait: def.route.length === 1 ? Infinity : wait, face: face === undefined ? null : deg(face) }));
-    this.x = this.route[0].x;
-    this.z = this.route[0].z;
-    const first = this.route[0];
-    const next = this.route[1] ?? first;
-    this.yaw = first.face ?? (next !== first ? Math.atan2(next.x - first.x, next.z - first.z) : 0);
-    this.lookBase = this.yaw;
     this.view = new CharView(proto);
+    this.cone = new Cone(guard.kind === "dog" ? 48 : 34);
     this.badge = new Badge(atlas, 0.56);
-    const warden = def.kind === "warden";
-    this.walkSpeed = def.speed ?? (warden ? 1.6 : 1.35);
-    this.runSpeed = warden ? 3.85 : 3.65;
-    this.pitch = warden ? 1.25 : 0.9 + (index % 3) * 0.08;
-    if (first.wait > 0) this.enter("wait");
-    else this.advance(grid);
+    this.lastX = guard.x;
+    this.lastZ = guard.z;
   }
 
-  get alive() {
-    return this.state !== "ko" && this.state !== "wake";
+  addTo(scene: THREE.Scene) {
+    scene.add(this.view.root, this.cone.mesh, this.badge.mesh);
   }
 
-  get alert() {
-    return this.state === "hunt";
+  /** The guard who grabbed the thief reaches out. */
+  grab() {
+    this.view.anim.play("interact-right", { once: true, fade: 0.08 });
   }
 
-  get curious() {
-    return this.state === "suspicious" || this.state === "investigate" || this.state === "search";
-  }
-
-  private enter(state: GuardState) {
-    this.state = state;
-    this.t = 0;
-    if (state === "wait" || state === "search") this.lookBase = this.yaw;
-  }
-
-  private goTo(x: number, z: number, grid: Grid) {
-    this.path = grid.path(this.x, this.z, x, z, { radius: 0.28 }) ?? [];
-    this.pi = 0;
-  }
-
-  private advance(grid: Grid) {
-    if (this.route.length > 1) this.wp = (this.wp + 1) % this.route.length;
-    this.enter("patrol");
-    const p = this.route[this.wp];
-    this.goTo(p.x, p.z, grid);
-  }
-
-  /** Walk along the current path. Returns true on arrival. */
-  private follow(dt: number, speed: number, turn: number) {
-    while (this.pi < this.path.length) {
-      const p = this.path[this.pi];
-      const dx = p.x - this.x;
-      const dz = p.z - this.z;
-      const d = Math.hypot(dx, dz);
-      if (d < 0.04) {
-        this.pi++;
-        continue;
-      }
-      const want = Math.atan2(dx, dz);
-      this.yaw = turnTowards(this.yaw, want, turn, dt);
-      // Slow down while turning sharply so guards don't moonwalk around corners.
-      const align = Math.max(0.25, Math.cos(Math.min(Math.PI / 2, Math.abs(angleDiff(this.yaw, want)))));
-      const step = Math.min(d, speed * align * dt);
-      this.x += (dx / d) * step;
-      this.z += (dz / d) * step;
-      return false;
-    }
-    return true;
-  }
-
-  /** How well the guard sees the thief right now: -1 not at all, 0..1 closeness. */
-  private perceive(ctx: WatchCtx) {
-    const p = ctx.player;
-    const dx = p.x - this.x;
-    const dz = p.z - this.z;
-    const d = Math.hypot(dx, dz);
-    if (d > GUARD_RANGE) return -1;
-    const ang = Math.abs(angleDiff(this.yaw, Math.atan2(dx, dz)));
-    if (ang > GUARD_HALF) {
-      // Bumping into a guard (or brushing past him without sneaking) gives you away.
-      if (d < (p.sneaking ? 0.6 : 0.95) && ctx.grid.los(this.x, this.z, p.x, p.z)) return 0.8;
-      return -1;
-    }
-    const light = ctx.alarm ? 1 : ctx.grid.lightAt(p.x, p.z);
-    const reach = GUARD_RANGE * (DARK_SHARE + (1 - DARK_SHARE) * light);
-    if (d > reach) return -1;
-    if (!ctx.grid.los(this.x, this.z, p.x, p.z)) return -1;
-    return 1 - d / reach;
-  }
-
-  private sees2(ctx: WatchCtx, x: number, z: number, range: number) {
-    const dx = x - this.x;
-    const dz = z - this.z;
-    const d = Math.hypot(dx, dz);
-    if (d > range) return false;
-    if (Math.abs(angleDiff(this.yaw, Math.atan2(dx, dz))) > GUARD_HALF) return false;
-    return ctx.grid.los(this.x, this.z, x, z);
-  }
-
-  /** Something to check out (a noise, a glimpse, a colleague on the floor). */
-  notice(x: number, z: number, ctx: WatchCtx, { level = SUSPICIOUS + 0.02, coin = false } = {}) {
-    if (!this.alive) return;
-    if (this.state === "hunt") {
-      // During the alarm, noises pull hunters over.
-      this.stim = { x, z };
-      this.goTo(x, z, ctx.grid);
-      this.wanderT = 0;
-      return;
-    }
-    const wasCalm = !this.curious;
-    this.stim = { x, z };
-    this.coinSpot = coin ? { x, z } : this.coinSpot;
-    this.awareness = Math.max(this.awareness, level);
-    this.enter("suspicious");
-    this.unseenT = 0;
-    if (wasCalm) ctx.voice("huh", this.pitch);
-  }
-
-  /** The alarm rang: hunt the thief. */
-  hunt(ctx: WatchCtx) {
-    if (!this.alive) return;
-    this.enter("hunt");
-    this.awareness = 1;
-    this.goTo(ctx.lastKnown.x, ctx.lastKnown.z, ctx.grid);
-    this.wanderT = 0;
-  }
-
-  /** The alarm is over: back to the rounds, still a little jumpy. */
-  standDown(ctx: WatchCtx) {
-    if (!this.alive) return;
-    this.awareness = 0.25;
-    this.returnToRoute(ctx);
-  }
-
-  private returnToRoute(ctx: WatchCtx) {
-    this.enter("return");
-    const p = this.route[this.wp];
-    this.goTo(p.x, p.z, ctx.grid);
-  }
-
-  knockOut() {
-    this.enter("ko");
-    this.koT = 28;
-    this.awareness = 0;
-    this.body = null;
-    this.view.anim.play("die", { once: true, fade: 0.08, speed: 0.8 });
-  }
-
-  /** Woken up (by time or by a colleague). */
-  wake(ctx: WatchCtx) {
-    if (this.state !== "ko") return;
-    this.enter("wake");
-    this.view.anim.play("idle", { fade: 0.6 });
-    ctx.voice("wake", this.pitch);
-  }
-
-  update(dt: number, ctx: WatchCtx) {
-    const grid = ctx.grid;
-    this.t += dt;
-    if (this.state === "ko") {
-      this.koT -= dt;
-      if (this.koT <= 0) this.wake(ctx);
-      this.sees = false;
-      return;
-    }
-    if (this.state === "wake") {
-      this.sees = false;
-      if (this.t > 1.2) {
-        this.awareness = 0.5;
-        this.stim = { x: this.x, z: this.z };
-        this.enter("search");
-      }
-      return;
-    }
-
-    // --- Perception.
-    const s = this.perceive(ctx);
-    this.sees = s >= 0;
-    const p = ctx.player;
-    if (this.sees) {
-      let rate = (0.75 + 2.3 * s) * (p.running ? 1.35 : 1) * (p.sneaking ? 0.85 : 1);
-      if (ctx.alarm) rate *= 2.5;
-      this.awareness = Math.min(1, this.awareness + rate * dt);
-      this.stim = { x: p.x, z: p.z };
-      this.unseenT = 0;
-      if (ctx.alarm) {
-        ctx.spotted(p.x, p.z);
-        if (this.state !== "hunt") this.hunt(ctx);
-      } else if (this.awareness >= 1) {
-        ctx.voice("hey", this.pitch);
-        ctx.raiseAlarm(p.x, p.z, "guard");
-      } else if (this.awareness >= SUSPICIOUS && this.state !== "suspicious") {
-        const calm = !this.curious;
-        this.enter("suspicious");
-        if (calm) ctx.voice("huh", this.pitch);
-      }
-    } else {
-      this.unseenT += dt;
-      const calm = this.state === "patrol" || this.state === "wait" || this.state === "return";
-      if (this.state !== "hunt") this.awareness = Math.max(0, this.awareness - (calm ? 0.3 : 0.07) * dt);
-    }
-
-    // A colleague on the floor?
-    if (!ctx.alarm && !this.body && (this.state === "patrol" || this.state === "wait" || this.state === "return" || this.state === "search")) {
-      for (const g of ctx.guards) {
-        if (g === this || g.state !== "ko") continue;
-        if (this.sees2(ctx, g.x, g.z, GUARD_RANGE * 0.85)) {
-          this.body = g;
-          this.notice(g.x, g.z, ctx, { level: 0.6 });
-          break;
-        }
-      }
-    }
-
-    // --- Behaviour.
-    switch (this.state) {
-      case "wait": {
-        const pt = this.route[this.wp];
-        if (pt.face !== null && this.t < 0.6) this.lookBase = turnTowards(this.lookBase, pt.face, 4, dt);
-        const period = pt.wait === Infinity ? 7 : Math.max(2, pt.wait);
-        const k = (this.t % period) / period;
-        this.yaw = turnTowards(this.yaw, this.lookBase + Math.sin(k * Math.PI * 2) * 0.85, 3, dt);
-        if (this.t >= pt.wait) this.advance(grid);
-        break;
-      }
-      case "patrol": {
-        if (this.follow(dt, this.walkSpeed, 5)) {
-          const pt = this.route[this.wp];
-          if (pt.wait > 0) this.enter("wait");
-          else this.advance(grid);
-        }
-        break;
-      }
-      case "suspicious": {
-        // Stop, turn to the disturbance, think about it.
-        this.yaw = turnTowards(this.yaw, Math.atan2(this.stim.x - this.x, this.stim.z - this.z), 4.2, dt);
-        if (this.unseenT > 1.0 && this.t > 0.8) {
-          if (Math.hypot(this.stim.x - this.x, this.stim.z - this.z) > 0.9) {
-            this.enter("investigate");
-            this.goTo(this.stim.x, this.stim.z, grid);
-          } else this.enter("search");
-        }
-        break;
-      }
-      case "investigate": {
-        const target = this.body ?? this.stim;
-        const near = Math.hypot(target.x - this.x, target.z - this.z) < (this.body ? 1.15 : 0.6);
-        if (near || this.follow(dt, 1.95, 6)) {
-          if (this.body) {
-            this.body.wake(ctx);
-            this.body = null;
-          }
-          if (this.coinSpot && Math.hypot(this.coinSpot.x - this.x, this.coinSpot.z - this.z) < 1.4) ctx.pickCoin(this.coinSpot.x, this.coinSpot.z);
-          this.coinSpot = null;
-          this.enter("search");
-        }
-        break;
-      }
-      case "search": {
-        this.yaw = this.lookBase + Math.sin((this.t / 3.6) * Math.PI * 2) * 1.5;
-        if (this.t > 3.6) {
-          if (this.awareness > SUSPICIOUS + 0.1) this.t = 0;
-          else {
-            ctx.voice("shrug", this.pitch);
-            this.returnToRoute(ctx);
-          }
-        }
-        break;
-      }
-      case "return": {
-        if (this.follow(dt, this.walkSpeed, 5)) {
-          if (this.route[this.wp].wait > 0) this.enter("wait");
-          else this.advance(grid);
-        }
-        break;
-      }
-      case "hunt": {
-        this.repathT -= dt;
-        if (this.sees) {
-          if (this.repathT <= 0) {
-            this.repathT = 0.3;
-            this.goTo(p.x, p.z, grid);
-          }
-          this.follow(dt, this.runSpeed, 9);
-          if (Math.hypot(p.x - this.x, p.z - this.z) < CATCH_DIST) ctx.caught(this);
-        } else if (this.pi < this.path.length) {
-          this.follow(dt, this.runSpeed * 0.85, 8);
-        } else {
-          // Search around the last known spot.
-          this.wanderT -= dt;
-          this.yaw += Math.sin(ctx.time * 2.2 + this.index) * dt * 2.2;
-          if (this.wanderT <= 0) {
-            this.wanderT = 1.6 + ctx.rand() * 1.6;
-            const a = ctx.rand() * Math.PI * 2;
-            const r = 1.5 + ctx.rand() * 3;
-            const c = grid.nearestWalkable(ctx.lastKnown.x + Math.cos(a) * r, ctx.lastKnown.z + Math.sin(a) * r);
-            if (c) this.goTo(c.x, c.z, grid);
-          }
-        }
-        // Brushing past the thief while hunting still catches him.
-        if (Math.hypot(p.x - this.x, p.z - this.z) < CATCH_DIST * 0.8) ctx.caught(this);
-        break;
-      }
-    }
-  }
-
-  /** Animation, model, cone and badge. */
-  sync(dt: number, ctx: WatchCtx, camera: THREE.Camera, moved: number) {
+  /** Animation, model, cone and badge. `dt` 0 while paused. */
+  sync(dt: number, grid: Grid, alarm: boolean, time: number, camera: THREE.Camera) {
+    const g = this.guard;
     const v = this.view;
-    v.place(this.x, this.z, this.yaw);
-    if (this.state !== "ko" && this.state !== "wake") {
-      const speed = moved / Math.max(1e-4, dt);
-      if (speed > 2.6) v.anim.play("sprint", { speed: speed / 4 });
+    const spec = g.spec;
+    v.place(g.x, g.z, g.yaw);
+    const moved = Math.hypot(g.x - this.lastX, g.z - this.lastZ);
+    this.lastX = g.x;
+    this.lastZ = g.z;
+    const down = g.state === "ko" || g.state === "wake";
+    if (g.state === "ko" && !this.wasDown) v.anim.play("die", { once: true, fade: 0.08, speed: 0.8 });
+    else if (g.state === "wake" && v.anim.name === "die") v.anim.play("idle", { fade: 0.6 });
+    this.wasDown = down;
+    if (!down && dt > 0 && v.anim.name !== "interact-right") {
+      const speed = moved / dt;
+      const run = v.anim.has("sprint") ? "sprint" : "run";
+      if (speed > 2.6) v.anim.play(run, { speed: speed / 4 });
       else if (speed > 0.15) v.anim.play("walk", { speed: Math.max(0.6, speed / 1.9) });
       else v.anim.play("idle");
-      if (speed > 0.15) {
-        this.stepT -= moved;
-        if (this.stepT <= 0) this.stepT = 0.7;
-      }
     }
     v.anim.update(dt);
 
     const cone = this.cone;
-    cone.mesh.visible = this.alive;
-    if (this.alive) {
-      cone.update(ctx.grid, this.x, this.z, this.yaw, GUARD_HALF, GUARD_RANGE);
-      if (this.state === "hunt") cone.style("#ff3b3b", 0.34, ctx.alarm ? 1 : DARK_SHARE);
-      else if (this.curious || this.awareness > 0.05) cone.style(this.awareness > 0.6 ? "#ff6a3d" : "#ffad42", 0.3, DARK_SHARE);
-      else cone.style("#ffe7a3", 0.24, DARK_SHARE);
+    cone.mesh.visible = g.alive;
+    if (g.alive) {
+      cone.update(grid, g.x, g.z, g.yaw, spec.half, spec.range);
+      const base = g.kind === "dog" ? 0.13 : g.kind === "sentry" ? 0.3 : 0.24;
+      if (g.state === "hunt") cone.style("#ff3b3b", base + 0.1, alarm ? 1 : spec.dark);
+      else if (g.curious || g.awareness > 0.05) cone.style(g.awareness > 0.6 ? "#ff6a3d" : "#ffad42", base + 0.06, spec.dark);
+      else cone.style(CONE_COLOR[g.kind], base, spec.dark);
     }
 
     const b = this.badge;
-    b.mesh.position.set(this.x, 1.55, this.z);
+    const top = g.kind === "dog" ? 0.95 : 1.55;
+    b.mesh.position.set(g.x, top, g.z);
     b.mesh.quaternion.copy(camera.quaternion);
-    if (this.state === "ko") {
+    if (g.state === "ko") {
       b.mesh.visible = true;
-      b.set(2, this.koT / 28, "#a5b4fc", 0.85);
-    } else if (this.state === "hunt") {
+      b.set(2, g.koT / g.koTotal, "#a5b4fc", 0.85);
+    } else if (g.state === "hunt") {
       b.mesh.visible = true;
       b.set(1, 1, "#ff3b3b");
-      b.mesh.position.y = 1.55 + Math.abs(Math.sin(ctx.time * 9)) * 0.08;
-    } else if (this.awareness > 0.04 || this.curious) {
+      b.mesh.position.y = top + Math.abs(Math.sin(time * 9)) * 0.08;
+    } else if (g.awareness > 0.04 || g.curious) {
       b.mesh.visible = true;
-      b.set(0, this.awareness, this.awareness > 0.6 ? "#ff6a3d" : "#ffc14d");
+      b.set(0, g.awareness, g.awareness > 0.6 ? "#ff6a3d" : "#ffc14d");
     } else b.mesh.visible = false;
   }
 
   dispose() {
+    this.view.root.removeFromParent();
+    this.cone.mesh.removeFromParent();
+    this.badge.mesh.removeFromParent();
+    this.view.anim.stopAll();
+    // Each skinned clone gets its own bone texture on first draw: free it with the guard.
+    this.view.model.traverse((o) => (o as THREE.SkinnedMesh).isSkinnedMesh && (o as THREE.SkinnedMesh).skeleton.dispose());
     this.cone.dispose();
     this.badge.dispose();
   }
@@ -549,109 +201,107 @@ export class Guard {
 
 // --- Security cameras --------------------------------------------------------------------------------------
 
-export class SecurityCamera {
-  /** The floor-side origin of the view. */
-  readonly x: number;
-  readonly z: number;
-  readonly base: number;
-  readonly sweep: number;
-  readonly range: number;
-  yaw: number;
-  awareness = 0;
-  tracking = false;
-  disabled = false;
-  sees = false;
+export class CameraView {
   readonly cone = new Cone(26);
   readonly badge: Badge;
-  private lastTarget = 0;
-  private servoT = 0;
 
   constructor(
-    readonly def: CameraDef,
+    readonly cam: SecurityCamera,
     atlas: THREE.Texture,
   ) {
-    this.base = deg(def.dir);
-    this.sweep = deg(def.sweep) / 2;
-    this.range = def.range ?? CAM_RANGE;
-    this.x = def.x + Math.sin(this.base) * 0.56;
-    this.z = def.z + Math.cos(this.base) * 0.56;
-    this.yaw = this.base;
     this.badge = new Badge(atlas, 0.48);
   }
 
-  private perceive(ctx: WatchCtx) {
-    const p = ctx.player;
-    const dx = p.x - this.x;
-    const dz = p.z - this.z;
-    const d = Math.hypot(dx, dz);
-    if (d > this.range) return -1;
-    if (Math.abs(angleDiff(this.yaw, Math.atan2(dx, dz))) > CAM_HALF) return -1;
-    const light = ctx.alarm ? 1 : ctx.grid.lightAt(p.x, p.z);
-    const reach = this.range * (0.62 + 0.38 * light);
-    if (d > reach) return -1;
-    if (!ctx.grid.los(this.x, this.z, p.x, p.z)) return -1;
-    return 1 - d / reach;
+  addTo(scene: THREE.Scene) {
+    scene.add(this.cone.mesh, this.badge.mesh);
   }
 
-  update(dt: number, ctx: WatchCtx, sfx: { servo(): void }) {
-    if (this.disabled) {
-      this.sees = false;
-      this.awareness = 0;
-      return;
-    }
-    const s = this.perceive(ctx);
-    this.sees = s >= 0;
-    const p = ctx.player;
-    if (this.sees) {
-      this.awareness = Math.min(1, this.awareness + dt * (ctx.alarm ? 3 : 1.0 + 1.6 * s));
-      if (!this.tracking) ctx.voice("lock", 1);
-      this.tracking = true;
-      const want = Math.atan2(p.x - this.x, p.z - this.z);
-      const lim = this.sweep + 0.35;
-      const off = Math.max(-lim, Math.min(lim, angleDiff(this.base, want)));
-      this.yaw = turnTowards(this.yaw, this.base + off, 1.6, dt);
-      if (ctx.alarm) ctx.spotted(p.x, p.z);
-      else if (this.awareness >= 1) ctx.raiseAlarm(p.x, p.z, "camera");
-    } else {
-      this.awareness = Math.max(0, this.awareness - dt * 0.32);
-      if (this.tracking && this.awareness < 0.05) this.tracking = false;
-      if (!this.tracking) {
-        const period = this.def.period;
-        const k = ((ctx.time / period + (this.def.phase ?? 0)) % 1) * Math.PI * 2;
-        const target = this.base + Math.sin(k) * this.sweep;
-        const dir = Math.sign(Math.cos(k));
-        if (dir !== this.lastTarget) {
-          this.lastTarget = dir;
-          this.servoT = 0.2;
-        }
-        this.yaw = turnTowards(this.yaw, target, 1.4, dt);
-      }
-    }
-    if (this.servoT > 0) {
-      this.servoT -= dt;
-      if (this.servoT <= 0 && Math.hypot(p.x - this.x, p.z - this.z) < 9) sfx.servo();
-    }
-  }
-
-  sync(ctx: WatchCtx, camera: THREE.Camera) {
+  sync(grid: Grid, alarm: boolean, camera: THREE.Camera) {
+    const c = this.cam;
     const cone = this.cone;
-    cone.mesh.visible = !this.disabled;
-    if (!this.disabled) {
-      cone.update(ctx.grid, this.x, this.z, this.yaw, CAM_HALF, this.range);
-      if (this.awareness > 0.02 || ctx.alarm) cone.style(this.awareness > 0.6 || ctx.alarm ? "#ff4d4d" : "#ffad42", 0.3, 0.62);
-      else cone.style("#7cc6ff", 0.22, 0.62);
+    cone.mesh.visible = !c.off;
+    if (!c.off) {
+      cone.update(grid, c.x, c.z, c.yaw, CAM_HALF, c.range);
+      if (c.awareness > 0.02 || alarm) cone.style(c.awareness > 0.6 || alarm ? "#ff4d4d" : "#ffad42", 0.3, CAM_DARK);
+      else cone.style("#7cc6ff", 0.22, CAM_DARK);
     }
     const b = this.badge;
-    b.mesh.visible = !this.disabled && this.awareness > 0.03;
+    b.mesh.visible = !c.off && c.awareness > 0.03;
     if (b.mesh.visible) {
-      b.mesh.position.set(this.def.x, 1.95, this.def.z + 0.2);
+      b.mesh.position.set(c.def.x, 1.95, c.def.z + 0.2);
       b.mesh.quaternion.copy(camera.quaternion);
-      b.set(this.awareness >= 1 ? 1 : 0, this.awareness, this.awareness > 0.6 ? "#ff4d4d" : "#ffc14d");
+      b.set(c.awareness >= 1 ? 1 : 0, c.awareness, c.awareness > 0.6 ? "#ff4d4d" : "#ffc14d");
     }
   }
 
   dispose() {
+    this.cone.mesh.removeFromParent();
+    this.badge.mesh.removeFromParent();
     this.cone.dispose();
     this.badge.dispose();
+  }
+}
+
+// --- Drones -------------------------------------------------------------------------------------------------
+
+const DRONE_Y = 1.95;
+
+export class DroneView {
+  readonly root = new THREE.Group();
+  readonly badge: Badge;
+  private readonly model: THREE.Object3D;
+  private readonly disc: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  private readonly beam: THREE.Mesh;
+
+  constructor(
+    readonly drone: Drone,
+    proto: Proto | undefined,
+    atlas: THREE.Texture,
+    glowTex: THREE.Texture,
+  ) {
+    this.model = proto?.object.clone() ?? new THREE.Group();
+    this.model.position.y = DRONE_Y;
+    // The floor the drone scans: a lit disc, and a faint cone of light down to it.
+    this.disc = floorGlow(glowTex, drone.radius * 2.5, "#7df2ff", 0.5, 0.04);
+    this.disc.renderOrder = 2;
+    this.beam = lightBeam(0.12, drone.radius * 0.95, DRONE_Y - 0.1, "#7df2ff", 0.09);
+    this.root.add(this.model, this.disc, this.beam);
+    this.badge = new Badge(atlas, 0.48);
+  }
+
+  addTo(scene: THREE.Scene) {
+    scene.add(this.root, this.badge.mesh);
+  }
+
+  sync(dt: number, alarm: boolean, time: number, camera: THREE.Camera) {
+    const d = this.drone;
+    this.root.position.set(d.x, 0, d.z);
+    this.model.rotation.y = d.yaw;
+    this.model.position.y = DRONE_Y + (d.off ? -0.25 : Math.sin(time * 2.4 + d.x) * 0.06);
+    this.model.rotation.z = d.off ? 0.25 : 0;
+    void dt;
+    const hot = d.awareness > 0.6 || alarm;
+    const color = d.off ? "#64748b" : hot ? "#ff4d4d" : d.awareness > 0.02 ? "#ffad42" : "#7df2ff";
+    this.disc.visible = this.beam.visible = !d.off;
+    this.disc.material.color.set(color);
+    this.disc.material.opacity = 0.42 + Math.sin(time * 5) * 0.06;
+    (this.beam.material as THREE.ShaderMaterial).uniforms.uColor.value.set(color);
+    const b = this.badge;
+    b.mesh.visible = !d.off && d.awareness > 0.03;
+    if (b.mesh.visible) {
+      b.mesh.position.set(d.x, DRONE_Y + 0.6, d.z);
+      b.mesh.quaternion.copy(camera.quaternion);
+      b.set(d.awareness >= 1 ? 1 : 0, d.awareness, hot ? "#ff4d4d" : "#ffc14d");
+    }
+  }
+
+  dispose() {
+    this.root.removeFromParent();
+    this.badge.mesh.removeFromParent();
+    this.badge.dispose();
+    this.disc.geometry.dispose();
+    this.disc.material.dispose();
+    this.beam.geometry.dispose();
+    (this.beam.material as THREE.Material).dispose();
   }
 }
