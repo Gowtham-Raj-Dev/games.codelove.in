@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Writes public/sitemap.xml before every build: the home page, every game's page and its player (coming-soon games
- * too — every page is open to search engines), then every other fixed page (about / contact / privacy …, found from
+ * Writes public/sitemap.xml before every build: the home page, every game's page and its player (a coming-soon game
+ * lists only its page: its player is a placeholder), then every other fixed page (about / contact / privacy …, found from
  * the folders in src/app that have a page.tsx). A game is a folder in src/app with a play/ route.
  * Every URL gets today's date as <lastmod> (set at build time), changefreq "daily" and priority 1.0. Paths end in a
  * slash, like the canonical URLs (next.config trailingSlash).
@@ -27,10 +27,23 @@ const pages = folders
   .filter((name) => !isGame(name) && !/^[[(_]/.test(name) && fs.existsSync(path.join(APP, name, "page.tsx")))
   .sort();
 
+/** A coming-soon game's play/ route is only a placeholder, so it stays out of the sitemap (its game page stays in). */
+const isComingSoon = (slug) => {
+  const file = path.join(ROOT, "src", "components", "games", slug, "manifest.ts");
+  return fs.existsSync(file) && /comingSoon:\s*true/.test(fs.readFileSync(file, "utf8"));
+};
+
 const lastmod = new Date().toISOString().slice(0, 10);
-const paths = ["/", ...games.flatMap((slug) => [`/${slug}/`, `/${slug}/play/`]), ...pages.map((name) => `/${name}/`)];
+const paths = [
+  "/",
+  ...games.flatMap((slug) => (isComingSoon(slug) ? [`/${slug}/`] : [`/${slug}/`, `/${slug}/play/`])),
+  ...pages.map((name) => `/${name}/`),
+];
 
 /**
+ * No <video:player_loc>: it pointed at the game page itself, and Google rejects a player_loc equal to the <loc>
+ * (that was the 5 sitemap errors in Search Console). <video:content_loc> (the MP4) is enough.
+ *
  * A game's trailer, read from its manifest (src/components/games/<slug>/manifest.ts), so its page gets a
  * <video:video> entry and the trailer can show in Google's Videos tab. Titles name CodeLove, so a search for
  * "codelove" finds them. Same upload date as the VideoObject on the game's page.
@@ -64,7 +77,6 @@ const videoXml = (slug) => {
       <video:title>${esc(`${v.title} — free 3D game by CodeLove (gameplay trailer)`)}</video:title>
       <video:description>${esc(desc)}</video:description>
       <video:content_loc>${SITE}${v.video}</video:content_loc>
-      <video:player_loc>${SITE}/${slug}/</video:player_loc>
       ${v.seconds ? `<video:duration>${v.seconds}</video:duration>` : ""}
       <video:publication_date>${UPLOADED}</video:publication_date>
       <video:tag>CodeLove</video:tag>

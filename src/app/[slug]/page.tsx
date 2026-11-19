@@ -487,7 +487,7 @@ export default async function GameDetailsPage({ params }: PageProps<"/[slug]">) 
         <div className="mb-4 flex items-end justify-between gap-2">
           <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">More games</h2>
           <Link href="/" className="text-sm text-muted hover:text-fg">
-            All games →
+            More free 3D games →
           </Link>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

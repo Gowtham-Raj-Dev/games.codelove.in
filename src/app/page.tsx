@@ -14,12 +14,12 @@ import { pageMetadata } from "@/lib/seo";
 import { absoluteUrl, MODELS_SITE, modelsUrl, SITE } from "@/lib/site";
 
 const DESCRIPTION =
-  "Play free 3D games online — no download, no sign-up. Kart racing, naval cannon battles, skating, tower defense, dungeon crawler, cooking, mini golf and puzzles on PC or phone.";
+  "Free 3D games online: browser games with no download and no sign-up. Kart racing, skating, tower defense, a dungeon crawler, mini golf and more on any device.";
 
 export const metadata: Metadata = {
   ...pageMetadata({
-    // The home page: the root layout's "%s | site" template doesn't reach it, so the title leads with "Games".
-    title: "Games — Free 3D Browser Games Online | CodeLove",
+    // The home page: the root layout's "%s | site" template doesn't reach it, so the full title is set here.
+    title: "Free 3D Games Online — No Download | CodeLove Games",
     absoluteTitle: true,
     description: DESCRIPTION,
     path: "/",
@@ -100,6 +100,18 @@ function faq(android: string[]) {
     {
       q: "How are the games made?",
       a: `Every game is built only from the free 3D models on ${MODELS_SITE.name} — characters, vehicles, buildings and props you can download — with three.js, and music generated live in code.`,
+    },
+    {
+      q: "Where can I play free online games with no download?",
+      a: "Right here. Every game on games.codelove.in is a browser game: press Play and it loads in the page, with nothing to install and no app store.",
+    },
+    {
+      q: "Are these three.js games?",
+      a: "Yes. Every game is written with three.js, the WebGL library for 3D in the browser, so they run on any modern browser on a PC or a phone.",
+    },
+    {
+      q: "What are CodeLove games?",
+      a: "CodeLove games are the free 3D browser games on games.codelove.in, part of CodeLove (codelove.in) — a set of free tools and games made by one developer, Gowtham.",
     },
   ];
 }
@@ -316,6 +328,28 @@ export default function GamesPage() {
           </div>
         </section>
       )}
+
+      <section id="play-now" className="mt-16">
+        <h2 className={sectionTitle}>Play free browser games now</h2>
+        <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-muted">
+          Free 3D games online, with no download: each link opens the game straight in your browser, on a PC or a phone.
+        </p>
+        <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {playable.map((g) => (
+            <li key={g.slug}>
+              <Link
+                href={`/${g.slug}/play/`}
+                className="flex items-center justify-between gap-3 rounded-xl border-2 border-fg bg-surface px-4 py-3 text-sm font-semibold text-fg transition hover:-translate-y-0.5 hover:bg-accent-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                <span className="min-w-0 truncate">
+                  Play {g.title} <span className="font-normal text-muted">· {g.genre}</span>
+                </span>
+                <Play className="size-4 shrink-0 fill-current" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <section id="how" className="mt-20">
         <h2 className={sectionTitle}>How these games are made</h2>
