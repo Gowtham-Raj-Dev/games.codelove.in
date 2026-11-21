@@ -11,6 +11,9 @@ export interface SoundState {
   chase: number;
   fear: number;
   speed: number;
+  /** The Wendigo is awake and in the store, and whether it is standing silent (an ambush). */
+  present: boolean;
+  quiet: boolean;
   /** Creature position, player position and facing (for the 3D voice). */
   cx: number;
   cz: number;
@@ -432,6 +435,73 @@ export class Sfx {
   rumble() {
     this.noise(1.2, 0.1, "lowpass", 500, 80, 1);
   }
+  /** A loose coin. */
+  coin() {
+    this.tone("triangle", 1568, 1568, 0.12, 0.05);
+    this.tone("triangle", 2093, 2093, 0.3, 0.05, null, 0.07);
+  }
+  /** A battery clicked into the torch. */
+  battery() {
+    this.tone("square", 520, 520, 0.05, 0.04, null, 0, 2000);
+    this.tone("sine", 660, 990, 0.25, 0.06, null, 0.06);
+  }
+  /** A key or a fuse taken off a shelf. */
+  keyPick() {
+    this.noise(0.12, 0.08, "highpass", 4000, 7000, 1);
+    this.tone("sine", 1245, 1245, 0.5, 0.05, null, 0.03);
+    this.tone("sine", 1865, 1865, 0.4, 0.03, null, 0.09);
+  }
+  /** The torch has run flat. */
+  torchDead() {
+    this.tone("square", 700, 200, 0.18, 0.05, null, 0, 1500);
+  }
+  /** A roller shutter going up. */
+  shutter() {
+    this.noise(1.7, 0.16, "bandpass", 260, 520, 2.5);
+    for (let k = 0; k < 9; k++) this.noise(0.05, 0.1, "highpass", 2200, 3200, 1, null, k * 0.18);
+    this.tone("sawtooth", 70, 95, 1.6, 0.05, null, 0, 300);
+  }
+  /** A locked door that does not give. */
+  doorLocked() {
+    this.noise(0.09, 0.14, "lowpass", 500, 200, 1);
+    this.noise(0.09, 0.12, "lowpass", 480, 200, 1, null, 0.14);
+  }
+  /** The breaker lever, then the mains humming back. */
+  breakerOn() {
+    this.noise(0.12, 0.45, "lowpass", 900, 200, 1);
+    this.tone("sine", 60, 45, 0.3, 0.4, null, 0, 200);
+    this.tone("sawtooth", 50, 100, 1.6, 0.06, null, 0.15, 400);
+    this.noise(1.2, 0.05, "bandpass", 300, 1200, 4, null, 0.2);
+  }
+  /** The mains dying. */
+  powerDown() {
+    this.tone("sawtooth", 120, 28, 1.8, 0.12, null, 0, 500);
+    this.noise(0.9, 0.12, "lowpass", 1400, 90, 1);
+  }
+  /** A theft sensor going off. */
+  sensorAlarm() {
+    for (let k = 0; k < 6; k++) this.tone("square", k % 2 ? 1180 : 1560, k % 2 ? 1180 : 1560, 0.16, 0.085, null, k * 0.17, 2600);
+  }
+  /** The Wendigo at a locker door. */
+  lockerRattle() {
+    for (let k = 0; k < 5; k++) this.noise(0.08, 0.3, "bandpass", 420 + Math.random() * 300, 300, 6, this.cp, k * 0.2 + Math.random() * 0.05);
+    this.tone("sine", 75, 40, 0.3, 0.3, this.cp, 1.0, 220);
+  }
+  /** The hooded woman's scream when she reaches you. */
+  shriek() {
+    [1180, 1420, 1930].forEach((f, i) => this.tone("sawtooth", f, f * 0.55, 1.3, 0.16, null, i * 0.02, 5200));
+    this.noise(1.1, 0.3, "bandpass", 3200, 1200, 3);
+  }
+  /** She comes apart in the torch beam. */
+  banish() {
+    this.tone("sine", 880, 220, 0.9, 0.07);
+    this.noise(0.8, 0.07, "bandpass", 1800, 400, 3);
+  }
+  /** Stars on the result card. */
+  star(i: number) {
+    this.tone("sine", [660, 880, 1109][i] ?? 880, 0, 0.5, 0.07);
+    this.noise(0.08, 0.04, "highpass", 5000, 8000, 1);
+  }
 
   /** Silences the chase layer at once (after death). */
   quietChase() {
@@ -455,8 +525,8 @@ export class Sfx {
       cp.positionY.value = 1.8;
       cp.positionZ.value = s.cz;
     } else cp.setPosition(s.cx, 1.8, s.cz);
-    this.breathG.gain.setTargetAtTime(0.5 + s.chase * 0.3, t, 0.2);
-    this.growlG.gain.setTargetAtTime(s.chase * 0.3 + s.fear * 0.05, t, 0.3);
+    this.breathG.gain.setTargetAtTime(s.present ? (s.quiet ? 0.1 : 0.5 + s.chase * 0.3) : 0, t, 0.2);
+    this.growlG.gain.setTargetAtTime(s.present ? s.chase * 0.3 + s.fear * 0.05 : 0, t, 0.3);
     const L = C.listener;
     if (L.positionX) {
       L.positionX.value = s.px;

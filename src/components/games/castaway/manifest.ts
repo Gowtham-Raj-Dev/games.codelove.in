@@ -10,11 +10,22 @@ const f = (name: string) => `food-kit/${name}`;
 /** The castaway and the night creatures. */
 export const CHAR = {
   player: "mini-characters/character-male-b",
+  mara: "mini-characters/character-female-b",
+  otto: "mini-characters/character-male-a",
+  ines: "mini-characters/character-female-c",
+  brom: "mini-characters/character-male-d",
+  yuki: "mini-characters/character-female-e",
   crab: "cube-pets/animal-crab",
+  boar: "cube-pets/animal-hog",
+  bear: "cube-pets/animal-polar",
   drowned: "graveyard-kit/character-skeleton",
   brute: "graveyard-kit/character-zombie",
   ghost: "graveyard-kit/character-ghost",
+  captain: "graveyard-kit/character-vampire",
 } as const;
+
+/** The castaways bought in the shop: loaded only when one is picked. */
+export const CASTAWAY_MODELS: string[] = [CHAR.mara, CHAR.otto, CHAR.ines, CHAR.brom, CHAR.yuki];
 
 /** Things held in the hand. */
 export const HELD = {
@@ -73,6 +84,23 @@ export const WORLD = {
   ship: p("ship-small"),
 } as const;
 
+/** What grows and stands on the later islands: forest, desert, snow and the black rock. */
+export const ISLE = {
+  oak: n("tree-oak"),
+  pineRound: n("tree-pine-round-a"),
+  pineTall: n("tree-pine-tall-a"),
+  cactusTall: n("cactus-tall"),
+  cactusShort: n("cactus-short"),
+  snowA: "holiday-kit/tree-snow-a",
+  snowB: "holiday-kit/tree-snow-b",
+  snowC: "holiday-kit/tree-snow-c",
+  snowPile: "holiday-kit/snow-pile",
+  pineCrooked: "graveyard-kit/pine-crooked",
+  pineFall: "graveyard-kit/pine-fall-crooked",
+  graveCross: "graveyard-kit/gravestone-cross-large",
+  graveRound: "graveyard-kit/gravestone-round",
+} as const;
+
 /** Inventory items (also their icons) and what drops on the ground. */
 export const ITEM = {
   wood: s("resource-wood"),
@@ -107,17 +135,21 @@ export const BUILD = {
   satchel: s("box-open"),
 } as const;
 
-/** What the menu island needs first: terrain props, the castaway and the camp. Creatures and the ship last. */
+/** What the game loads before the menu: terrain props, the castaway and the camp first; creatures and the ship last. */
 export const MODELS: string[] = [
   CHAR.player,
   ...Object.values(WORLD).filter((k) => k !== WORLD.ship),
   ...Object.values(ITEM),
   ...Object.values(HELD),
   ...Object.values(BUILD),
+  ...Object.values(ISLE),
   CHAR.crab,
   CHAR.drowned,
   CHAR.brute,
   CHAR.ghost,
+  CHAR.boar,
+  CHAR.bear,
+  CHAR.captain,
   WORLD.ship,
 ];
 
@@ -130,7 +162,7 @@ export const GAME: GameEntry = {
   genre: "Survival crafting",
   accent: "#ea580c",
   cover: "/games/castaway/cover.webp",
-  models: MODELS,
+  models: [...MODELS, ...CASTAWAY_MODELS],
   collections: ["Survival Kit", "Pirate Kit", "Nature Kit", "Food Kit", "Mini Characters", "Graveyard Kit", "Cube Pets", "Mini Dungeon", "Dungeon Remastered", "Holiday Kit"],
   controls: [
     { action: "Move / run", keys: ["W", "A", "S", "D", "Shift"], touch: "Left stick (push to the edge to run)" },

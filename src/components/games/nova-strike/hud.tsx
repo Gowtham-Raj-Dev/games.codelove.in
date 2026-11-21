@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Pause, Play } from "lucide-react";
+import { box, ControlLayer, ControlsEditor as Editor, createControls, type Frame, type Placed } from "../shared/touch-layout";
 import { IconButton, SystemButtons, useStore, type Store } from "../shared/ui";
 import type { Hud, NovaStrikeGame } from "./engine";
-import { STAGES } from "./stages";
+import { MEDAL_NAMES, SECTORS, stageCode, STAGES } from "./stages";
 
-/** In-flight HUD, banners, screen flashes and the touch controls. */
+/** In-flight HUD, banners, screen flashes, the touch controls and a few icons the menus share. */
 
 const pad = (n: number, len: number) => String(Math.max(0, Math.floor(n))).padStart(len, "0");
 
-/** Keyframes used by the HUD (scoped names). */
+/** Keyframes used by the game's overlays (scoped names). */
 export function NovaStyles() {
   return (
     <style>{`
@@ -20,6 +21,7 @@ export function NovaStyles() {
       @keyframes nova-white { from { opacity: 0.9 } to { opacity: 0 } }
       @keyframes nova-pulse { 0%, 100% { opacity: 0.25 } 50% { opacity: 0.7 } }
       @keyframes nova-rise { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+      @keyframes nova-hint { 0% { opacity: 0 } 8%, 80% { opacity: 1 } 100% { opacity: 0 } }
     `}</style>
   );
 }
@@ -27,6 +29,37 @@ export function NovaStyles() {
 /** Faint CRT scanlines over the whole view — the arcade-cabinet look. */
 export function Scanlines() {
   return <div aria-hidden className="pointer-events-none absolute inset-0 z-[1] bg-[repeating-linear-gradient(0deg,rgb(0_0_0/0.16)_0_1px,transparent_1px_3px)] mix-blend-multiply" />;
+}
+
+// --- Icons the menus share --------------------------------------------------------------------------
+
+export const MEDAL_COLORS = ["#334155", "#d08a4a", "#cbd5e1", "#ffd166"];
+
+/** A medal disc: empty ring when none, bronze / silver / gold otherwise. */
+export function Medal({ tier, size = "sm", label = false }: { tier: number; size?: "xs" | "sm" | "lg"; label?: boolean }) {
+  const color = MEDAL_COLORS[tier] ?? MEDAL_COLORS[0];
+  const dims = size === "lg" ? "size-16 border-2" : size === "sm" ? "size-5 border-2" : "size-3.5 border";
+  return (
+    <span className="inline-flex items-center gap-1.5" aria-label={tier ? `${MEDAL_NAMES[tier]} medal` : "No medal yet"}>
+      <span
+        className={`inline-grid shrink-0 place-items-center rounded-full ${dims}`}
+        style={{ borderColor: color, background: tier ? `radial-gradient(circle at 35% 30%, #fff8, ${color} 45%, #0008)` : "transparent", boxShadow: tier ? `0 0 ${size === "lg" ? 14 : 6}px ${color}` : undefined }}
+      >
+        {size === "lg" && tier > 0 && <span className="g-display text-lg text-[#020617]">{["", "B", "S", "G"][tier]}</span>}
+      </span>
+      {label && <span className="g-muted text-[10px] uppercase">{tier ? MEDAL_NAMES[tier] : "—"}</span>}
+    </span>
+  );
+}
+
+/** The currency: a small gold hexagon. */
+export function CreditIcon({ className = "size-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 12 12" className={`inline-block shrink-0 ${className}`} aria-hidden>
+      <path d="M6 0.5 L11 3.2 V8.8 L6 11.5 L1 8.8 V3.2 Z" fill="#ffd166" stroke="#b7791f" strokeWidth="0.8" />
+      <path d="M6 3 L8.4 4.4 V7.6 L6 9 L3.6 7.6 V4.4 Z" fill="#fff3c4" />
+    </svg>
+  );
 }
 
 function Bar({ value, color, segments = 10, className = "" }: { value: number; color: string; segments?: number; className?: string }) {
@@ -64,10 +97,35 @@ function BombIcon({ className = "" }: { className?: string }) {
   );
 }
 
+// --- HUD --------------------------------------------------------------------------------------------
+
 export function HudOverlay({ store, touch, paused, onPause }: { store: Store<Hud>; touch: boolean; paused: boolean; onPause: () => void }) {
   const hud = useStore(store);
-  const stage = STAGES[hud.stage];
+  const stage = STAGES[hud.stage] ?? STAGES[0];
   const shieldColor = hud.shield < 0.3 ? "#ff2d55" : hud.shield < 0.6 ? "#ffd166" : "#22d3ee";
+  const track = hud.boss ? <BossBar name={hud.boss.name} hp={hud.boss.hp} /> : <Progress label={`${stageCode(stage)} ${SECTORS[stage.sector].short}`} progress={hud.progress} checkpoint={hud.checkpoint} boss={stage.boss !== null} />;
+  const status = (
+    <div data-avoid className={`g-hud px-3 py-2 ${touch ? "w-40" : "w-64"}`}>
+      <div className="flex items-center justify-between text-[10px] tracking-[0.2em]">
+        <span className="g-muted">SHIELD</span>
+        <span className="flex items-center gap-1.5">
+          {Array.from({ length: Math.max(0, hud.lives) }, (_, i) => (
+            <ShipIcon key={i} className="size-3 text-[#22d3ee]" />
+          ))}
+        </span>
+      </div>
+      <Bar value={hud.shield} color={shieldColor} className={`mt-1 ${touch ? "h-2" : "h-3"}`} />
+      <div className="mt-1.5 flex items-center gap-1">
+        {Array.from({ length: Math.max(0, hud.bombs) }, (_, i) => (
+          <BombIcon key={i} className="size-3.5" />
+        ))}
+        <span className="g-muted ml-1 text-[10px] tracking-[0.15em]">
+          {hud.bombs ? "" : "NO "}BOMBS{touch ? "" : " · B"}
+        </span>
+      </div>
+      {touch && <Bar value={hud.boost} color="#a78bfa" segments={8} className="mt-1.5 h-1" />}
+    </div>
+  );
   return (
     <div className="pointer-events-none absolute inset-0 z-[2] select-none">
       {/* Damage flash, bomb flash and the low-shield vignette. */}
@@ -77,23 +135,26 @@ export function HudOverlay({ store, touch, paused, onPause }: { store: Store<Hud
 
       {/* Top row: score (left), progress / boss (centre), system (right). */}
       <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2 pt-[max(env(safe-area-inset-top),8px)] sm:p-4">
-        <div className="g-hud min-w-0 px-3 py-2 sm:px-4">
-          <p className="g-muted text-[10px] tracking-[0.2em]">SCORE</p>
-          <p className="g-display text-base leading-tight tabular-nums text-[#ecfeff] sm:text-xl">{pad(hud.score, 7)}</p>
-          <div className="mt-1 flex items-center gap-2 text-xs tabular-nums">
-            <span className="g-display text-[10px] text-[#f472b6] sm:text-xs">x{hud.mult}</span>
-            <span className="h-1.5 w-14 bg-[color-mix(in_srgb,currentColor_14%,transparent)] sm:w-20">
-              <span className="block h-full bg-[#f472b6] shadow-[0_0_6px_#f472b6]" style={{ width: `${hud.comboT * 100}%` }} />
-            </span>
-            <span className="opacity-80">HITS {pad(hud.hits, 3)}</span>
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div data-avoid className="g-hud min-w-0 px-3 py-2 sm:px-4">
+            <p className="g-muted text-[10px] tracking-[0.2em]">SCORE</p>
+            <p className="g-display text-base leading-tight tabular-nums text-[#ecfeff] sm:text-xl">{pad(hud.score, 7)}</p>
+            <div className="mt-1 flex items-center gap-2 text-xs tabular-nums">
+              <span className="g-display text-[10px] text-[#f472b6] sm:text-xs">x{hud.mult}</span>
+              <span className="h-1.5 w-10 bg-[color-mix(in_srgb,currentColor_14%,transparent)] sm:w-16">
+                <span className="block h-full bg-[#f472b6] shadow-[0_0_6px_#f472b6]" style={{ width: `${hud.comboT * 100}%` }} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[#ffd166]">
+                <CreditIcon className="size-3" /> {hud.credits}
+              </span>
+            </div>
           </div>
+          {touch && status}
         </div>
 
-        <div className={`flex min-w-0 flex-1 flex-col items-center gap-1 ${touch ? "hidden" : ""}`}>
-          {hud.boss ? <BossBar name={hud.boss.name} hp={hud.boss.hp} /> : <Progress label={stage?.short ?? ""} progress={hud.progress} checkpoint={hud.checkpoint} stage={hud.stage} />}
-        </div>
+        <div className="hidden min-w-0 flex-1 flex-col items-center gap-1 sm:flex land:flex">{track}</div>
 
-        <div className="pointer-events-auto flex flex-col items-end gap-2">
+        <div className="pointer-events-auto flex flex-col items-end gap-2" data-avoid>
           <IconButton onClick={onPause} label={paused ? "Resume (Esc)" : "Pause (Esc)"}>
             {paused ? <Play className="size-5 fill-current" /> : <Pause className="size-5 fill-current" />}
           </IconButton>
@@ -101,50 +162,30 @@ export function HudOverlay({ store, touch, paused, onPause }: { store: Store<Hud
         </div>
       </div>
 
-      {touch && (
-        <div className="absolute inset-x-2 top-[calc(max(env(safe-area-inset-top),8px)+84px)] flex flex-col items-center gap-1">
-          {hud.boss ? <BossBar name={hud.boss.name} hp={hud.boss.hp} /> : <Progress label={stage?.short ?? ""} progress={hud.progress} checkpoint={hud.checkpoint} stage={hud.stage} />}
-        </div>
-      )}
+      {/* Phones held upright: the progress bar gets its own row under the score. */}
+      <div className="absolute inset-x-0 top-[calc(max(env(safe-area-inset-top),8px)+72px)] flex justify-end px-2 sm:hidden land:hidden">
+        <div className="w-[calc(100%-176px)] min-w-32">{track}</div>
+      </div>
 
       {/* Banner. */}
       {hud.banner && (
-        <div key={hud.banner.id} className="absolute inset-x-0 top-[30%] flex justify-center px-4 text-center">
+        <div key={hud.banner.id} className="absolute inset-x-0 top-[30%] flex justify-center px-4 text-center land:top-[24%]">
           <div className="animate-[nova-banner_2.6s_ease-out_forwards]">
             <p
-              className={`g-title text-xl sm:text-4xl ${hud.banner.tone === "warn" ? "animate-[nova-blink_0.5s_steps(1)_infinite] text-[#ff2d55]" : hud.banner.tone === "good" ? "text-[#5dff9b]" : ""}`}
+              className={`g-title text-xl sm:text-4xl land:text-2xl ${hud.banner.tone === "warn" ? "animate-[nova-blink_0.5s_steps(1)_infinite] text-[#ff2d55]" : hud.banner.tone === "good" ? "text-[#5dff9b]" : ""}`}
               style={hud.banner.tone === "warn" ? { textShadow: "3px 3px 0 #000, 0 0 22px #ff2d55" } : undefined}
             >
               {hud.banner.text}
             </p>
-            {hud.banner.sub && <p className="mt-3 text-sm tracking-[0.15em] text-[#a5f3fc] uppercase [text-shadow:0_0_8px_#000] sm:text-base">{hud.banner.sub}</p>}
+            {hud.banner.sub && <p className="mt-3 text-sm tracking-[0.15em] text-[#a5f3fc] uppercase [text-shadow:0_0_8px_#000] sm:text-base land:mt-1.5">{hud.banner.sub}</p>}
           </div>
         </div>
       )}
 
-      {/* Bottom: shield / lives / bombs (left) and boost / weapon (right). */}
-      <div className={`absolute flex flex-col gap-1.5 ${touch ? "top-[calc(max(env(safe-area-inset-top),8px)+112px)] left-2" : "bottom-4 left-4"}`}>
-        <div className={`g-hud px-3 py-2 ${touch ? "w-40" : "w-64"}`}>
-          <div className="flex items-center justify-between text-[10px] tracking-[0.2em]">
-            <span className="g-muted">SHIELD</span>
-            <span className="flex items-center gap-1.5">
-              {Array.from({ length: Math.max(0, hud.lives) }, (_, i) => (
-                <ShipIcon key={i} className="size-3 text-[#22d3ee]" />
-              ))}
-            </span>
-          </div>
-          <Bar value={hud.shield} color={shieldColor} className={`mt-1 ${touch ? "h-2" : "h-3"}`} />
-          <div className="mt-1.5 flex items-center gap-1">
-            {Array.from({ length: hud.bombs }, (_, i) => (
-              <BombIcon key={i} className="size-3.5" />
-            ))}
-            <span className="g-muted ml-1 text-[10px] tracking-[0.15em]">{hud.bombs ? "" : "NO "}BOMBS{touch ? "" : " · B"}</span>
-          </div>
-        </div>
-      </div>
-
+      {/* Keyboard and mouse: shield / lives / bombs bottom left, boost / weapon bottom right. */}
+      {!touch && <div className="absolute bottom-4 left-4">{status}</div>}
       {!touch && (
-        <div className="absolute right-4 bottom-4 flex flex-col items-end gap-1.5">
+        <div className="absolute right-4 bottom-4">
           <div className="g-hud w-56 px-3 py-2">
             <div className="flex items-center justify-between text-[10px] tracking-[0.2em]">
               <span className="g-muted">BOOST</span>
@@ -153,7 +194,7 @@ export function HudOverlay({ store, touch, paused, onPause }: { store: Store<Hud
             <Bar value={hud.boost} color="#a78bfa" segments={8} className="mt-1 h-2" />
             <div className="mt-1.5 flex items-center justify-between text-[10px] tracking-[0.2em]">
               <span className="g-muted">CHARGE</span>
-              <span className="text-[#ff4fd8]">{hud.locks ? `LOCK ${hud.locks}/4` : hud.charge >= 1 ? "READY" : ""}</span>
+              <span className="text-[#ff4fd8]">{hud.locks ? `LOCK ${hud.locks}/${hud.maxLocks}` : hud.charge >= 1 ? "READY" : ""}</span>
             </div>
             <Bar value={hud.charge} color={hud.charge >= 1 ? "#ff4fd8" : "#7df9ff"} segments={8} className="mt-1 h-2" />
           </div>
@@ -163,18 +204,16 @@ export function HudOverlay({ store, touch, paused, onPause }: { store: Store<Hud
   );
 }
 
-function Progress({ label, progress, checkpoint, stage }: { label: string; progress: number; checkpoint: number; stage: number }) {
+function Progress({ label, progress, checkpoint, boss }: { label: string; progress: number; checkpoint: number; boss: boolean }) {
   return (
-    <div className="g-hud w-full max-w-sm px-3 py-1.5">
-      <div className="flex items-center justify-between text-[10px] tracking-[0.2em]">
-        <span className="g-display text-[9px] text-[var(--accent)]">
-          {stage + 1}-{label.toUpperCase()}
-        </span>
-        <span className="g-muted">BOSS</span>
+    <div data-avoid className="g-hud w-full max-w-sm px-3 py-1.5">
+      <div className="flex items-center justify-between gap-2 text-[10px] tracking-[0.2em]">
+        <span className="g-display truncate text-[9px] text-[var(--accent)]">{label.toUpperCase()}</span>
+        <span className="g-muted">{boss ? "BOSS" : "END"}</span>
       </div>
       <div className="relative mt-1 h-1.5 bg-[color-mix(in_srgb,currentColor_14%,transparent)]">
         <div className="h-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent)]" style={{ width: `${progress * 100}%` }} />
-        <span className="absolute -top-1 h-3.5 w-0.5 bg-[#5dff9b]" style={{ left: `${checkpoint * 100}%` }} />
+        {checkpoint > 0 && <span className="absolute -top-1 h-3.5 w-0.5 bg-[#5dff9b]" style={{ left: `${checkpoint * 100}%` }} />}
       </div>
     </div>
   );
@@ -182,9 +221,9 @@ function Progress({ label, progress, checkpoint, stage }: { label: string; progr
 
 function BossBar({ name, hp }: { name: string; hp: number }) {
   return (
-    <div className="g-hud w-full max-w-md border-[#ff2d55] px-3 py-1.5">
-      <div className="flex items-center justify-between text-[10px] tracking-[0.2em]">
-        <span className="g-display text-[9px] text-[#ff2d55]">{name.toUpperCase()}</span>
+    <div data-avoid className="g-hud w-full max-w-md border-[#ff2d55] px-3 py-1.5">
+      <div className="flex items-center justify-between gap-2 text-[10px] tracking-[0.2em]">
+        <span className="g-display truncate text-[9px] text-[#ff2d55]">{name.toUpperCase()}</span>
         <span className="g-muted tabular-nums">{Math.ceil(hp * 100)}%</span>
       </div>
       <div className="mt-1 h-2 bg-[color-mix(in_srgb,currentColor_14%,transparent)]">
@@ -196,18 +235,64 @@ function BossBar({ name, hp }: { name: string; hp: number }) {
 
 // --- Touch controls ---------------------------------------------------------------------------------
 
-function HoldButton({ label, onChange, className = "", children, accent = false }: { label: string; onChange: (down: boolean) => void; className?: string; children: ReactNode; accent?: boolean }) {
+type ButtonId = "fire" | "roll" | "boost" | "bomb";
+
+/** The fire button under the right thumb with roll, boost and bomb around it; the stick under the left. Order = placement priority. */
+const controls = createControls("nova-strike:controls:v1", {
+  fire: { label: "Fire", w: 84, x: -58, y: -62, round: true },
+  roll: { label: "Roll", w: 58, x: -142, y: -44, round: true },
+  boost: { label: "Boost", w: 52, x: -50, y: -146, round: true },
+  bomb: { label: "Bomb", w: 52, x: -126, y: -118, round: true },
+  stick: { label: "Steering stick", w: 108, x: 78, y: -82, round: true },
+});
+
+/** What a button shows: its name, the bombs left, and the lock-on charge filling the fire button's ring. */
+function Face({ id, hud, down = false }: { id: ButtonId; hud: Hud; down?: boolean }) {
+  return (
+    <span
+      className={`g-hud g-display relative grid size-full place-items-center rounded-full! text-[9px] ${down ? "scale-95 bg-[var(--accent)]! text-[#020617]!" : id === "fire" ? "border-2! border-[var(--accent)]!" : ""} ${id === "bomb" && hud.bombs <= 0 ? "opacity-50" : ""}`}
+    >
+      {id === "fire" && (
+        <>
+          <span className="text-[11px]">FIRE</span>
+          {hud.charge > 0 && <span className="absolute inset-1 rounded-full border-4 border-[#ff4fd8]" style={{ clipPath: `inset(${(1 - hud.charge) * 100}% 0 0 0)` }} />}
+        </>
+      )}
+      {id === "roll" && "ROLL"}
+      {id === "boost" && "BOOST"}
+      {id === "bomb" && (
+        <span className="flex flex-col items-center gap-0.5">
+          <BombIcon className="size-4" />
+          {hud.bombs}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function StickFace() {
+  return (
+    <div className="grid size-full place-items-center rounded-full border-2 border-dashed border-[#22d3ee66] bg-[#02061733]">
+      <div className="size-[38%] rounded-full bg-[#22d3ee88] shadow-[0_0_10px_#22d3ee]" />
+    </div>
+  );
+}
+
+function TouchButton({ id, at, hud, onChange }: { id: ButtonId; at: Placed; hud: Hud; onChange: (down: boolean) => void }) {
   const [down, setDown] = useState(false);
   const set = (v: boolean) => {
+    if (v === down) return;
     setDown(v);
     onChange(v);
   };
   return (
     <button
       type="button"
-      aria-label={label}
-      className={`g-hud g-display pointer-events-auto grid touch-none place-items-center rounded-full! text-[9px] select-none ${down ? "scale-95 bg-[var(--accent)]! text-[#020617]!" : accent ? "border-2! border-[var(--accent)]!" : ""} ${className}`}
+      aria-label={controls.defs[id].label}
+      style={box(at)}
+      className="pointer-events-auto absolute touch-none rounded-full select-none"
       onPointerDown={(e) => {
+        e.preventDefault();
         e.stopPropagation();
         e.currentTarget.setPointerCapture(e.pointerId);
         set(true);
@@ -217,97 +302,104 @@ function HoldButton({ label, onChange, className = "", children, accent = false 
         set(false);
       }}
       onPointerCancel={() => set(false)}
-      onLostPointerCapture={() => down && set(false)}
+      onLostPointerCapture={() => set(false)}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {children}
+      <Face id={id} hud={hud} down={down} />
     </button>
   );
 }
 
-/** Left-thumb floating stick (anywhere on the left half) and right-thumb buttons. */
-export function TouchControls({ game, store }: { game: NovaStrikeGame | null; store: Store<Hud> }) {
+/** A steering stick that follows the thumb anywhere on its half of the screen, and the action buttons. */
+export function TouchControls({ game, store, hidden = false }: { game: NovaStrikeGame | null; store: Store<Hud>; hidden?: boolean }) {
   const hud = useStore(store);
-  const [stick, setStick] = useState<{ x: number; y: number; dx: number; dy: number } | null>(null);
-  const id = useRef<number | null>(null);
-  const R = 52;
-  useEffect(() => () => game?.setTouch(null), [game]);
-  const move = (e: ReactPointerEvent, base: { x: number; y: number }) => {
-    let dx = e.clientX - base.x;
-    let dy = e.clientY - base.y;
-    const len = Math.hypot(dx, dy);
-    if (len > R) {
-      dx = (dx / len) * R;
-      dy = (dy / len) * R;
-    }
-    setStick({ ...base, dx, dy });
-    game?.setTouch({ x: dx / R, y: -dy / R });
-  };
-  const end = () => {
-    id.current = null;
-    setStick(null);
-    game?.setTouch(null);
-  };
   return (
-    <div className="pointer-events-none absolute inset-0 z-[3] select-none">
-      <div
-        className="pointer-events-auto absolute bottom-0 left-0 h-[55%] w-1/2 touch-none"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          if (id.current !== null) return;
-          id.current = e.pointerId;
-          e.currentTarget.setPointerCapture(e.pointerId);
-          const base = { x: e.clientX, y: e.clientY };
-          setStick({ ...base, dx: 0, dy: 0 });
-          game?.setTouch({ x: 0, y: 0 });
-        }}
-        onPointerMove={(e) => {
-          if (e.pointerId !== id.current || !stick) return;
-          move(e, stick);
-        }}
-        onPointerUp={(e) => e.pointerId === id.current && end()}
-        onPointerCancel={(e) => e.pointerId === id.current && end()}
-        aria-label="Steering stick"
-      >
-        {!stick && (
-          <div className="absolute bottom-[max(env(safe-area-inset-bottom),28px)] left-8 grid size-28 place-items-center rounded-full border-2 border-dashed border-[#22d3ee66] text-center text-[10px] tracking-[0.15em] text-[#a5f3fc99]">
-            DRAG
-            <br />
-            TO FLY
-          </div>
+    <div className="absolute inset-0 z-[3]">
+      <ControlLayer controls={controls} hidden={hidden}>
+        {(placed, frame) => (
+          <>
+            <Stick game={game} at={placed.stick} frame={frame} />
+            <TouchButton id="fire" at={placed.fire} hud={hud} onChange={(d) => game?.pointerFire(d)} />
+            <TouchButton id="roll" at={placed.roll} hud={hud} onChange={(d) => d && game?.touchRoll()} />
+            <TouchButton id="boost" at={placed.boost} hud={hud} onChange={(d) => game?.setBoost(d)} />
+            <TouchButton id="bomb" at={placed.bomb} hud={hud} onChange={(d) => d && game?.touchBomb()} />
+          </>
         )}
-      </div>
-      {stick && (
-        <div className="pointer-events-none fixed" style={{ left: stick.x - R, top: stick.y - R, width: R * 2, height: R * 2 }}>
-          <div className="absolute inset-0 rounded-full border-2 border-[#22d3ee99] bg-[#02061766]" />
-          <div className="absolute size-12 rounded-full bg-[#22d3ee] shadow-[0_0_14px_#22d3ee]" style={{ left: R - 24 + stick.dx, top: R - 24 + stick.dy }} />
-        </div>
-      )}
-      <div className="absolute right-3 bottom-[max(env(safe-area-inset-bottom),18px)] grid grid-cols-[auto_auto] items-end gap-3">
-        <div className="flex flex-col items-center gap-3">
-          <HoldButton label="Nova bomb" className="size-14" onChange={(d) => d && game?.touchBomb()}>
-            <span className="flex flex-col items-center gap-0.5">
-              <BombIcon className="size-4" />
-              {hud.bombs}
-            </span>
-          </HoldButton>
-          <HoldButton label="Boost" className="size-14" onChange={(d) => game?.setBoost(d)}>
-            BOOST
-          </HoldButton>
-        </div>
-        <div className="flex flex-col items-center gap-3">
-          <HoldButton label="Barrel roll" className="size-16" onChange={(d) => d && game?.touchRoll()}>
-            ROLL
-          </HoldButton>
-          <HoldButton label="Fire (hold to charge)" accent className="relative size-24 text-[11px]" onChange={(d) => game?.pointerFire(d)}>
-            <span>FIRE</span>
-            {hud.charge > 0 && (
-              <span className="absolute inset-1 rounded-full border-4 border-[#ff4fd8]" style={{ clipPath: `inset(${(1 - hud.charge) * 100}% 0 0 0)` }} />
-            )}
-          </HoldButton>
-        </div>
-      </div>
+      </ControlLayer>
     </div>
   );
 }
 
+function Stick({ game, at, frame }: { game: NovaStrikeGame | null; at: Placed; frame: Frame }) {
+  const held = useRef<{ id: number; x: number; y: number; bx: number; by: number } | null>(null);
+  const [knob, setKnob] = useState<{ ox: number; oy: number; x: number; y: number } | null>(null);
+  // How far the knob travels.
+  const R = at.w / 2 - 12;
+  const knobSize = Math.round(at.w * 0.42);
+
+  const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (held.current) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const b = e.currentTarget.parentElement!.getBoundingClientRect();
+    held.current = { id: e.pointerId, x: e.clientX, y: e.clientY, bx: b.left, by: b.top };
+    setKnob({ ox: e.clientX - b.left, oy: e.clientY - b.top, x: 0, y: 0 });
+    game?.setTouch({ x: 0, y: 0 });
+  };
+  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const s = held.current;
+    if (!s || s.id !== e.pointerId) return;
+    let dx = e.clientX - s.x;
+    let dy = e.clientY - s.y;
+    const l = Math.hypot(dx, dy);
+    if (l > R) {
+      // The base follows the thumb when it drags past the edge.
+      s.x += (dx / l) * (l - R);
+      s.y += (dy / l) * (l - R);
+      dx = e.clientX - s.x;
+      dy = e.clientY - s.y;
+    }
+    game?.setTouch({ x: dx / R, y: -dy / R });
+    setKnob({ ox: s.x - s.bx, oy: s.y - s.by, x: dx, y: dy });
+  };
+  const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const s = held.current;
+    if (!s || s.id !== e.pointerId) return;
+    held.current = null;
+    game?.setTouch(null);
+    setKnob(null);
+  };
+
+  return (
+    <>
+      <div className="pointer-events-auto absolute touch-none" style={stickZone(at, frame)} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} aria-label="Steering stick" />
+      {knob ? (
+        <div className="pointer-events-none absolute rounded-full border-2 border-[#22d3ee99] bg-[#02061766]" style={{ left: knob.ox - R - 12, top: knob.oy - R - 12, width: (R + 12) * 2, height: (R + 12) * 2 }}>
+          <div className="absolute rounded-full bg-[#22d3ee] shadow-[0_0_14px_#22d3ee]" style={{ left: R + 12 - knobSize / 2 + knob.x, top: R + 12 - knobSize / 2 + knob.y, width: knobSize, height: knobSize }} />
+        </div>
+      ) : (
+        <div className="pointer-events-none absolute" style={box(at)}>
+          <StickFace />
+        </div>
+      )}
+    </>
+  );
+}
+
+/** The stick's touch area: its half of the screen, from a little above its resting spot down (never over the HUD). */
+function stickZone(c: Placed, f: Frame): CSSProperties {
+  const left = c.x < f.w / 2;
+  const hudBottom = Math.max(0, ...f.avoid.filter((a) => (left ? a.l < f.w / 2 : a.r > f.w / 2)).map((a) => a.b));
+  return {
+    left: left ? 0 : f.w / 2,
+    width: f.w / 2,
+    top: Math.max(hudBottom + 4, Math.min(f.h * 0.42, c.y - c.h / 2 - 24)),
+    bottom: 0,
+  };
+}
+
+/** Move and resize the touch controls (Pause → Edit controls, or Controls on the title screen). */
+export function ControlsEditor({ store, onClose }: { store: Store<Hud>; onClose: () => void }) {
+  const hud = useStore(store);
+  return <Editor controls={controls} onClose={onClose} face={(id): ReactNode => (id === "stick" ? <StickFace /> : <Face id={id} hud={hud} />)} />;
+}

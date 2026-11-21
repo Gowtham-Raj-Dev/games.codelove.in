@@ -41,7 +41,7 @@ export interface CreatureCtx {
   dawn: boolean;
 }
 
-type State = "emerge" | "seek" | "windup" | "recover" | "flee" | "dying" | "gone";
+type State = "emerge" | "roam" | "seek" | "windup" | "recover" | "flee" | "dying" | "gone";
 
 export interface CreatureAssets {
   scene: THREE.Object3D;
@@ -82,6 +82,12 @@ export class Creature {
   private hover = 0;
   /** Fades ghosts / sinks the dead. */
   private fade = 1;
+  /** Wild animals: where they live, and where they are strolling to. */
+  private homeX = 0;
+  private homeZ = 0;
+  private roamX = 0;
+  private roamZ = 0;
+  private roamT = 0;
 
   constructor(
     readonly kind: CreatureKind,
@@ -119,9 +125,17 @@ export class Creature {
     return this.def.radius;
   }
 
+  /** Out for the castaway right now (a grazing animal isn't). */
+  get hostile() {
+    return this.active && this.state !== "dying" && this.state !== "roam" && this.state !== "flee";
+  }
+
   spawn(x: number, z: number, hp: number, ctx: CreatureCtx) {
     this.active = true;
-    this.state = "emerge";
+    this.state = this.def.wild ? "roam" : "emerge";
+    this.homeX = this.roamX = x;
+    this.homeZ = this.roamZ = z;
+    this.roamT = Math.random() * 3;
     this.x = x;
     this.z = z;
     this.kx = this.kz = 0;
@@ -141,16 +155,22 @@ export class Creature {
     this.model.rotation.set(0, 0, 0);
     this.setOpacity(this.kind === "ghost" ? 0 : 1);
     this.anim.play(this.walkClip, { speed: 1 });
+    if (this.def.wild) return;
     ctx.sound("emerge", this);
     ctx.splash(x, z);
   }
 
   private get walkClip() {
-    return this.kind === "crab" ? "walk" : this.kind === "ghost" ? "idle" : "walk";
+    return this.kind === "ghost" ? "idle" : "walk";
   }
 
   private get runClip() {
-    return this.kind === "crab" ? "run" : this.kind === "ghost" ? "idle" : this.kind === "brute" ? "walk" : "sprint";
+    return this.def.animal ? "run" : this.kind === "ghost" ? "idle" : this.kind === "brute" || this.kind === "captain" ? "walk" : "sprint";
+  }
+
+  /** Heavy ones shrug off knockback and can't be interrupted. */
+  private get heavy() {
+    return this.kind === "brute" || this.kind === "captain" || this.kind === "bear";
   }
 
   private setOpacity(o: number) {
@@ -165,12 +185,17 @@ export class Creature {
     if (!this.active || this.state === "dying") return false;
     this.hp -= dmg;
     this.flash = 0.18;
-    const k = knock / (this.kind === "brute" ? 2.2 : 1);
+    const k = knock / (this.heavy ? 2.2 : 1);
     this.kx += dirX * k;
     this.kz += dirZ * k;
     this.bar.set(this.hp / this.maxHp);
-    // A hit interrupts a wind-up (not a brute's).
-    if (this.state === "windup" && this.kind !== "brute") {
+    // A grazing animal that gets hit turns on you.
+    if (this.state === "roam") {
+      this.state = "seek";
+      this.cool = 0.4;
+    }
+    // A hit interrupts a wind-up (not a heavy one's).
+    if (this.state === "windup" && !this.heavy) {
       ctx.cancelTelegraph(this.tele);
       this.tele = null;
       this.state = "recover";
@@ -190,7 +215,7 @@ export class Creature {
     this.tele = null;
     this.state = "dying";
     this.t = 0;
-    if (this.kind === "crab") this.anim.play("gesture-negative", { once: true, speed: 0.6 });
+    if (this.def.animal) this.anim.play("gesture-negative", { once: true, speed: 0.6 });
     else this.anim.play("die", { once: true, fade: 0.08 });
   }
 
@@ -204,7 +229,7 @@ export class Creature {
     if (this.state === "dying") {
       // Topple, sink and vanish.
       const k = Math.min(1, this.t / 0.5);
-      if (this.kind === "crab") this.model.rotation.z = Math.PI * k;
+      if (this.def.animal) this.model.rotation.z = (this.kind === "crab" ? Math.PI : Math.PI / 2) * k;
       const sink = Math.max(0, this.t - 0.7) * 1.2;
       this.root.position.y = this.y - sink;
       if (this.kind === "ghost") this.setOpacity(Math.max(0, 1 - this.t * 1.5));
@@ -227,7 +252,8 @@ export class Creature {
       this.hover += dt;
     }
 
-    if (ctx.dawn && this.state !== "flee") {
+    // Night creatures go back to the sea at dawn; the island's own animals stay.
+    if (ctx.dawn && !this.def.wild && this.state !== "flee") {
       ctx.cancelTelegraph(this.tele);
       this.tele = null;
       this.state = "flee";
@@ -241,6 +267,33 @@ export class Creature {
         if (this.t > 1.2) this.state = "seek";
         break;
       }
+      case "roam": {
+        const wild = this.def.wild!;
+        if (p.alive && Math.hypot(p.x - this.x, p.z - this.z) < wild.aggro) {
+          this.state = "seek";
+          this.cool = 0.5;
+          ctx.sound("growl", this);
+          break;
+        }
+        // Stroll to a spot near home, stand a while, pick another.
+        this.roamT -= dt;
+        const left = Math.hypot(this.roamX - this.x, this.roamZ - this.z);
+        if (this.roamT <= 0) {
+          this.roamT = 4 + Math.random() * 6;
+          for (let k = 0; k < 6; k++) {
+            const a = Math.random() * Math.PI * 2;
+            const d = 3 + Math.random() * 7;
+            const x = this.homeX + Math.cos(a) * d;
+            const z = this.homeZ + Math.sin(a) * d;
+            if (ctx.height(x, z) < 0.5) continue;
+            this.roamX = x;
+            this.roamZ = z;
+            break;
+          }
+        } else if (left > 0.8) this.steer(dt, this.roamX, this.roamZ, ctx, 0.4);
+        else this.anim.play("idle");
+        break;
+      }
       case "seek": {
         this.cool -= dt;
         this.growlT -= dt;
@@ -248,16 +301,28 @@ export class Creature {
           this.growlT = 3 + Math.random() * 5;
           ctx.sound("growl", this);
         }
-        // Brutes go for a fire the castaway hides by.
+        // An animal gives up once you are far away (or down), and wanders home.
+        const wild = this.def.wild;
+        if (wild && (!p.alive || Math.hypot(p.x - this.x, p.z - this.z) > wild.leash || Math.hypot(this.homeX - this.x, this.homeZ - this.z) > wild.leash * 1.6)) {
+          this.state = "roam";
+          this.target = null;
+          this.roamX = this.homeX;
+          this.roamZ = this.homeZ;
+          this.roamT = 8;
+          break;
+        }
+        // Brutes go for a fire the castaway hides by; the captain for a burning signal fire, wherever it is.
         if (this.def.stomps && !this.target) {
-          for (const b of ctx.blockers(this.x, this.z, 16)) {
-            if (b.light > 0 && b.kind === "campfire" && Math.hypot(p.x - b.x, p.z - b.z) < b.light + 2) {
+          for (const b of ctx.blockers(this.x, this.z, this.def.boss ? 60 : 16)) {
+            if (b.light <= 0) continue;
+            if ((this.def.boss && b.kind === "signal") || (b.kind === "campfire" && Math.hypot(p.x - b.x, p.z - b.z) < b.light + 2)) {
               this.target = b;
               break;
             }
           }
         }
-        if (this.target && this.target.hp <= 0) this.target = null;
+        // A broken wall or a fire that has gone out is no target any more.
+        if (this.target && (this.target.hp <= 0 || ((this.target.kind === "campfire" || this.target.kind === "signal") && this.target.light <= 0))) this.target = null;
         const tx = this.target ? this.target.x : p.x;
         const tz = this.target ? this.target.z : p.z;
         const dist = Math.hypot(tx - this.x, tz - this.z) - (this.target ? (this.target.wall ? 0.2 : this.target.r) : 0);
@@ -270,7 +335,7 @@ export class Creature {
           const fz = this.z + Math.cos(this.yaw) * reach * 0.6;
           this.tele = ctx.telegraph({ x: fx, y: ctx.height(fx, fz), z: fz }, reach * 0.75, this.def.windup);
           ctx.sound("windup", this);
-          if (this.kind === "crab") this.anim.play("eat", { speed: 0.8 / this.def.windup });
+          if (this.def.animal) this.anim.play("eat", { speed: 0.8 / this.def.windup });
           else this.anim.play("attack-melee-right", { once: true, speed: 0.21 / this.def.windup, fade: 0.1 });
           break;
         }
@@ -286,7 +351,7 @@ export class Creature {
           this.strike(ctx);
           this.state = "recover";
           this.t = 0;
-          if (this.kind !== "crab") this.anim.play("attack-melee-right", { once: true, speed: 1.2, fade: 0 });
+          if (!this.def.animal) this.anim.play("attack-melee-right", { once: true, speed: 1.2, fade: 0 });
         }
         break;
       }
@@ -373,9 +438,9 @@ export class Creature {
     const blocked = this.move(dx * speed * dt, dz * speed * dt, ctx, false);
     if (Math.abs(angleDiff(this.yaw, yawTo(dx, dz))) > 0.01) this.yaw = turnTowards(this.yaw, yawTo(dx, dz), 7, dt);
     if (this.anim.name !== this.runClip && this.anim.name !== this.walkClip) this.anim.play(this.walkClip);
-    else this.anim.play(d > 6 ? this.runClip : this.walkClip, { speed: this.kind === "brute" ? 0.75 : 1 });
-    // A wall in the way: break it.
-    if (blocked && !this.target && this.state === "seek" && blocked.hp > 0) this.target = blocked;
+    else this.anim.play(d > 6 && this.state !== "roam" ? this.runClip : this.walkClip, { speed: this.kind === "brute" || this.kind === "captain" ? 0.75 : 1 });
+    // A wall in the way (also on the way to a fire): break it.
+    if (blocked && this.state === "seek" && blocked.hp > 0 && (!this.target || (blocked.wall && !this.target.wall))) this.target = blocked;
     // Stuck behind a tree or rock: try a detour for a moment.
     this.stuckT += dt;
     if (this.stuckT > 1.2) {

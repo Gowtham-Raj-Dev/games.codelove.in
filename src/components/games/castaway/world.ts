@@ -1,15 +1,17 @@
 import * as THREE from "three";
+import type { IslandDef } from "./campaign";
 import { DAY } from "./data";
 import type { ItemId } from "./data";
-import { ITEM, WORLD } from "./manifest";
+import { ISLE, ITEM, WORLD } from "./manifest";
 import { composeMatrix, InstanceSet, type Baked } from "./props";
 import { CAMP, COVE, HILL, Island, POND, rng } from "./terrain";
 
 /**
- * Everything that grows or lies on the island: trees, palms, rocks, bushes, berries, mushrooms,
- * driftwood, pebbles, the wreck and its crates, bottles and fishing spots. Placed from a fixed seed
- * (so a save only stores what changed), drawn as instanced meshes, and animated when hit, felled,
- * cracked or regrown.
+ * Everything that grows or lies on an island: trees, palms, rocks, bushes, berries, mushrooms,
+ * driftwood, pebbles, a wreck or an old camp with its crates, a buried chest, bottles and fishing
+ * spots — how much of each is the island's own (campaign.ts). Placed from the island's seed (so a
+ * save only stores what changed), drawn as instanced meshes, and animated when hit, felled, cracked
+ * or regrown.
  */
 
 export type NodeKind = "tree" | "palm" | "rock" | "bush" | "berry" | "mushroom" | "driftwood" | "pebble" | "crate" | "bottle" | "fish" | "boulder";
@@ -56,9 +58,14 @@ export interface Node {
   tag: number;
   /** Flotsam slots are placed fresh each morning. */
   floating: boolean;
+  /** The buried chest: not there until it is revealed. */
+  hidden: boolean;
   /** Camera-occlusion dither (0 = solid). */
   fade: number;
 }
+
+/** Tags of crates: 0–9 the wreck's or the cache's, 10+ flotsam, 20 the buried chest. */
+export const TREASURE_TAG = 20;
 
 export interface Collider {
   x: number;
@@ -127,6 +134,19 @@ export const WORLD_FITS: Record<string, { scale: number }> = {
   [ITEM.coconut]: { scale: 1.5 },
   [ITEM.stone]: { scale: SURVIVAL_SCALE },
   [ITEM.stoneLarge]: { scale: SURVIVAL_SCALE * 0.8 },
+  [ISLE.oak]: { scale: 4.3 },
+  [ISLE.pineRound]: { scale: 4.0 },
+  [ISLE.pineTall]: { scale: 4.0 },
+  [ISLE.cactusTall]: { scale: 3.4 },
+  [ISLE.cactusShort]: { scale: 3.4 },
+  [ISLE.snowA]: { scale: 2.9 },
+  [ISLE.snowB]: { scale: 2.9 },
+  [ISLE.snowC]: { scale: 2.9 },
+  [ISLE.snowPile]: { scale: 2.2 },
+  [ISLE.pineCrooked]: { scale: 2.7 },
+  [ISLE.pineFall]: { scale: 2.7 },
+  [ISLE.graveCross]: { scale: 1.7 },
+  [ISLE.graveRound]: { scale: 1.9 },
 };
 
 const TREE_HP = 5;
@@ -148,23 +168,35 @@ const REGROW: Record<NodeKind, number> = {
   boulder: 0,
 };
 
-/** Loot in the wreck's crates. */
-const WRECK_LOOT: Partial<Record<ItemId, number>>[] = [
-  { planks: 3, cloth: 1, fish: 1 },
-  { wood: 4, fiber: 3, planks: 2 },
-  { scrap: 2, cloth: 1, coconut: 2 },
-  { scrap: 3, cloth: 2, planks: 3 },
-];
+type Plan = {
+  kind: NodeKind | "deco";
+  model: string;
+  x: number;
+  z: number;
+  rot: number;
+  scale: number;
+  r: number;
+  extras?: string[];
+  stump?: string;
+  loot?: Partial<Record<ItemId, number>> | null;
+  tag?: number;
+  floating?: boolean;
+  hidden?: boolean;
+};
 
 export class World {
   readonly nodes: Node[] = [];
   readonly sets = new Map<string, InstanceSet>();
   readonly group = new THREE.Group();
-  /** Static solids that aren't nodes (the wreck's hull, the pond). */
+  /** Static solids that aren't nodes (the wreck's hull). */
   readonly statics: Collider[] = [];
   readonly wreck: THREE.Mesh | null = null;
-  /** Where the ship drops anchor, and beach spots for flotsam. */
+  /** Beach spots for flotsam. */
   readonly beachSpots: { x: number; z: number; rot: number }[] = [];
+  /** The wreck's or the cache's crates and the buried chest: they sparkle until opened. */
+  readonly specials: Node[] = [];
+  /** Where the island's inland cache is (null = none). */
+  cacheSpot: { x: number; z: number } | null = null;
   private readonly grid = new Map<number, number[]>();
   private readonly animating = new Set<Node>();
   private readonly falling: Falling[] = [];
@@ -174,25 +206,26 @@ export class World {
   constructor(
     private readonly island: Island,
     baked: Map<string, Baked>,
+    private readonly def: IslandDef,
   ) {
     this.baked = baked;
     const plan = this.plan();
     // One instanced mesh per model, sized to what was planned.
     const counts = new Map<string, number>();
-    for (const p of plan) counts.set(p.model, (counts.get(p.model) ?? 0) + 1 + (p.extraCount ?? 0));
+    for (const p of plan) if (p.model) counts.set(p.model, (counts.get(p.model) ?? 0) + 1);
     for (const p of plan) for (const e of p.extras ?? []) counts.set(e, (counts.get(e) ?? 0) + 1);
     for (const p of plan) if (p.stump) counts.set(p.stump, (counts.get(p.stump) ?? 0) + 1);
     for (const [model, count] of counts) {
       const b = baked.get(model);
       if (!b) continue;
-      const small = model === WORLD.grass || model === WORLD.grassLarge || model.includes("flower") || model === WORLD.lily || model === WORLD.grassTuft;
+      const small = model === WORLD.grass || model === WORLD.grassLarge || model.includes("flower") || model === WORLD.lily || model === WORLD.grassTuft || model === ISLE.snowPile;
       const set = new InstanceSet(b, count, { shadows: !small });
       this.sets.set(model, set);
       this.group.add(set.mesh);
     }
     for (const p of plan) this.instantiate(p);
     // The wreck: one big mesh, half sunk and listing.
-    const wb = baked.get(WORLD.wreck);
+    const wb = def.wreck ? baked.get(WORLD.wreck) : undefined;
     if (wb) {
       const mesh = new THREE.Mesh(wb.geometry, wb.material);
       mesh.position.set(COVE.x, -0.9, COVE.z + 1.5);
@@ -212,17 +245,21 @@ export class World {
   // --- Placement -----------------------------------------------------------------------------------
 
   private plan() {
-    type Plan = { kind: NodeKind | "deco"; model: string; x: number; z: number; rot: number; scale: number; r: number; extras?: string[]; extraCount?: number; stump?: string; loot?: Partial<Record<ItemId, number>> | null; tag?: number; floating?: boolean };
     const out: Plan[] = [];
-    const r = rng(4242);
+    const def = this.def;
+    const f = def.flora;
+    // Island 1's seed (7) gives 4242, the seed its layout was tuned with.
+    const r = rng(def.terrain.seed * 606);
     const isl = this.island;
+    const hasPond = POND.r > 0;
     const taken: { x: number; z: number; r: number }[] = [];
     const free = (x: number, z: number, rad: number) => {
       for (const t of taken) if ((t.x - x) ** 2 + (t.z - z) ** 2 < (t.r + rad) ** 2) return false;
       return true;
     };
-    const keepClear = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < 8.5 || Math.hypot(x - (COVE.x - 2), z - (COVE.z - 2)) < 11.5 || Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.8;
-    const scatter = (count: number, tries: number, rad: number, ok: (x: number, z: number) => boolean, make: (x: number, z: number) => Plan | Plan[] | null) => {
+    const nearPond = (x: number, z: number, margin: number) => hasPond && Math.hypot(x - POND.x, z - POND.z) < POND.r + margin;
+    const keepClear = (x: number, z: number) => Math.hypot(x - CAMP.x, z - CAMP.z) < 8.5 || Math.hypot(x - (COVE.x - 2), z - (COVE.z - 2)) < 11.5 || nearPond(x, z, 0.8);
+    const scatter = (count: number, tries: number, rad: number, ok: (x: number, z: number) => boolean, make: (x: number, z: number) => Plan | null) => {
       let placed = 0;
       for (let i = 0; i < tries && placed < count; i++) {
         const a = r() * Math.PI * 2;
@@ -232,51 +269,94 @@ export class World {
         if (!ok(x, z) || !free(x, z, rad) || keepClear(x, z)) continue;
         const p = make(x, z);
         if (!p) continue;
-        for (const q of Array.isArray(p) ? p : [p]) out.push(q);
+        out.push(p);
         taken.push({ x, z, r: rad });
         placed++;
       }
     };
     const biome = (x: number, z: number) => isl.biome(x, z);
     const pick = <T>(arr: T[]) => arr[Math.floor(r() * arr.length)];
+    const land = (x: number, z: number) => {
+      const b = biome(x, z);
+      return b === "grass" || b === "forest" || (b === "beach" && isl.height(x, z) > 0.4);
+    };
+
+    // The inland cache (an old camp) and the buried chest take their spots first.
+    if (def.cache) {
+      for (let k = 0; k < 80 && !this.cacheSpot; k++) {
+        const a = -Math.PI / 2 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.09;
+        const d = isl.coast(a) * (0.5 + (k % 5) * 0.04);
+        const x = Math.cos(a) * d;
+        const z = Math.sin(a) * d;
+        const b = biome(x, z);
+        if ((b !== "grass" && b !== "forest") || isl.slope(x, z) > 0.45 || keepClear(x, z) || Math.hypot(x - HILL.x, z - HILL.z) < HILL.r * 0.75) continue;
+        this.cacheSpot = { x, z };
+      }
+      const c = this.cacheSpot ?? (this.cacheSpot = { x: CAMP.x + 14, z: CAMP.z - 14 });
+      taken.push({ x: c.x, z: c.z, r: 5 });
+      def.cache.loot.forEach((loot, i) => {
+        const a = (i / def.cache!.loot.length) * Math.PI * 2 + 0.5;
+        out.push({ kind: "crate", model: i === 1 ? WORLD.barrel : WORLD.crate, x: c.x + Math.cos(a) * 2.1, z: c.z + Math.sin(a) * 2.1, rot: r() * 6.28, scale: 1, r: i === 1 ? 0.6 : 0.7, loot, tag: i });
+      });
+      out.push({ kind: "deco", model: WORLD.signpost, x: c.x, z: c.z, rot: r() * 6.28, scale: 1, r: 0.2 });
+      out.push({ kind: "deco", model: WORLD.log, x: c.x - 1.2, z: c.z + 3.4, rot: r() * 6.28, scale: 0.9, r: 0 });
+    }
+    if (def.treasure) {
+      let spot: { x: number; z: number } | null = null;
+      for (let k = 0; k < 80 && !spot; k++) {
+        const a = -0.9 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.08;
+        const d = isl.coast(a) * (0.82 - (k % 4) * 0.04);
+        const x = Math.cos(a) * d;
+        const z = Math.sin(a) * d;
+        const h = isl.height(x, z);
+        if (h < 0.45 || isl.slope(x, z) > 0.5 || keepClear(x, z) || !free(x, z, 3)) continue;
+        spot = { x, z };
+      }
+      const t = spot ?? { x: CAMP.x + 16, z: CAMP.z - 8 };
+      taken.push({ x: t.x, z: t.z, r: 3 });
+      out.push({ kind: "crate", model: WORLD.treasure, x: t.x, z: t.z, rot: r() * 6.28, scale: 1, r: 0.7, loot: def.treasure, tag: TREASURE_TAG, hidden: true });
+    }
 
     // Boulders first (big), then trees, palms, rocks, plants.
-    scatter(9, 400, 3.2, (x, z) => (biome(x, z) === "rock" && isl.height(x, z) > 2) || (biome(x, z) === "beach" && r() < 0.15), (x, z) => {
+    scatter(f.boulders, 400, 3.2, (x, z) => (biome(x, z) === "rock" && isl.height(x, z) > 2) || (biome(x, z) === "beach" && r() < 0.15), (x, z) => {
       const sandy = biome(x, z) === "beach";
       const model = sandy ? pick([WORLD.sandBouldersA, WORLD.sandBouldersC]) : pick([WORLD.bouldersA, WORLD.bouldersB, WORLD.bouldersC]);
       const scale = 0.7 + r() * 0.45;
       return { kind: "boulder", model, x, z, rot: r() * 6.28, scale, r: 1.7 * scale };
     });
-    scatter(84, 3000, 2.2, (x, z) => {
+    const hillTree = f.treeModels.length >= 3 ? f.treeModels[f.treeModels.length - 1] : null;
+    const commonTrees = hillTree ? f.treeModels.slice(0, -1) : f.treeModels;
+    scatter(f.trees, 3000, 2.2, (x, z) => {
       const b = biome(x, z);
       return (b === "forest" && r() < 0.95) || (b === "grass" && r() < 0.4) || (b === "rock" && isl.height(x, z) < 5 && r() < 0.25);
     }, (x, z) => {
       const nearHill = Math.hypot(x - HILL.x, z - HILL.z) < HILL.r * 1.2;
-      const autumn = nearHill && r() < 0.45;
-      const model = autumn ? WORLD.treeAutumn : r() < 0.4 ? WORLD.treeTall : WORLD.tree;
-      return { kind: "tree", model, x, z, rot: r() * 6.28, scale: 0.85 + r() * 0.35, r: 0.42, stump: autumn ? WORLD.stumpAutumn : WORLD.stump };
+      const [model, stump] = hillTree && nearHill && r() < 0.45 ? hillTree : pick(commonTrees);
+      return { kind: "tree", model, x, z, rot: r() * 6.28, scale: 0.85 + r() * 0.35, r: 0.42, stump };
     });
-    scatter(38, 3000, 2.4, (x, z) => {
+    // Dry islands keep their palms around the oasis.
+    const oasis = f.trees < 20;
+    scatter(f.palms, 3000, 2.4, (x, z) => {
       const h = isl.height(x, z);
       const b = biome(x, z);
-      return (b === "beach" && h > 0.35) || (b === "grass" && Math.hypot(x, z) > 30);
+      return (b === "beach" && h > 0.35) || (b === "grass" && Math.hypot(x, z) > 30) || (oasis && nearPond(x, z, 9) && land(x, z));
     }, (x, z) => {
       const model = pick([WORLD.palm, WORLD.palmBend, WORLD.palmDetailed, WORLD.palmDetailedBend]);
       return { kind: "palm", model, x, z, rot: r() * 6.28, scale: 0.85 + r() * 0.35, r: 0.38, extras: [ITEM.coconut, ITEM.coconut] };
     });
-    scatter(24, 2000, 1.8, (x, z) => biome(x, z) === "rock" || (biome(x, z) === "grass" && r() < 0.12), (x, z) => {
+    scatter(f.rocks, 2000, 1.8, (x, z) => biome(x, z) === "rock" || (biome(x, z) === "grass" && r() < 0.12), (x, z) => {
       const model = pick([WORLD.rockA, WORLD.rockB, WORLD.rockC]);
       return { kind: "rock", model, x, z, rot: r() * 6.28, scale: 0.85 + r() * 0.3, r: 0.95 };
     });
-    scatter(8, 1500, 1.8, (x, z) => biome(x, z) === "beach" && isl.height(x, z) > 0.3, (x, z) => {
+    scatter(f.sandRocks, 1500, 1.8, (x, z) => (biome(x, z) === "beach" && isl.height(x, z) > 0.3) || (oasis && land(x, z) && r() < 0.2), (x, z) => {
       const model = pick([WORLD.sandRockA, WORLD.sandRockB, WORLD.sandRockC]);
       return { kind: "rock", model, x, z, rot: r() * 6.28, scale: 0.8 + r() * 0.3, r: 0.9 };
     });
-    scatter(30, 2500, 1.3, (x, z) => {
+    scatter(f.bushes, 2500, 1.3, (x, z) => {
       const b = biome(x, z);
       return b === "grass" || b === "forest" || (b === "beach" && isl.height(x, z) > 0.55);
     }, (x, z) => ({ kind: "bush", model: WORLD.bush, x, z, rot: r() * 6.28, scale: 0.9 + r() * 0.3, r: 0 }));
-    scatter(13, 2500, 1.3, (x, z) => biome(x, z) === "grass" || biome(x, z) === "forest", (x, z) => ({
+    scatter(f.berries, 2500, 1.3, (x, z) => biome(x, z) === "grass" || biome(x, z) === "forest", (x, z) => ({
       kind: "berry",
       model: WORLD.bush,
       x,
@@ -286,14 +366,14 @@ export class World {
       r: 0,
       extras: [ITEM.berries, ITEM.berries, ITEM.berries, ITEM.berries],
     }));
-    scatter(14, 2500, 1.0, (x, z) => biome(x, z) === "forest", (x, z) => ({ kind: "mushroom", model: WORLD.mushrooms, x, z, rot: r() * 6.28, scale: 0.9 + r() * 0.3, r: 0 }));
-    scatter(16, 3000, 1.6, (x, z) => biome(x, z) === "beach" && isl.height(x, z) > 0.15 && isl.height(x, z) < 0.6, (x, z) => ({ kind: "driftwood", model: WORLD.driftwood, x, z, rot: r() * 6.28, scale: 0.9 + r() * 0.2, r: 0 }));
-    scatter(16, 3000, 1.2, (x, z) => (biome(x, z) === "beach" && isl.height(x, z) > 0.2) || biome(x, z) === "rock", (x, z) => ({ kind: "pebble", model: r() < 0.5 ? ITEM.stone : ITEM.stoneLarge, x, z, rot: r() * 6.28, scale: 0.9 + r() * 0.3, r: 0 }));
+    scatter(f.mushrooms, 2500, 1.0, (x, z) => biome(x, z) === "forest", (x, z) => ({ kind: "mushroom", model: WORLD.mushrooms, x, z, rot: r() * 6.28, scale: 0.9 + r() * 0.3, r: 0 }));
+    scatter(f.driftwood, 3000, 1.6, (x, z) => biome(x, z) === "beach" && isl.height(x, z) > 0.15 && isl.height(x, z) < 0.6, (x, z) => ({ kind: "driftwood", model: WORLD.driftwood, x, z, rot: r() * 6.28, scale: 0.9 + r() * 0.2, r: 0 }));
+    scatter(f.pebbles, 3000, 1.2, (x, z) => (biome(x, z) === "beach" && isl.height(x, z) > 0.2) || biome(x, z) === "rock", (x, z) => ({ kind: "pebble", model: r() < 0.5 ? ITEM.stone : ITEM.stoneLarge, x, z, rot: r() * 6.28, scale: 0.9 + r() * 0.3, r: 0 }));
 
     // Bottles with notes along the beach.
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < f.bottles; i++) {
       for (let k = 0; k < 400; k++) {
-        const a = (i / 5) * Math.PI * 2 + 0.7 + (r() - 0.5) * 0.8;
+        const a = (i / f.bottles) * Math.PI * 2 + 0.7 + (r() - 0.5) * 0.8;
         const d = isl.coast(a) * (0.9 + r() * 0.06);
         const x = Math.cos(a) * d;
         const z = Math.sin(a) * d;
@@ -306,24 +386,26 @@ export class World {
     }
 
     // The wreck's crates on the sand around it.
-    const wreckLoot: [string, number, number][] = [
-      [WORLD.crate, -6.5, -2.5],
-      [WORLD.crate, -4.5, -6.0],
-      [WORLD.barrel, 5.5, -5.5],
-      [WORLD.treasure, -1.5, -8.0],
-    ];
-    wreckLoot.forEach(([model, dx, dz], i) => {
-      const x = COVE.x + dx;
-      const z = COVE.z + dz;
-      out.push({ kind: "crate", model, x, z, rot: r() * 6.28, scale: 1, r: model === WORLD.barrel ? 0.6 : 0.7, loot: WRECK_LOOT[i], tag: i });
-      taken.push({ x, z, r: 1.2 });
-    });
+    if (def.wreck) {
+      const spots: [string, number, number][] = [
+        [WORLD.crate, -6.5, -2.5],
+        [WORLD.crate, -4.5, -6.0],
+        [WORLD.barrel, 5.5, -5.5],
+        [WORLD.treasure, -1.5, -8.0],
+      ];
+      spots.forEach(([model, dx, dz], i) => {
+        const x = COVE.x + dx;
+        const z = COVE.z + dz;
+        out.push({ kind: "crate", model, x, z, rot: r() * 6.28, scale: 1, r: model === WORLD.barrel ? 0.6 : 0.7, loot: def.wreck![i] ?? { wood: 2 }, tag: i });
+        taken.push({ x, z, r: 1.2 });
+      });
+    }
     // Flotsam slots (washed up each morning).
-    for (let i = 0; i < 4; i++) out.push({ kind: "crate", model: i % 2 ? WORLD.barrel : WORLD.crate, x: 0, z: 0, rot: 0, scale: 1, r: 0.7, loot: null, tag: 10 + i, floating: true });
+    for (let i = 0; i < 6; i++) out.push({ kind: "crate", model: i % 2 ? WORLD.barrel : WORLD.crate, x: 0, z: 0, rot: 0, scale: 1, r: 0.7, loot: null, tag: 10 + i, floating: true });
 
     // Fishing spots: shallow sea around the island, and the pond.
     let spots = 0;
-    for (let k = 0; k < 600 && spots < 5; k++) {
+    for (let k = 0; k < 600 && spots < f.fish; k++) {
       const a = r() * Math.PI * 2;
       const d = isl.coast(a) * (1.02 + r() * 0.06);
       const x = Math.cos(a) * d;
@@ -334,32 +416,44 @@ export class World {
       taken.push({ x, z, r: 9 });
       spots++;
     }
-    out.push({ kind: "fish", model: "", x: POND.x, z: POND.z, rot: 0, scale: 1, r: 0 });
+    if (hasPond) out.push({ kind: "fish", model: "", x: POND.x, z: POND.z, rot: 0, scale: 1, r: 0 });
 
     // Decoration: grass, flowers, lilies, flat rocks, the camp signpost.
     const decoOk = (x: number, z: number) => {
       const b = biome(x, z);
       return (b === "grass" || b === "forest") && Math.hypot(x - CAMP.x, z - CAMP.z) > 5;
     };
-    for (let i = 0; i < 420; i++) {
+    for (let i = 0; i < f.greens; i++) {
       const a = r() * Math.PI * 2;
       const d = Math.sqrt(r()) * 50;
       const x = Math.cos(a) * d;
       const z = Math.sin(a) * d;
-      if (!decoOk(x, z) || Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.5) continue;
+      if (!decoOk(x, z) || nearPond(x, z, 0.5)) continue;
       const roll = r();
       const model = roll < 0.4 ? WORLD.grass : roll < 0.62 ? WORLD.grassLarge : roll < 0.74 ? WORLD.grassTuft : roll < 0.8 ? WORLD.flowerRed : roll < 0.86 ? WORLD.flowerYellow : roll < 0.91 ? WORLD.flowerPurple : roll < 0.95 ? WORLD.grassPatch : WORLD.mushroomsRed;
       out.push({ kind: "deco", model, x, z, rot: r() * 6.28, scale: 0.8 + r() * 0.5, r: 0 });
     }
-    for (let i = 0; i < 7; i++) {
-      const a = r() * Math.PI * 2;
-      const d = POND.r * (0.3 + r() * 0.55);
-      out.push({ kind: "deco", model: WORLD.lily, x: POND.x + Math.cos(a) * d, z: POND.z + Math.sin(a) * d, rot: r() * 6.28, scale: 0.8 + r() * 0.4, r: 0 });
+    if (hasPond && f.greens > 0) {
+      for (let i = 0; i < 7; i++) {
+        const a = r() * Math.PI * 2;
+        const d = POND.r * (0.3 + r() * 0.55);
+        out.push({ kind: "deco", model: WORLD.lily, x: POND.x + Math.cos(a) * d, z: POND.z + Math.sin(a) * d, rot: r() * 6.28, scale: 0.8 + r() * 0.4, r: 0 });
+      }
     }
-    scatter(6, 800, 2, (x, z) => biome(x, z) === "grass", (x, z) => ({ kind: "deco", model: WORLD.flatRock, x, z, rot: r() * 6.28, scale: 0.8 + r() * 0.3, r: 0 }));
+    for (const d of f.deco) {
+      scatter(d.n, d.n * 60, d.r > 0 ? d.r + 1 : 1.6, (x, z) => {
+        const b = biome(x, z);
+        if (d.on === "land") return land(x, z);
+        return b === d.on;
+      }, (x, z) => {
+        const scale = d.scale[0] + r() * (d.scale[1] - d.scale[0]);
+        // Solid decoration (cactus, gravestones) is a boulder nobody can use.
+        return { kind: d.r > 0 ? "boulder" : "deco", model: d.model, x, z, rot: r() * 6.28, scale, r: d.r * scale };
+      });
+    }
     out.push({ kind: "deco", model: WORLD.signpost, x: CAMP.x + 3.5, z: CAMP.z + 4.5, rot: 0.4, scale: 1, r: 0.2 });
 
-    // Beach spots for flotsam and the rescue raft's launch.
+    // Beach spots for flotsam.
     for (let i = 0; i < 24; i++) {
       const a = (i / 24) * Math.PI * 2;
       const d = this.island.coast(a) * 0.96;
@@ -371,7 +465,7 @@ export class World {
     return out;
   }
 
-  private instantiate(p: { kind: NodeKind | "deco"; model: string; x: number; z: number; rot: number; scale: number; r: number; extras?: string[]; stump?: string; loot?: Partial<Record<ItemId, number>> | null; tag?: number; floating?: boolean }) {
+  private instantiate(p: Plan) {
     const y = p.kind === "fish" ? 0 : p.model === WORLD.lily ? POND.level + 0.02 : this.island.height(p.x, p.z);
     const set = p.model ? this.sets.get(p.model) : undefined;
     if (p.kind === "deco") {
@@ -394,8 +488,8 @@ export class World {
       stump: null,
       hp: p.kind === "tree" ? TREE_HP : p.kind === "rock" ? ROCK_HP : 1,
       maxHp: p.kind === "tree" ? TREE_HP : p.kind === "rock" ? ROCK_HP : 1,
-      alive: !p.floating,
-      regrowAt: 0,
+      alive: !p.floating && !p.hidden,
+      regrowAt: p.hidden ? Infinity : 0,
       charges: p.kind === "palm" ? 2 : p.kind === "berry" ? 4 : p.kind === "fish" ? 3 : 1,
       maxCharges: p.kind === "palm" ? 2 : p.kind === "berry" ? 4 : p.kind === "fish" ? 3 : 1,
       shake: 0,
@@ -403,8 +497,10 @@ export class World {
       loot: p.loot ?? null,
       tag: p.tag ?? 0,
       floating: !!p.floating,
+      hidden: !!p.hidden,
       fade: 0,
     };
+    if (p.kind === "crate" && !p.floating) this.specials.push(node);
     if (p.stump) {
       const ss = this.sets.get(p.stump);
       if (ss) {
@@ -438,6 +534,29 @@ export class World {
     if (!node.alive) this.render(node);
     this.nodes.push(node);
     this.addToGrid(node);
+  }
+
+  /** The buried chest appears (once every bottle map is found). True when it showed up just now. */
+  revealTreasure() {
+    const n = this.nodes.find((x) => x.hidden);
+    if (!n || n.alive || n.hp <= 0) return false;
+    n.alive = true;
+    n.grow = 0.05;
+    this.animating.add(n);
+    this.render(n);
+    return true;
+  }
+
+  /** How many crates of the wreck / the cache have been opened; and whether the buried chest has. */
+  opened() {
+    let crates = 0;
+    let treasure = false;
+    for (const n of this.specials) {
+      if (n.alive || n.hp > 0) continue;
+      if (n.hidden) treasure = true;
+      else crates++;
+    }
+    return { crates, treasure };
   }
 
   private readonly crowns = new Map<string, THREE.Vector3>();
@@ -624,7 +743,8 @@ export class World {
     const mx = (ax + bx) / 2;
     const mz = (az + bz) / 2;
     for (const n of this.near(mx, mz, len / 2 + 4, tmpNodes)) {
-      if (!n.alive || !n.main || (n.kind !== "tree" && n.kind !== "palm" && n.kind !== "boulder")) continue;
+      // (Cactus and gravestones are small "boulders": too low to hide anyone.)
+      if (!n.alive || !n.main || (n.kind !== "tree" && n.kind !== "palm" && n.kind !== "boulder") || (n.kind === "boulder" && n.r < 1)) continue;
       // Anything tall right next to the camera.
       if ((n.x - ax) ** 2 + (n.z - az) ** 2 < (n.kind === "palm" ? 16 : 9)) {
         occ.add(n);
@@ -728,28 +848,37 @@ export class World {
   serialize() {
     const out: (number | string)[][] = [];
     for (const n of this.nodes) {
-      const changed = !n.alive || n.hp !== n.maxHp || n.charges !== n.maxCharges || n.floating;
+      // (The buried chest starts out hidden: once revealed it differs from a fresh island too.)
+      const changed = !n.alive || n.hp !== n.maxHp || n.charges !== n.maxCharges || n.floating || n.hidden;
       if (!changed) continue;
       out.push([n.id, n.alive ? 1 : 0, n.hp, n.charges, Number.isFinite(n.regrowAt) ? Math.round(n.regrowAt) : -1, n.floating ? Math.round(n.x * 10) / 10 : 0, n.floating ? Math.round(n.z * 10) / 10 : 0, n.floating && n.loot ? JSON.stringify(n.loot) : ""]);
     }
     return out;
   }
 
-  restore(data: (number | string)[][]) {
+  /** Puts back what a save changed. Rows that make no sense (a broken or edited save) are skipped. */
+  restore(data: unknown) {
+    if (!Array.isArray(data)) return;
+    const num = (v: unknown, lo: number, hi: number, fallback: number) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
+    };
     for (const row of data) {
+      if (!Array.isArray(row)) continue;
       const n = this.nodes[Number(row[0])];
-      if (!n) continue;
+      if (!n || n.kind === "boulder") continue;
       n.alive = row[1] === 1;
-      n.hp = Number(row[2]);
-      n.charges = Number(row[3]);
-      n.regrowAt = Number(row[4]) < 0 ? Infinity : Number(row[4]);
+      n.hp = num(row[2], 0, n.maxHp, n.maxHp);
+      n.charges = Math.floor(num(row[3], 0, n.maxCharges, n.maxCharges));
+      const regrow = Number(row[4]);
+      n.regrowAt = !Number.isFinite(regrow) || regrow < 0 ? Infinity : regrow;
       if (n.floating) {
-        if (n.alive) this.relocate(n, Number(row[5]), Number(row[6]), n.rot);
-        try {
-          n.loot = row[7] ? JSON.parse(String(row[7])) : null;
-        } catch {
-          n.loot = null;
-        }
+        const x = num(row[5], -80, 80, NaN);
+        const z = num(row[6], -80, 80, NaN);
+        if (n.alive && Number.isFinite(x) && Number.isFinite(z)) this.relocate(n, x, z, n.rot);
+        else n.alive = false;
+        n.loot = saneLoot(row[7]);
+        if (n.alive && !n.loot) n.loot = { wood: 2 };
       }
       this.render(n);
     }
@@ -762,6 +891,26 @@ export class World {
     for (const set of this.sets.values()) set.mesh.dispose();
   }
 }
+
+/** A saved crate's loot: only known items in sensible amounts. */
+function saneLoot(raw: unknown): Partial<Record<ItemId, number>> | null {
+  if (typeof raw !== "string" || !raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const out: Partial<Record<ItemId, number>> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      const n = Math.floor(Number(v));
+      if (LOOT_ITEMS.includes(k) && Number.isFinite(n) && n > 0) out[k as ItemId] = Math.min(20, n);
+    }
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What a crate may hold. */
+const LOOT_ITEMS: string[] = ["wood", "stone", "fiber", "planks", "scrap", "cloth", "berries", "coconut", "mushroom", "fish", "fishCooked", "bigFish", "bigFishCooked", "meat", "meatCooked"];
 
 const tmpNodes: Node[] = [];
 const tmpM = new THREE.Matrix4();

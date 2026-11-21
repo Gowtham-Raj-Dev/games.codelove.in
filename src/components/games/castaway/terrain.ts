@@ -1,10 +1,12 @@
 import * as THREE from "three";
+import type { Palette, TerrainDef } from "./campaign";
 
 /**
- * The island itself — a seeded heightfield (the same island every game, so saves stay valid):
- * a ring of beach, grassy lowland and forest, a rocky hill in the north-east, a freshwater pond in
- * the west and a sandy cove in the south where the wreck lies. Rendered as one flat-shaded,
- * vertex-coloured mesh; also baked into a small texture so the sea shader knows where it's shallow.
+ * An island — a seeded heightfield (the same island every visit, so saves stay valid): a ring of
+ * beach, lowland and forest, a rocky hill, sometimes a freshwater pond, and a sandy cove in the south
+ * where you land. Each island of the campaign has its own seed, size, hill, pond and colours.
+ * Rendered as one flat-shaded, vertex-coloured mesh; also baked into a small texture so the sea
+ * shader knows where it's shallow.
  */
 
 export const SIZE = 168;
@@ -74,37 +76,58 @@ const smooth = (e0: number, e1: number, x: number) => {
 
 export type Biome = "deep" | "shallow" | "beach" | "grass" | "forest" | "rock" | "pond";
 
+/**
+ * The live island's landmarks, set by whichever Island was built last (there is only ever one):
+ * the hill, the pond (r = 0 when the island has none), the landing cove and the camp clearing.
+ */
 export const HILL = { x: 17, z: -15, r: 17, h: 7.5 };
 export const POND = { x: -19, z: 4, r: 6.2, level: 0 };
-/** The wreck's cove (south) and the camp clearing just inland. */
 export const COVE = { x: 4, z: 0 };
 export const CAMP = { x: 0, z: 0 };
-
-const R0 = 50;
 
 export class Island {
   readonly heights = new Float32Array((RES + 1) * (RES + 1));
   readonly mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshLambertMaterial>;
   readonly heightTexture: THREE.DataTexture;
-  private readonly noise = new Noise(7);
-  private readonly detail = new Noise(23);
+  private readonly noise: Noise;
+  private readonly detail: Noise;
   private readonly phases: number[];
+  private readonly R0: number;
+  private readonly rough: number;
+  private readonly hasPond: boolean;
 
-  constructor() {
-    const r = rng(1337);
+  constructor(def: { terrain: TerrainDef; palette: Palette }) {
+    const t = def.terrain;
+    this.noise = new Noise(t.seed);
+    this.detail = new Noise(t.seed * 3 + 2);
+    this.R0 = t.radius;
+    this.rough = t.rough;
+    this.hasPond = !!t.pond;
+    const r = rng(t.seed * 191);
     this.phases = [r() * 6.28, r() * 6.28, r() * 6.28, r() * 6.28];
+    Object.assign(HILL, t.hill);
     // The cove and camp spots: on the south beach, and a little inland from it.
     const south = this.coast(Math.PI / 2);
     COVE.x = 5;
     COVE.z = south - 1.5;
     CAMP.x = -2;
     CAMP.z = south - 15;
-    // Pond level: just below the ground where it sits.
-    POND.level = this.raw(POND.x, POND.z, false) - 0.55;
+    if (t.pond) {
+      POND.x = t.pond.x;
+      POND.z = t.pond.z;
+      POND.r = t.pond.r;
+      // Pond level: just below the ground where it sits.
+      POND.level = this.raw(POND.x, POND.z, false) - 0.55;
+    } else {
+      POND.x = 0;
+      POND.z = 0;
+      POND.r = 0;
+      POND.level = -50;
+    }
     for (let j = 0; j <= RES; j++) {
       for (let i = 0; i <= RES; i++) this.heights[j * (RES + 1) + i] = this.raw(i * CELL - HALF, j * CELL - HALF, true);
     }
-    this.mesh = this.buildMesh();
+    this.mesh = this.buildMesh(def.palette);
     this.heightTexture = this.buildTexture();
   }
 
@@ -112,10 +135,10 @@ export class Island {
   coast(angle: number) {
     const [a, b, c, d] = this.phases;
     let r = 1 + 0.09 * Math.sin(2 * angle + a) + 0.06 * Math.sin(3 * angle + b) + 0.04 * Math.sin(5 * angle + c) + 0.025 * Math.sin(8 * angle + d);
-    // A wide sandy cove bulging south, where the wreck lies.
+    // A wide sandy cove bulging south, where you land.
     const toSouth = Math.cos(angle - Math.PI / 2);
     r += 0.07 * Math.pow(Math.max(0, toSouth), 6);
-    return R0 * r;
+    return this.R0 * r;
   }
 
   private raw(x: number, z: number, pond: boolean) {
@@ -123,11 +146,11 @@ export class Island {
     const angle = Math.atan2(z, x);
     const d = dist / this.coast(angle) + this.noise.fbm(x * 0.05, z * 0.05, 3) * 0.035;
     let h: number;
-    if (d >= 1) h = -Math.min(7.5, (d - 1) * R0 * 0.22 + (d - 1) * (d - 1) * 40);
+    if (d >= 1) h = -Math.min(7.5, (d - 1) * this.R0 * 0.22 + (d - 1) * (d - 1) * 40);
     else if (d >= 0.84) h = ((1 - d) / 0.16) * 0.75;
     else {
       const inland = smooth(0.84, 0.55, d);
-      h = 0.75 + (0.84 - d) * 3.2 + this.noise.fbm(x * 0.045 + 3, z * 0.045 - 7, 4) * 1.6 * inland;
+      h = 0.75 + (0.84 - d) * 3.2 + this.noise.fbm(x * 0.045 + 3, z * 0.045 - 7, 4) * this.rough * inland;
     }
     // The rocky hill.
     const hd = Math.hypot(x - HILL.x, z - HILL.z) / HILL.r;
@@ -135,7 +158,7 @@ export class Island {
       const t = 1 - hd * hd;
       h += HILL.h * t * t * (0.85 + 0.3 * this.detail.fbm(x * 0.12, z * 0.12, 3));
     }
-    if (pond) {
+    if (pond && this.hasPond) {
       const pd = Math.hypot(x - POND.x, z - POND.z);
       const R = POND.r;
       if (pd < R * 1.6) {
@@ -181,12 +204,12 @@ export class Island {
   }
 
   inPond(x: number, z: number, margin = 0) {
-    return Math.hypot(x - POND.x, z - POND.z) < POND.r + margin && this.height(x, z) < POND.level + 0.05 + margin * 0.1;
+    return this.hasPond && Math.hypot(x - POND.x, z - POND.z) < POND.r + margin && this.height(x, z) < POND.level + 0.05 + margin * 0.1;
   }
 
-  /** Water surface height here (sea or pond), or -Infinity on dry land. */
+  /** Water surface height here (the pond's, or the sea's). */
   waterLevel(x: number, z: number) {
-    if (Math.hypot(x - POND.x, z - POND.z) < POND.r + 1) return POND.level;
+    if (this.hasPond && Math.hypot(x - POND.x, z - POND.z) < POND.r + 1) return POND.level;
     return 0;
   }
 
@@ -201,21 +224,21 @@ export class Island {
     return this.noise.fbm(x * 0.07 + 11, z * 0.07 + 5, 2) > -0.05 && Math.hypot(x, z) < 34 ? "forest" : "grass";
   }
 
-  private buildMesh() {
+  private buildMesh(p: Palette) {
     const W = RES + 1;
     const pos = new Float32Array(W * W * 3);
     const col = new Float32Array(W * W * 3);
     const c = new THREE.Color();
-    const sand = new THREE.Color("#ecd6a0");
-    const wetSand = new THREE.Color("#c8ad78");
-    const seabed = new THREE.Color("#b49a68");
-    const deep = new THREE.Color("#5f7d74");
-    const grass = new THREE.Color("#86b552");
-    const grassDry = new THREE.Color("#a7b866");
-    const forest = new THREE.Color("#5d9443");
-    const rock = new THREE.Color("#978b7a");
-    const rockDark = new THREE.Color("#7a7064");
-    const mud = new THREE.Color("#8d7a55");
+    const sand = new THREE.Color(p.sand);
+    const wetSand = new THREE.Color(p.wetSand);
+    const seabed = new THREE.Color(p.seabed);
+    const deep = new THREE.Color(p.deep);
+    const grass = new THREE.Color(p.grass);
+    const grassDry = new THREE.Color(p.grassDry);
+    const forest = new THREE.Color(p.forest);
+    const rock = new THREE.Color(p.rock);
+    const rockDark = new THREE.Color(p.rockDark);
+    const mud = new THREE.Color(p.mud);
     for (let j = 0; j < W; j++) {
       for (let i = 0; i < W; i++) {
         const k = j * W + i;
@@ -226,7 +249,7 @@ export class Island {
         pos[k * 3 + 1] = h;
         pos[k * 3 + 2] = z;
         const n = this.detail.get(x * 0.35, z * 0.35) * 0.5 + 0.5;
-        const pondD = Math.hypot(x - POND.x, z - POND.z);
+        const pondD = this.hasPond ? Math.hypot(x - POND.x, z - POND.z) : Infinity;
         if (pondD < POND.r + 1.4 && h < POND.level + 0.5) c.copy(mud).lerp(wetSand, smooth(POND.r - 1, POND.r + 1.4, pondD) * 0.5);
         else if (h < -2) c.copy(seabed).lerp(deep, smooth(-2, -6, h));
         else if (h < 0.12) c.copy(wetSand).lerp(seabed, smooth(0.12, -1.5, h));
@@ -319,6 +342,7 @@ export class Island {
   }
 
   dispose() {
+    this.mesh.removeFromParent();
     this.mesh.geometry.dispose();
     this.mesh.material.dispose();
     this.heightTexture.dispose();

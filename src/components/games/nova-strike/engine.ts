@@ -9,18 +9,19 @@ import { disposeTree, loadModels, makeProto, Pool, type Fit, type LoadProgress, 
 import { music } from "../shared/music";
 import { NOVA_RUSH } from "../shared/songs";
 import { createBoss, type Boss } from "./bosses";
+import { findShip, findSkin, SHIPS as HANGAR_SHIPS, statsFor, type Loadout, type Stats } from "./content";
 import { CRYSTAL_KEYS, Enemies, ROCK_KEYS, SATELLITE_KEYS, SHIPS, type BoltOpts, type Ctx, type Enemy, type KillInfo } from "./enemies";
 import { Beams, Flashes, Glows, makeShieldBubble, Particles } from "./fx";
 import { Hazards } from "./hazards";
 import { M, MODELS } from "./manifest";
 import { clamp, damp, newFrame, Rail, smooth } from "./rail";
 import { Sfx } from "./sfx";
-import { BOX, medalFor, STAGES, type Drop, type StageDef, type StageEvent } from "./stages";
+import { BOX, clearReward, medalFor, stageCode, STAGES, type Drop, type StageDef, type StageEvent } from "./stages";
 import { World } from "./world";
 
 // --- Public types ---------------------------------------------------------------------------------
 
-export type Phase = "loading" | "menu" | "briefing" | "playing" | "paused" | "results" | "over" | "victory" | "error";
+export type Phase = "loading" | "menu" | "briefing" | "playing" | "paused" | "results" | "over" | "error";
 
 export interface Banner {
   id: number;
@@ -41,15 +42,19 @@ export interface Hud {
   boost: number;
   charge: number;
   locks: number;
+  maxLocks: number;
   laser: number;
   stage: number;
   progress: number;
+  /** Where the checkpoint is on the progress bar (negative: none). */
   checkpoint: number;
   boss: { name: string; hp: number } | null;
   banner: Banner | null;
   danger: boolean;
   hurt: number;
   bombFlash: number;
+  /** Credits picked up so far in this flight. */
+  credits: number;
 }
 
 export interface StageResult {
@@ -62,7 +67,23 @@ export interface StageResult {
   bonus: number;
   medal: number;
   score: number;
+  kills: number;
+  /** Credits picked up in flight, and the bonus for clearing the mission with this medal. */
+  salvage: number;
+  reward: number;
+  time: number;
+  /** The last mission of the campaign. */
   last: boolean;
+}
+
+export interface FailInfo {
+  stage: number;
+  score: number;
+  kills: number;
+  /** Credits picked up before the last ship was lost (they are kept). */
+  salvage: number;
+  /** How far along the mission it ended, 0..1. */
+  progress: number;
 }
 
 export interface GameEvents {
@@ -71,8 +92,7 @@ export interface GameEvents {
   hud(hud: Hud): void;
   error(message: string): void;
   results(r: StageResult): void;
-  over(score: number, stage: number): void;
-  victory(score: number): void;
+  over(info: FailInfo): void;
 }
 
 export interface TouchInput {
@@ -82,16 +102,16 @@ export interface TouchInput {
 
 // --- Tuning ---------------------------------------------------------------------------------------
 
+/** Cruise speed of a normal mission (ring runs fly faster); boost and brake are measured from the cruise speed. */
 const SPEED = 42;
-const BOOST_SPEED = 70;
-const BRAKE_SPEED = 24;
+const BOOST_EXTRA = 28;
+const BRAKE_LESS = 18;
+/** Steering speed of the standard ship: tilt and nose angles are scaled by it. */
 const MOVE = 17;
 const LASER_SPEED = 280;
 const LASER_LIFE = 0.85;
-const FIRE_GAP = 0.09;
 const CHARGE_DELAY = 0.26;
-const CHARGE_TIME = 0.6;
-const MAX_LOCKS = 4;
+const LIVES = 3;
 const LOCK_CONE = Math.cos(THREE.MathUtils.degToRad(11));
 const ROLL_TIME = 0.55;
 const ROLL_GAP = 0.8;
@@ -141,12 +161,15 @@ interface SpeedLine {
   p: THREE.Vector3;
 }
 
+/** What a checkpoint restores (so nothing can be earned twice by dying and flying a stretch again). */
 interface Snapshot {
   s: number;
   score: number;
   hits: number;
   fired: number;
   landed: number;
+  salvage: number;
+  kills: number;
 }
 
 const f = newFrame();
@@ -156,6 +179,7 @@ const tmpV2 = new THREE.Vector3();
 const tmpV3 = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
 const tmpE = new THREE.Euler(0, 0, 0, "YXZ");
+const tmpC = new THREE.Color();
 
 const emptyHud = (): Hud => ({
   score: 0,
@@ -169,15 +193,17 @@ const emptyHud = (): Hud => ({
   boost: 1,
   charge: 0,
   locks: 0,
+  maxLocks: 4,
   laser: 1,
   stage: 0,
   progress: 0,
-  checkpoint: 0.5,
+  checkpoint: -1,
   boss: null,
   banner: null,
   danger: false,
   hurt: 0,
   bombFlash: 0,
+  credits: 0,
 });
 
 export class NovaStrikeGame {
@@ -227,10 +253,21 @@ export class NovaStrikeGame {
   private s = 0;
   private prevS = 0;
   private speed = SPEED;
+  /** This mission's cruise speed. */
+  private cruise = SPEED;
   private time = 0;
   private script: (StageEvent & { trigger: number })[] = [];
   private eventIdx = 0;
-  private checkpoint: Snapshot = { s: 0, score: 0, hits: 0, fired: 0, landed: 0 };
+  private checkpoint: Snapshot = { s: 0, score: 0, hits: 0, fired: 0, landed: 0, salvage: 0, kills: 0 };
+  /** The ship, paint and upgrades flown, and the numbers they work out to. */
+  private loadout: Loadout = { ship: HANGAR_SHIPS[0].id, skin: "stock", upgrades: {} };
+  private stats: Stats = statsFor(this.loadout);
+  private readonly trail = new THREE.Color("#22d3ee");
+  private skinMaterials: THREE.Material[] = [];
+  /** Credits picked up, enemies destroyed and seconds flown in this mission. */
+  private salvage = 0;
+  private kills = 0;
+  private elapsed = 0;
   private bossStarted = false;
   private outro = -1;
   private deadT = -1;
@@ -244,13 +281,12 @@ export class NovaStrikeGame {
   private rollGap = 0;
   private inv = 0;
   private shield = 100;
-  private lives = 3;
+  private lives = LIVES;
   private bombs = 3;
   private laser = 1;
   private boostMeter = 1;
   private boostLock = false;
   private score = 0;
-  private stageStartScore = 0;
   private hits = 0;
   private fired = 0;
   private landed = 0;
@@ -265,6 +301,9 @@ export class NovaStrikeGame {
   private bolts: Bolt[] = [];
   private fireGap = 0;
   private fireHeld = false;
+  /** Lasers fire by themselves while the fire button is up (a setting; on by default on touch screens). */
+  private autoFire = false;
+  private autoT = 0;
   private holdT = 0;
   private charge = 0;
   private charging = false;
@@ -289,6 +328,10 @@ export class NovaStrikeGame {
   private readonly camPos = new THREE.Vector3();
   private readonly lookAt = new THREE.Vector3();
   private menuAngle = 0;
+  /** The hangar is open: the camera comes in close, and the view is moved clear of its panel. */
+  private showcase = false;
+  private readonly viewShift = { x: 0, y: 0 };
+  private suspended = false;
 
   private readonly speedLines: SpeedLine[] = [];
   private banner: Banner | null = null;
@@ -297,15 +340,18 @@ export class NovaStrikeGame {
   private hudT = 0;
   private hud = emptyHud();
 
-  // Debug autopilot (temporary, for testing).
+  /** Seconds between HUD updates. */
+  hudEvery = 0.05;
+  // For the test driver (scripts/check-nova-strike.mjs): a bot flies the ship; the resolution is held.
   autopilot = false;
-  godMode = false;
   qualityLock = false;
   private fpsAvg = 60;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly events: GameEvents,
+    /** `visibility: false` (YouTube Playables): the page visibility API is left alone. */
+    { visibility = true }: { visibility?: boolean } = {},
   ) {
     this.coarse = window.matchMedia("(pointer: coarse)").matches;
     this.maxRatio = Math.min(window.devicePixelRatio, this.coarse ? 1.5 : 1.75);
@@ -332,7 +378,7 @@ export class NovaStrikeGame {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas.parentElement ?? canvas);
     this.resize();
-    this.timer.connect(document);
+    if (visibility) this.timer.connect(document);
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -369,11 +415,18 @@ export class NovaStrikeGame {
         proto(key, { scale: 1 / Math.max(size.x, size.y, size.z, 1e-6) }, centered);
       };
 
-      proto(M.player, { length: 2.5 });
+      // The hangar's ships first: copies of the craft models at the player's size (the enemies fly the same crafts bigger).
+      for (const ship of HANGAR_SHIPS) {
+        const m = models.get(ship.key);
+        if (!m) continue;
+        const p = makeProto(m.scene.clone(), [], { length: ship.id === "anvil" ? 3.3 : 2.6 }, { shadows: false });
+        p.object.children[0].position.y -= p.size.y / 2;
+        this.protos.set(`player:${ship.key}`, p);
+      }
+      proto(M.drone, { width: 3.2 });
       for (const def of Object.values(SHIPS)) if (!this.protos.has(def.key)) proto(def.key, { length: def.length });
       proto(M.cargoB, { length: SHIPS.cargo.length });
       for (const k of [...ROCK_KEYS, ...CRYSTAL_KEYS, ...SATELLITE_KEYS]) unit(k);
-      proto(M.drone, { width: 3.2 });
       proto(M.turretSingle, { height: 2.8 }, false);
       proto(M.turretDouble, { height: 2.6 }, false);
       proto(M.stardust, { width: 7.6 });
@@ -383,8 +436,22 @@ export class NovaStrikeGame {
       for (const k of [M.generator, M.gateComplex, M.dish, M.mir, M.miner]) if (!this.protos.has(k)) unit(k);
       for (const k of [M.ringedPlanet, M.pinkPlanet, M.bennu]) unit(k);
 
-      const required = [M.player, M.speederA, M.meteor, M.stardust];
+      const required = [`player:${M.player}`, M.speederA, M.meteor, M.stardust];
       if (!required.every((k) => this.protos.has(k))) throw new Error("Some game models could not be loaded. Check your connection and reload.");
+
+      // The crystals of the crystal asteroids glow a little (they light the nebula's reefs).
+      for (const k of CRYSTAL_KEYS) {
+        this.protos.get(k)?.object.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+            if (m.name !== "crystal") continue;
+            const std = m as THREE.MeshStandardMaterial;
+            std.emissive = new THREE.Color("#19c9a0");
+            std.emissiveIntensity = 0.85;
+          }
+        });
+      }
 
       // Rings glow gold; backdrops ignore the fog.
       this.protos.get(M.stardust)!.object.traverse((o) => {
@@ -411,8 +478,7 @@ export class NovaStrikeGame {
       }
 
       this.pool = new Pool(this.protos, this.root);
-      const body = this.protos.get(M.player)!.object.clone();
-      this.shipBody.add(body);
+      this.buildShip();
       this.world = new World(this.protos, this.scene);
       this.setupCtx();
       this.enemies = new Enemies(this.ctx);
@@ -421,8 +487,7 @@ export class NovaStrikeGame {
       this.hazards = new Hazards(this.ctx, this.enemies);
       this.hazards.onRing = () => this.onRing();
       this.hazards.onPickup = (k) => this.onPickup(k);
-      this.setStage(0);
-      this.toMenu();
+      this.toMenu(this.stageIndex);
     } catch (err) {
       console.error(err);
       this.setPhase("error");
@@ -431,13 +496,13 @@ export class NovaStrikeGame {
   }
 
   private setupCtx() {
-    const live = {} as Pick<Ctx, "rail" | "s" | "speed" | "time" | "stage" | "px" | "py" | "pvx" | "pvy">;
+    const live = {} as Pick<Ctx, "rail" | "s" | "speed" | "time" | "tier" | "px" | "py" | "pvx" | "pvy">;
     Object.defineProperties(live, {
       rail: { get: () => this.rail },
       s: { get: () => this.s },
       speed: { get: () => this.speed / this.rail.stretch(this.s) },
       time: { get: () => this.time },
-      stage: { get: () => this.stageIndex },
+      tier: { get: () => this.stage.tier },
       px: { get: () => this.px },
       py: { get: () => this.py },
       pvx: { get: () => this.vx },
@@ -464,14 +529,68 @@ export class NovaStrikeGame {
 
   // --- Public API -----------------------------------------------------------------------------------
 
-  setInvertY(on: boolean) {
-    this.invertY = on;
+  setOptions({ invertY, autoFire }: { invertY: boolean; autoFire: boolean }) {
+    this.invertY = invertY;
+    this.autoFire = autoFire;
   }
 
-  /** Attract mode: the ship idles along the first stage. */
-  toMenu() {
+  /** The ship, paint job and upgrades to fly with (also used to preview one in the hangar). */
+  setLoadout(loadout: Loadout) {
+    const model = loadout.ship !== this.loadout.ship || loadout.skin !== this.loadout.skin;
+    this.loadout = loadout;
+    this.stats = statsFor(loadout);
+    // (Before the models are in, load() builds the ship.)
+    if (model && this.pool) this.buildShip();
+  }
+
+  /** The ship model of the loadout, painted with its skin. */
+  private buildShip() {
+    for (const m of this.skinMaterials) m.dispose();
+    this.skinMaterials = [];
+    this.shipBody.clear();
+    const skin = findSkin(this.loadout.skin);
+    this.trail.set(skin.trail);
+    const proto = this.protos.get(`player:${findShip(this.loadout.ship).key}`) ?? this.protos.get(`player:${M.player}`);
+    if (!proto) return;
+    const body = proto.object.clone();
+    // The Space Kit crafts are painted by material: hull, trim and accent.
+    const paint: Record<string, string | undefined> = { metal: skin.hull, metalDark: skin.trim, metalRed: skin.accent };
+    const painted = new Map<THREE.Material, THREE.Material>();
+    const swap = (m: THREE.Material) => {
+      const color = paint[m.name];
+      const glow = skin.glow && m.name === "metal" ? skin.glow : undefined;
+      if (!color && !glow) return m;
+      let copy = painted.get(m);
+      if (!copy) {
+        const std = (m as THREE.MeshStandardMaterial).clone();
+        if (color) std.color.set(color);
+        if (glow) {
+          std.emissive = new THREE.Color(glow);
+          std.emissiveIntensity = 0.3;
+        }
+        copy = std;
+        painted.set(m, copy);
+        this.skinMaterials.push(copy);
+      }
+      return copy;
+    };
+    body.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh) mesh.material = Array.isArray(mesh.material) ? mesh.material.map(swap) : swap(mesh.material);
+    });
+    this.shipBody.add(body);
+  }
+
+  /** The mission whose sector the title screen shows — for before load() has finished. */
+  setHome(stageIndex: number) {
+    if (this.phase === "loading") this.stageIndex = clamp(Math.floor(stageIndex) || 0, 0, STAGES.length - 1);
+  }
+
+  /** Title screen, mission map, hangar: the ship idles along a mission's rail. */
+  toMenu(stageIndex = this.stageIndex) {
+    if (!this.ready) return;
     this.clearPlay();
-    this.setStage(0);
+    this.setStage(stageIndex);
     this.s = 0;
     this.ship.visible = true;
     this.px = this.py = this.vx = this.vy = 0;
@@ -481,18 +600,9 @@ export class NovaStrikeGame {
     this.setPhase("menu");
   }
 
-  /** New run from a stage (stage select starts later stages fresh). */
-  newRun(stageIndex: number) {
-    audio.unlock();
-    this.score = 0;
-    this.lives = 3;
-    this.bombs = 3;
-    this.laser = 1;
-    this.brief(stageIndex);
-  }
-
-  /** Shows the briefing for a stage (scenery preview behind the card). */
+  /** Shows the briefing for a mission (its scenery behind the card). */
   brief(stageIndex: number) {
+    if (!this.ready) return;
     this.clearPlay();
     this.setStage(stageIndex);
     this.s = 0;
@@ -503,47 +613,56 @@ export class NovaStrikeGame {
     this.setPhase("briefing");
   }
 
-  /** Launches the briefed stage. */
+  /** Launches the mission that is set up (briefed, or just flown: a retry). Every launch starts fresh. */
   launch() {
+    if (!this.ready) return;
     audio.unlock();
     this.clearPlay();
-    this.stageStartScore = this.score;
+    this.keys.clear();
+    this.mouse = null;
+    this.touchBoost = false;
+    this.score = 0;
+    this.lives = LIVES;
+    this.bombs = this.stats.bombs;
+    this.laser = 1;
     this.hits = 0;
     this.fired = 0;
     this.landed = 0;
-    this.checkpoint = { s: 0, score: this.score, hits: 0, fired: 0, landed: 0 };
+    this.salvage = 0;
+    this.kills = 0;
+    this.elapsed = 0;
+    this.checkpoint = { s: 0, score: 0, hits: 0, fired: 0, landed: 0, salvage: 0, kills: 0 };
     this.startAt(0);
     this.introT = 0;
-    this.showBanner(`Stage ${this.stageIndex + 1}`, this.stage.name, "info", 3);
+    this.showBanner(`Mission ${stageCode(this.stage)}`, this.stage.name, "info", 3);
     this.sfx.start();
     music.play(NOVA_RUSH, 1);
     music.duck(false);
     this.setPhase("playing");
   }
 
-  /** After a game over: lives refilled, score reset, back to the last checkpoint. */
-  continueRun() {
-    audio.unlock();
-    this.lives = 3;
-    this.bombs = Math.max(this.bombs, 3);
-    this.score = 0;
-    this.stageStartScore = 0;
-    this.checkpoint.score = 0;
-    this.respawn();
-    music.play(NOVA_RUSH, this.bossStarted ? 2 : 1);
-    music.duck(false);
-    this.setPhase("playing");
+  /** The hangar opens or closes: `shift` is how far to move the view clear of its panel (fractions of the screen). */
+  setShowcase(on: boolean, shift = { x: 0, y: 0 }) {
+    this.showcase = on;
+    this.viewShift.x = on ? shift.x : 0;
+    this.viewShift.y = on ? shift.y : 0;
+    this.applyViewShift();
+    // (After a failed mission there is no ship on screen: the hangar still shows one.)
+    if (this.phase !== "playing" && this.phase !== "paused") this.ship.visible = on || this.phase !== "over";
   }
 
-  nextStage() {
-    if (this.stageIndex >= STAGES.length - 1) return;
-    this.brief(this.stageIndex + 1);
+  /** YouTube Playables pause: nothing is drawn or simulated until it is lifted. */
+  setSuspended(on: boolean) {
+    this.suspended = on;
   }
 
   pause() {
     if (this.phase !== "playing") return;
     this.sfx.silence();
     this.releaseFire(false);
+    // The touch controls go away while paused: nothing may stay held.
+    this.touchBoost = false;
+    this.setTouch(null);
     music.duck(true);
     this.setPhase("paused");
   }
@@ -560,12 +679,13 @@ export class NovaStrikeGame {
     return this.phase;
   }
 
-  get runScore() {
-    return this.score;
-  }
-
   get stageNumber() {
     return this.stageIndex;
+  }
+
+  /** The models are in and the world is built. */
+  private get ready() {
+    return !!this.hazards && this.phase !== "error";
   }
 
   // Input -----------------------------------------------------------------------------------------
@@ -626,10 +746,12 @@ export class NovaStrikeGame {
   // --- Stage setup ------------------------------------------------------------------------------------
 
   private setStage(index: number) {
-    this.stageIndex = index;
-    this.stage = STAGES[index];
+    this.stageIndex = clamp(Math.floor(index) || 0, 0, STAGES.length - 1);
+    this.stage = STAGES[this.stageIndex];
+    this.cruise = SPEED * this.stage.speed;
     this.rail = new Rail(this.stage.rail);
     this.world.setStage(this.stage);
+    this.hazards.gateFrame = this.stage.scenery === "nebula" ? "crystal" : "metal";
     this.script = this.stage.events
       .map((e) => ({ ...e, trigger: e.kind === "wave" || e.kind === "cargo" ? e.at - 150 : e.kind === "meteors" ? e.at - 210 : e.kind === "message" || e.kind === "checkpoint" ? e.at : e.at - 330 }))
       .sort((a, b) => a.trigger - b.trigger);
@@ -644,6 +766,8 @@ export class NovaStrikeGame {
     this.shots = [];
     this.bolts = [];
     this.locks = [];
+    this.volleyKills.clear();
+    this.botBolts.length = 0;
     this.particles.clear();
     this.flashes.clear();
     this.outro = -1;
@@ -665,9 +789,9 @@ export class NovaStrikeGame {
     this.s = this.prevS = s;
     this.px = this.py = this.vx = this.vy = 0;
     this.camX = this.camY = 0;
-    this.shield = 100;
+    this.shield = this.stats.shield;
     this.boostMeter = 1;
-    this.speed = SPEED;
+    this.speed = this.cruise;
     this.inv = 1.5;
     this.ship.visible = true;
     this.eventIdx = 0;
@@ -681,14 +805,20 @@ export class NovaStrikeGame {
     this.hits = cp.hits;
     this.fired = cp.fired;
     this.landed = cp.landed;
+    this.salvage = cp.salvage;
+    this.kills = cp.kills;
     this.laser = 1;
-    const atBoss = cp.s >= this.stage.length;
+    const atBoss = this.stage.boss !== null && cp.s >= this.stage.length;
     this.startAt(atBoss ? this.stage.length - 220 : Math.max(0, cp.s - 40));
     if (atBoss) {
       // Straight back into the boss fight.
       this.eventIdx = this.script.length;
     }
-    this.showBanner(atBoss ? "Boss" : cp.s > 0 ? "Checkpoint" : `Stage ${this.stageIndex + 1}`, this.stage.name, "info", 2.2);
+    this.showBanner(atBoss ? "Boss" : cp.s > 0 ? "Checkpoint" : `Mission ${stageCode(this.stage)}`, atBoss ? this.stage.bossName : this.stage.name, "info", 2.2);
+  }
+
+  private snapshot(s: number): Snapshot {
+    return { s, score: this.score, hits: this.hits, fired: this.fired, landed: this.landed, salvage: this.salvage, kills: this.kills };
   }
 
   // --- Events -------------------------------------------------------------------------------------------
@@ -696,9 +826,12 @@ export class NovaStrikeGame {
   private runEvents() {
     while (this.eventIdx < this.script.length && this.s >= this.script[this.eventIdx].trigger) {
       const ev = this.script[this.eventIdx++];
-      if (ev.kind === "message") continue;
+      if (ev.kind === "message") {
+        this.showBanner(ev.text, ev.sub, "info", 3);
+        continue;
+      }
       if (ev.kind === "checkpoint") {
-        this.checkpoint = { s: ev.at, score: this.score, hits: this.hits, fired: this.fired, landed: this.landed };
+        this.checkpoint = this.snapshot(ev.at);
         this.showBanner("Checkpoint", "Progress saved", "good", 2);
         this.sfx.checkpoint();
         continue;
@@ -707,13 +840,16 @@ export class NovaStrikeGame {
       this.enemies.spawnEvent(ev);
       this.hazards.spawnEvent(ev);
     }
-    if (!this.bossStarted && this.s >= this.stage.length - 200) this.startBoss();
+    // The end of the rail: the sector's boss, or the mission is done.
+    if (this.stage.boss) {
+      if (!this.bossStarted && this.s >= this.stage.length - 200) this.startBoss(this.stage.boss);
+    } else if (this.s >= this.stage.length) this.stageClear();
   }
 
-  private startBoss() {
+  private startBoss(kind: NonNullable<StageDef["boss"]>) {
     this.bossStarted = true;
-    this.checkpoint = { s: this.stage.length, score: this.score, hits: this.hits, fired: this.fired, landed: this.landed };
-    this.boss = createBoss(this.stage.boss, this.ctx, this.enemies);
+    this.checkpoint = this.snapshot(this.stage.length);
+    this.boss = createBoss(kind, this.ctx, this.enemies);
     this.sfx.siren();
     this.showBanner("Warning", this.stage.bossName + " approaching", "warn", 3.2);
     music.play(NOVA_RUSH, 2);
@@ -727,7 +863,7 @@ export class NovaStrikeGame {
     this.timer.update(now);
     const raw = this.timer.getDelta();
     const dt = Math.min(raw, 1 / 20);
-    if (this.phase === "loading" || this.phase === "error") return;
+    if (this.phase === "loading" || this.phase === "error" || this.suspended) return;
     this.renderer.info.reset();
     this.adaptQuality(raw);
     const frozen = this.phase === "paused";
@@ -735,7 +871,7 @@ export class NovaStrikeGame {
     this.beams.begin(this.camera);
 
     if (this.phase === "playing") this.updatePlay(dt);
-    else if (this.phase === "menu" || this.phase === "briefing" || this.phase === "results" || this.phase === "victory" || this.phase === "over") this.updateIdle(dt);
+    else if (!frozen) this.updateIdle(dt);
 
     if (!frozen) {
       this.enemies.render();
@@ -758,14 +894,14 @@ export class NovaStrikeGame {
 
   /** Menus, briefing, results: the ship cruises along the rail. */
   private updateIdle(dt: number) {
-    const cruise = this.phase === "results" || this.phase === "victory" ? 30 : 16;
+    const cruise = this.phase === "results" ? 30 : 16;
     this.speed = damp(this.speed, cruise, 2, dt);
     this.advance(dt);
     this.px = damp(this.px, Math.sin(this.time * 0.4) * 1.5, 1, dt);
     this.py = damp(this.py, Math.sin(this.time * 0.6) * 0.6, 1, dt);
     this.vx = Math.cos(this.time * 0.4) * 0.6 * 1.5;
     this.vy = 0;
-    if (this.phase === "results" || this.phase === "victory") {
+    if (this.phase === "results") {
       this.enemies.update(dt);
       this.updateShots(dt);
     }
@@ -790,6 +926,7 @@ export class NovaStrikeGame {
       this.updateDead(dt);
       return;
     }
+    this.elapsed += dt;
     if (this.autopilot) this.autoPilot();
     this.updateFlight(dt);
     this.advance(dt);
@@ -835,14 +972,15 @@ export class NovaStrikeGame {
     if (k.has("ArrowDown") || k.has("KeyS")) iy -= 1;
     if (this.invertY) iy = -iy;
     const box = this.box();
-    let tx = ix * MOVE;
-    let ty = iy * MOVE;
+    const move = this.stats.move;
+    let tx = ix * move;
+    let ty = iy * move;
     if (this.touchActive) {
-      tx = this.touch.x * MOVE;
-      ty = this.touch.y * MOVE * (this.invertY ? -1 : 1);
+      tx = this.touch.x * move;
+      ty = this.touch.y * move * (this.invertY ? -1 : 1);
     } else if (this.mouse && !ix && !iy) {
-      tx = clamp((this.mouse.x * box.x - this.px) * 5, -MOVE * 1.2, MOVE * 1.2);
-      ty = clamp((this.mouse.y * box.y - this.py) * 5, -MOVE * 1.2, MOVE * 1.2);
+      tx = clamp((this.mouse.x * box.x - this.px) * 5, -move * 1.2, move * 1.2);
+      ty = clamp((this.mouse.y * box.y - this.py) * 5, -move * 1.2, move * 1.2);
     }
     if (this.outro >= 0) {
       tx = -this.px * 2;
@@ -869,20 +1007,24 @@ export class NovaStrikeGame {
     // Boost / brake.
     const wantBoost = k.has("ShiftLeft") || k.has("ShiftRight") || this.touchBoost || this.outro > 0.5;
     const wantBrake = k.has("KeyC") || k.has("KeyX");
-    let target = SPEED;
+    let target = this.cruise;
     if (this.boostMeter <= 0.01) this.boostLock = true;
     if (this.boostLock && this.boostMeter > 0.35) this.boostLock = false;
     if (wantBoost && !this.boostLock) {
-      target = BOOST_SPEED;
-      if (this.outro < 0) this.boostMeter = Math.max(0, this.boostMeter - dt * 0.5);
+      target = this.cruise + BOOST_EXTRA;
+      if (this.outro < 0) this.boostMeter = Math.max(0, this.boostMeter - dt * this.stats.boostDrain);
     } else if (wantBrake && !this.boostLock) {
-      target = BRAKE_SPEED;
+      target = this.cruise - BRAKE_LESS;
       this.boostMeter = Math.max(0, this.boostMeter - dt * 0.35);
     } else this.boostMeter = Math.min(1, this.boostMeter + dt * 0.22);
-    if (this.introT < 1.2) target = SPEED + 30 * (1 - this.introT / 1.2);
+    if (this.introT < 1.2) target = this.cruise + 30 * (1 - this.introT / 1.2);
     this.speed = damp(this.speed, target, 3, dt);
-    const boostAmt = clamp((this.speed - SPEED) / (BOOST_SPEED - SPEED), -1, 1);
-    this.sfx.engineHum(1, Math.max(0, boostAmt));
+    this.sfx.engineHum(1, Math.max(0, this.boostAmount()));
+  }
+
+  /** -1 (braking) … 0 (cruising) … 1 (full boost). */
+  private boostAmount() {
+    return clamp((this.speed - this.cruise) / BOOST_EXTRA, -1, 1);
   }
 
   private startRoll(dir: number) {
@@ -908,9 +1050,9 @@ export class NovaStrikeGame {
     // Aim follows the nose a little.
     this.aim.copy(f.fwd).addScaledVector(f.right, nx * 0.17).addScaledVector(f.up, ny * 0.17).normalize();
 
-    // Engine flames: a short beam out of each nozzle plus a hot glow.
-    const boost = clamp((this.speed - SPEED) / (BOOST_SPEED - SPEED), -1, 1);
-    const col = boost > 0.2 ? CYAN_HOT : CYAN;
+    // Engine flames: a short beam out of each nozzle plus a hot glow (in the paint job's colour).
+    const boost = this.phase === "playing" ? this.boostAmount() : 0;
+    const col = boost > 0.2 ? tmpC.copy(this.trail).lerp(WHITE, 0.45) : this.trail;
     const flame = 0.55 + Math.max(0, boost) * 1.1 + (boost < 0 ? boost * 0.3 : 0) + Math.random() * 0.15;
     for (const side of [-1, 1]) {
       tmpV.set(side * 0.3, 0.02, 1.1).applyQuaternion(this.ship.quaternion).add(this.shipPos);
@@ -963,9 +1105,10 @@ export class NovaStrikeGame {
     this.locks = [];
   }
 
-  private fireLaser() {
-    this.fireGap = FIRE_GAP;
-    this.fired++;
+  /** `auto`: fired by the auto fire, which shoots all the time — it weighs less in the accuracy. */
+  private fireLaser(auto = false) {
+    this.fireGap = this.stats.fireGap;
+    this.fired += auto ? 0.25 : 1;
     this.spawnShot("laser", null, -1);
     this.spawnShot("laser", null, 1);
     this.sfx.laser(this.laser);
@@ -1002,7 +1145,7 @@ export class NovaStrikeGame {
       dir,
       life: kind === "laser" ? LASER_LIFE : kind === "bomb" ? 0.75 : 3,
       age: 0,
-      damage: kind === "laser" ? (this.laser > 1 ? 2 : 1) : kind === "charge" ? 6 : 5,
+      damage: this.stats.damage * (kind === "laser" ? (this.laser > 1 ? 2 : 1) : kind === "charge" ? 6 : 5),
       target,
       volley: kind === "homing" ? this.volley : 0,
       alive: true,
@@ -1047,7 +1190,17 @@ export class NovaStrikeGame {
 
   private updateWeapons(dt: number) {
     if (this.fireGap > 0) this.fireGap -= dt;
-    if (!this.fireHeld) return;
+    if (!this.fireHeld) {
+      // Auto fire: a steady stream while the button is up (holding it still charges a lock-on).
+      if (this.autoFire && this.outro < 0 && this.introT > 0.5) {
+        this.autoT -= dt;
+        if (this.autoT <= 0) {
+          this.autoT = this.stats.autoGap;
+          this.fireLaser(true);
+        }
+      }
+      return;
+    }
     this.holdT += dt;
     if (this.holdT > CHARGE_DELAY) {
       if (!this.charging) {
@@ -1055,10 +1208,10 @@ export class NovaStrikeGame {
         this.sfx.chargeStart();
       }
       const before = this.charge;
-      this.charge = Math.min(1, (this.holdT - CHARGE_DELAY) / CHARGE_TIME);
+      this.charge = Math.min(1, (this.holdT - CHARGE_DELAY) / this.stats.chargeTime);
       if (before < 1 && this.charge >= 1) this.sfx.charged();
     }
-    if (this.charge >= 1 && this.locks.length < MAX_LOCKS) {
+    if (this.charge >= 1 && this.locks.length < this.stats.locks) {
       // Sweep: lock whatever passes under the reticle.
       let best: Enemy | null = null;
       let bestDot = LOCK_CONE;
@@ -1168,7 +1321,7 @@ export class NovaStrikeGame {
     this.enemies.forEachAlive((e) => {
       if (e.pos.distanceTo(at) < 10 + e.radius) {
         if (!e.armored) hitAny = true;
-        this.enemies.damage(e, 6, e.pos);
+        this.enemies.damage(e, 6 * this.stats.damage, e.pos);
       }
     });
     if (hitAny) this.landed++;
@@ -1283,7 +1436,6 @@ export class NovaStrikeGame {
 
   private hurt(damage: number, from: THREE.Vector3) {
     if (this.phase !== "playing" || this.deadT >= 0 || this.outro >= 0 || this.inv > 0) return;
-    if (this.godMode) damage = 0;
     this.shield -= damage;
     this.inv = INV_TIME;
     this.combo = 0;
@@ -1294,7 +1446,7 @@ export class NovaStrikeGame {
     this.particles.burst(this.shipPos, 16, 14, ORANGE, 0.6, 0.4, this.railVel);
     void from;
     if (this.shield <= 0) this.die();
-    else if (this.shield < 30) this.showBanner("Shield low", "Find a gold ring", "warn", 1.6);
+    else if (this.shield < this.stats.shield * 0.3) this.showBanner("Shield low", "Find a gold ring", "warn", 1.6);
   }
 
   private die() {
@@ -1329,7 +1481,13 @@ export class NovaStrikeGame {
         this.sfx.silence();
         music.play(NOVA_RUSH, 0);
         this.setPhase("over");
-        this.events.over(this.score, this.stageIndex);
+        this.events.over({
+          stage: this.stageIndex,
+          score: this.score,
+          kills: this.kills,
+          salvage: Math.round(this.salvage * this.stats.salvage),
+          progress: clamp(this.s / this.stage.length, 0, 1),
+        });
       }
     }
   }
@@ -1346,6 +1504,8 @@ export class NovaStrikeGame {
   private onKill({ enemy: e, byPlayer }: KillInfo) {
     if (!byPlayer || this.phase !== "playing") return;
     if (!e.noHit) this.hits++;
+    this.kills++;
+    this.salvage += Math.max(1, Math.round(e.score / 50));
     this.combo++;
     this.comboT = 2.4;
     const mult = this.mult();
@@ -1358,8 +1518,11 @@ export class NovaStrikeGame {
   }
 
   private onRing() {
-    this.shield = Math.min(100, this.shield + 25);
+    this.shield = Math.min(this.stats.shield, this.shield + this.stats.shield * 0.25);
     this.score += 200;
+    this.salvage += 2;
+    // On a ring run the rings are the targets.
+    if (this.stage.type === "rings") this.hits++;
     this.sfx.ring();
   }
 
@@ -1372,13 +1535,16 @@ export class NovaStrikeGame {
       this.showBanner("Twin laser", "Double damage", "good", 1.5);
     }
     this.score += 500;
+    this.salvage += 5;
     this.sfx.pickup();
   }
 
   private stageClear() {
+    if (this.outro >= 0) return;
     this.outro = 0;
-    this.score += 5000 * (this.stageIndex + 1);
-    this.showBanner("Stage clear", this.stage.bossName + " destroyed", "good", 3);
+    const boss = this.stage.boss !== null;
+    this.score += boss ? 5000 * (this.stage.sector + 1) : 1500 + 500 * this.stage.sector;
+    this.showBanner(boss ? "Sector clear" : "Mission clear", boss ? this.stage.bossName + " destroyed" : this.stage.name, "good", 3);
     this.sfx.medal(3);
     this.releaseFire(false);
     this.bolts = [];
@@ -1388,15 +1554,28 @@ export class NovaStrikeGame {
     this.outro = -1;
     const medal = medalFor(this.stage, this.hits);
     const accuracy = this.fired ? Math.min(1, this.landed / this.fired) : 0;
-    const shieldPct = this.shield / 100;
+    const shieldPct = clamp(this.shield / this.stats.shield, 0, 1);
     const bonus = Math.round(shieldPct * 3000 + accuracy * 4000 + [0, 1000, 2500, 5000][medal]);
     this.score += bonus;
     this.sfx.silence();
-    const last = this.stageIndex >= STAGES.length - 1;
     music.play(NOVA_RUSH, 0);
-    this.setPhase(last ? "victory" : "results");
-    this.events.results({ stage: this.stageIndex, name: this.stage.name, hits: this.hits, par: this.stage.par, accuracy, shield: shieldPct, bonus, medal, score: this.score, last });
-    if (last) this.events.victory(this.score);
+    this.setPhase("results");
+    this.events.results({
+      stage: this.stageIndex,
+      name: this.stage.name,
+      hits: this.hits,
+      par: this.stage.par,
+      accuracy,
+      shield: shieldPct,
+      bonus,
+      medal,
+      score: this.score,
+      kills: this.kills,
+      salvage: Math.round(this.salvage * this.stats.salvage),
+      reward: Math.round(clearReward(this.stage, medal) * this.stats.salvage),
+      time: this.elapsed,
+      last: this.stageIndex >= STAGES.length - 1,
+    });
     this.sfx.medal(medal);
   }
 
@@ -1464,7 +1643,7 @@ export class NovaStrikeGame {
   }
 
   private drawSpeedLines(dt: number) {
-    const boost = clamp((this.speed - SPEED) / (BOOST_SPEED - SPEED), 0, 1);
+    const boost = this.phase === "playing" ? Math.max(0, this.boostAmount()) : 0;
     const alpha = this.phase === "playing" ? 0.12 + boost * 0.35 : 0.06;
     const len = 2 + (this.speed / SPEED) * 3 + boost * 10;
     const m = this.camera.matrixWorld;
@@ -1485,23 +1664,24 @@ export class NovaStrikeGame {
   private updateCamera(dt: number) {
     const cam = this.camera;
     this.rail.frame(this.s, f);
-    const menu = this.phase === "menu" || this.phase === "briefing" || this.phase === "results" || this.phase === "victory" || this.phase === "over";
+    const menu = this.phase !== "playing" && this.phase !== "paused";
     if (menu) {
-      // Slow orbit around the idling ship.
-      this.menuAngle += dt * (this.phase === "menu" ? 0.12 : 0.07);
+      // Slow orbit around the idling ship (closer in the hangar, where the ship is what you look at).
+      this.menuAngle += dt * (this.showcase ? 0.3 : this.phase === "menu" ? 0.12 : 0.07);
       const a = this.menuAngle + (this.phase === "briefing" ? 2.4 : 0.6);
-      const r = this.phase === "menu" ? 7.5 : 9;
+      const r = this.showcase ? 5.6 : this.phase === "menu" ? 7.5 : 9;
       tmpV.copy(this.shipPos).addScaledVector(f.right, Math.sin(a) * r).addScaledVector(f.up, 1.6 + Math.sin(a * 0.7) * 0.8).addScaledVector(f.fwd, -Math.cos(a) * r);
       if (dt === 0 || this.camPos.lengthSq() === 0) this.camPos.copy(tmpV);
       else this.camPos.lerp(tmpV, 1 - Math.exp(-3 * dt));
       cam.position.copy(this.camPos);
-      this.lookAt.copy(this.shipPos).addScaledVector(f.fwd, this.portrait ? 2 : 0).addScaledVector(f.right, this.portrait ? 0 : this.phase === "menu" ? -2.6 : 0);
+      const aside = this.showcase || this.portrait || this.phase !== "menu" ? 0 : -2.6;
+      this.lookAt.copy(this.shipPos).addScaledVector(f.fwd, this.portrait && !this.showcase ? 2 : 0).addScaledVector(f.right, aside);
       cam.up.copy(f.up);
       cam.lookAt(this.lookAt);
       this.setFov(this.portrait ? 72 : 50, dt);
       return;
     }
-    const boost = clamp((this.speed - SPEED) / (BOOST_SPEED - SPEED), -1, 1);
+    const boost = this.boostAmount();
     if (this.outro >= 0) {
       // Stage clear: swing round to the front of the ship.
       const k = smooth(this.outro / 2);
@@ -1555,7 +1735,7 @@ export class NovaStrikeGame {
   private emitHud(dt: number) {
     this.hudT -= dt;
     if (this.hudT > 0) return;
-    this.hudT = 0.05;
+    this.hudT = this.hudEvery;
     if (this.bannerT > 0 && this.phase !== "playing") {
       this.bannerT -= 0.05;
       if (this.bannerT <= 0) this.banner = null;
@@ -1566,21 +1746,23 @@ export class NovaStrikeGame {
     h.combo = this.combo;
     h.comboT = clamp(this.comboT / 2.4, 0, 1);
     h.hits = this.hits;
-    h.shield = clamp(this.shield / 100, 0, 1);
+    h.shield = clamp(this.shield / this.stats.shield, 0, 1);
     h.lives = this.lives;
     h.bombs = this.bombs;
     h.boost = this.boostMeter;
     h.charge = this.charge;
     h.locks = this.locks.length;
+    h.maxLocks = this.stats.locks;
     h.laser = this.laser;
     h.stage = this.stageIndex;
     h.progress = clamp(this.s / this.stage.length, 0, 1);
-    h.checkpoint = this.stage.checkpoint / this.stage.length;
+    h.checkpoint = this.stage.checkpoint > 0 ? this.stage.checkpoint / this.stage.length : -1;
     h.boss = this.boss && !this.boss.dead && this.boss.state !== "enter" ? { name: this.boss.name, hp: clamp(this.boss.hp(), 0, 1) } : null;
     h.banner = this.banner;
-    h.danger = this.shield < 30 && this.deadT < 0;
+    h.danger = this.shield < this.stats.shield * 0.3 && this.deadT < 0;
     h.hurt = this.hurtCount;
     h.bombFlash = this.bombFlash;
+    h.credits = Math.round(this.salvage * this.stats.salvage);
     this.events.hud({ ...h });
   }
 
@@ -1632,75 +1814,136 @@ export class NovaStrikeGame {
     this.bloom?.resolution.set(Math.round(w / 2), Math.round(h / 2));
     this.camera.aspect = w / h;
     this.portrait = w / h < 0.85;
-    this.camera.updateProjectionMatrix();
+    this.applyViewShift();
     this.updatePointScale();
   }
 
-  // --- Debug autopilot (temporary) -------------------------------------------------------------------------------------------
+  /** Moves the picture clear of the hangar's panel (a camera view offset), or back. */
+  private applyViewShift() {
+    const el = this.canvas.parentElement ?? this.canvas;
+    const w = Math.max(1, el.clientWidth);
+    const h = Math.max(1, el.clientHeight);
+    if (this.viewShift.x || this.viewShift.y) this.camera.setViewOffset(w, h, -this.viewShift.x * w, this.viewShift.y * h, w, h);
+    else this.camera.clearViewOffset();
+    this.camera.updateProjectionMatrix();
+  }
+
+  // --- Test autopilot ------------------------------------------------------------------------------------------------------
+  // A bot that flies the ship, for scripts/check-nova-strike.mjs (which plays every mission with it) and for
+  // filming. It sees what a player sees: obstacles ahead, telegraphed boss attacks, incoming shots.
+
+  private readonly botBolts: { x: number; y: number }[] = [];
+
+  /** Is the spot (x, y) of the flight box about to be hit by something? */
+  private botUnsafe(x: number, y: number, margin: number) {
+    if (this.hazards.blocked(x, y, 62, margin)) return true;
+    if (this.boss?.alive && this.boss.unsafe(x, y)) return true;
+    const speed = Math.max(10, this.speed / this.rail.stretch(this.s));
+    // Things to fly into: rocks, satellites, mines, sentries, ships crossing the box.
+    for (const e of this.enemies.list) {
+      if (!e.alive || !e.collide || e.boss) continue;
+      const ahead = e.s - this.s;
+      if (ahead < -2 || ahead > 46) continue;
+      const r = e.radius + 1.3 + margin;
+      // Drifting rocks and meteors: where they will be when the ship gets there.
+      const t = e.rel ? 0 : Math.max(0, ahead) / speed;
+      if (Math.abs(x - (e.x + e.vx * t)) < r && Math.abs(y - (e.y + e.vy * t)) < r) return true;
+      // Divers and boss projectiles head for a spot they have picked.
+      if ((e.pattern === "dive" || e.kind === "boulder") && Math.abs(x - e.target.x) < r && Math.abs(y - e.target.y) < r) return true;
+    }
+    for (const b of this.botBolts) if (Math.abs(x - b.x) < 1.7 + margin && Math.abs(y - b.y) < 1.7 + margin) return true;
+    return false;
+  }
 
   private autoPilot() {
-    // Steer towards the nearest target ahead, dodge incoming bolts, fire constantly.
     const box = this.box();
+    this.rail.frame(this.s, f);
+    // Incoming shots: where each one will cross the ship's plane in the next moment.
+    this.botBolts.length = 0;
+    let roll = 0;
+    for (const b of this.bolts) {
+      if (b.deflected) continue;
+      tmpV.subVectors(b.pos, this.shipPos);
+      tmpV2.subVectors(b.vel, this.railVel);
+      const closing = -tmpV2.dot(f.fwd);
+      const ahead = tmpV.dot(f.fwd);
+      if (closing < 1 || ahead < 0) continue;
+      const t = ahead / closing;
+      if (t > 0.8) continue;
+      const x = this.px + tmpV.dot(f.right) + tmpV2.dot(f.right) * t;
+      const y = this.py + tmpV.dot(f.up) + tmpV2.dot(f.up) * t;
+      this.botBolts.push({ x, y });
+      // About to land: a barrel roll knocks it away.
+      if (t < 0.16 && Math.hypot(x - this.px, y - this.py) < 1.9) roll = x > this.px ? -1 : 1;
+    }
+    if (roll && this.rollGap <= 0) this.startRoll(roll);
+
+    // Line up with the nearest target (lasers fly straight ahead)…
     let tx = 0;
     let ty = 0;
     let best = Infinity;
-    this.rail.frame(this.s, f);
     this.enemies.forEachAlive((e) => {
-      if (e.armored || e.d > 300) return;
+      if (e.armored || e.kind === "rock" || e.d > 300) return;
       const ahead = e.s - this.s;
-      if (ahead < 15 || ahead > 160) return;
+      if (ahead < 14 || ahead > 170) return;
       tmpV.subVectors(e.pos, f.pos);
       const ex = tmpV.dot(f.right);
       const ey = tmpV.dot(f.up);
-      const score = ahead + Math.abs(ex) * 2;
-      if (score < best) {
-        best = score;
+      if (Math.abs(ex) > box.x + 5 || Math.abs(ey) > box.y + 4) return;
+      const cost = ahead * 0.5 + (Math.abs(ex - this.px) + Math.abs(ey - this.py)) * 3 - (e.boss ? 40 : 0) + (e.noHit ? 30 : 0);
+      if (cost < best) {
+        best = cost;
         tx = ex;
         ty = ey;
       }
     });
-    // Dodge: bolts heading for the ship.
-    let dodgeX = 0;
-    let dodgeY = 0;
-    for (const b of this.bolts) {
-      if (b.deflected) continue;
-      tmpV.subVectors(b.pos, this.shipPos);
-      const ahead = tmpV.dot(f.fwd);
-      if (ahead < 0 || ahead > 45) continue;
-      const bx = tmpV.dot(f.right);
-      const by = tmpV.dot(f.up);
-      if (Math.abs(bx) < 2.5 && Math.abs(by) < 2.5) {
-        dodgeX -= Math.sign(bx || 1) * 4;
-        dodgeY -= Math.sign(by || 1) * 3;
-        if (ahead < 14 && this.rollGap <= 0) this.startRoll(bx > 0 ? -1 : 1);
+    // …or fly through the next ring: always on a ring run, otherwise when the shield needs it.
+    const ring = this.hazards.ringAhead(75);
+    if (ring && (this.stage.type === "rings" || this.shield < this.stats.shield * 0.8)) {
+      tx = ring.x;
+      ty = ring.y;
+    }
+    tx = clamp(tx, -box.x, box.x);
+    ty = clamp(ty, -box.y, box.y);
+
+    // If that spot is about to be hit, take the safe spot nearest to it (and not far from the ship).
+    let gx = tx;
+    let gy = ty;
+    if (this.botUnsafe(tx, ty, 0.5)) {
+      for (const margin of [0.5, 0]) {
+        let bestCost = Infinity;
+        for (let ix = -8; ix <= 8; ix++) {
+          for (let iy = -5; iy <= 5; iy++) {
+            const x = (ix / 8) * box.x;
+            const y = (iy / 5) * box.y;
+            if (this.botUnsafe(x, y, margin)) continue;
+            const cost = Math.hypot(x - tx, y - ty) + Math.hypot(x - this.px, y - this.py) * 0.6;
+            if (cost < bestCost) {
+              bestCost = cost;
+              gx = x;
+              gy = y;
+            }
+          }
+        }
+        if (bestCost < Infinity) break;
       }
     }
-    // Rocks / obstacles directly ahead.
-    this.enemies.forEachAlive((e) => {
-      if (!e.collide || e.boss) return;
-      const ahead = e.s - this.s;
-      if (ahead < 0 || ahead > 40) return;
-      tmpV.subVectors(e.pos, this.shipPos);
-      const bx = tmpV.dot(f.right);
-      const by = tmpV.dot(f.up);
-      if (Math.abs(bx) < e.radius + 1.6 && Math.abs(by) < e.radius + 1.6) {
-        dodgeX -= Math.sign(bx || 1) * 5;
-        dodgeY -= Math.sign(by || 1) * 3;
-      }
-    });
-    const gx = clamp(tx * 0.9 + dodgeX, -box.x, box.x);
-    const gy = clamp(ty * 0.9 + dodgeY, -box.y, box.y);
     this.mouse = { x: gx / box.x, y: gy / box.y };
-    if (this.shield < 60 && this.bombs > 0 && this.boss && this.boss.state !== "enter") this.dropBomb();
-    // Human-ish trigger finger: about 7 taps a second.
-    if (this.fireGap <= 0 && !this.fireHeld && Math.random() < 0.45) {
+
+    // Nova bombs: for a boss under fire, or a last resort.
+    if (this.bombs > 0) {
+      const low = this.shield / this.stats.shield;
+      const boss = !!this.boss?.alive && this.boss.state !== "enter";
+      if (boss ? this.bolts.length >= 9 || low < 0.6 : low < 0.4 && this.bolts.length >= 5) this.dropBomb();
+    }
+    // A human-ish trigger finger: about 8 taps a second.
+    if (this.fireGap <= 0 && !this.fireHeld && Math.random() < 0.5) {
       this.pressFire();
       this.releaseFire(false);
     }
   }
 
-  // --- Debug info (temporary) -----------------------------------------------------------------------------------------------
-
+  /** What the test driver reads between steps. */
   debugInfo() {
     return {
       phase: this.phase,
@@ -1720,10 +1963,11 @@ export class NovaStrikeGame {
       ratio: this.renderer.getPixelRatio(),
       bloomOff: this.perf.bloomOff,
       fps: Math.round(this.fpsAvg),
-      autopilot: this.autopilot,
+      pooled: this.root.children.length,
     };
   }
 
+  /** Holds the resolution and bloom where they are put (screenshots must not change with the frame rate). */
   debugQuality(ratio: number, bloom: boolean) {
     this.qualityLock = true;
     this.renderer.setPixelRatio(ratio);
@@ -1731,6 +1975,7 @@ export class NovaStrikeGame {
     this.resize();
   }
 
+  /** Skips to rail distance `s` of the mission being flown. */
   debugJump(s: number) {
     this.enemies.clear();
     this.hazards.clear();
@@ -1751,6 +1996,7 @@ export class NovaStrikeGame {
     this.enemies?.dispose();
     this.hazards?.clear();
     this.world?.dispose();
+    for (const m of this.skinMaterials) m.dispose();
     for (const proto of this.protos.values()) disposeTree(proto.object);
     this.particles.dispose();
     this.glows.dispose();

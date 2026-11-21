@@ -267,11 +267,28 @@ export class Structures {
     }));
   }
 
-  restore(data: SavedStructure[]) {
+  /** Rebuilds a saved camp. Anything that makes no sense (a broken or edited save) is left out. */
+  restore(data: unknown) {
     this.clear();
-    for (const d of data) {
-      if (!BUILDS[d.k]) continue;
-      this.add(d.k, d.x, d.z, d.r, { hp: d.hp, fuel: d.f, lit: d.l === undefined ? undefined : d.l === 1, store: d.s });
+    if (!Array.isArray(data)) return;
+    const fin = (v: unknown) => typeof v === "number" && Number.isFinite(v);
+    for (const d of data.slice(0, 400) as Partial<SavedStructure>[]) {
+      if (!d || typeof d !== "object" || typeof d.k !== "string" || !Object.prototype.hasOwnProperty.call(BUILDS, d.k)) continue;
+      if (!fin(d.x) || !fin(d.z) || Math.abs(d.x!) > 80 || Math.abs(d.z!) > 80) continue;
+      const def = BUILDS[d.k];
+      const store: Partial<Record<ResourceId, number>> = {};
+      if (d.s && typeof d.s === "object") {
+        for (const r of ["wood", "stone", "fiber", "planks", "scrap", "cloth"] as ResourceId[]) {
+          const n = Math.floor(Number((d.s as Record<string, unknown>)[r]));
+          if (Number.isFinite(n) && n > 0) store[r] = Math.min(9999, n);
+        }
+      }
+      this.add(d.k, d.x!, d.z!, fin(d.r) ? d.r! : 0, {
+        hp: fin(d.hp) ? Math.min(def.hp, Math.max(1, d.hp!)) : def.hp,
+        fuel: fin(d.f) ? Math.min(SURVIVAL.maxFuel, Math.max(0, d.f!)) : undefined,
+        lit: d.l === undefined ? undefined : d.l === 1,
+        store,
+      });
     }
   }
 

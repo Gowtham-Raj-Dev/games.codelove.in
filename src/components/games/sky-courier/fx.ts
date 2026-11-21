@@ -1,12 +1,13 @@
 import * as THREE from "three";
+import type { JetDef, LookId } from "./data";
 
 /**
- * Procedural extras for Sky Courier: the sky dome and sun, the sea of clouds, billboard cloud puffs,
- * station beams, updraft columns, particles, wind streaks and the route arrow. Every solid object
- * in the game is a library model — these are light, air and glow only.
+ * Procedural extras for Sky Courier: the sky dome, sun and stars, the sea of clouds, billboard cloud
+ * puffs, station beams, air columns, jet streams, lamp glows, particles, wind and rain streaks and the
+ * route arrow. Every solid object in the game is a library model — these are light, air and glow only.
  */
 
-// --- Palette over the working day -------------------------------------------------------------------
+// --- Skies ------------------------------------------------------------------------------------------
 
 export interface SkyLook {
   top: THREE.Color;
@@ -19,33 +20,65 @@ export interface SkyLook {
   cloudLit: THREE.Color;
   cloudShade: THREE.Color;
   sunDir: THREE.Vector3;
+  /** 0 = day, 1 = night: stars and lamp glows show with it. */
+  night: number;
+  /** How far you can see: 1 = clear, lower = murk. */
+  haze: number;
 }
 
-const KEYS: { t: number; top: string; horizon: string; sun: string; si: number; hs: string; hg: string; hi: number; lit: string; shade: string; az: number; el: number }[] = [
-  { t: 0, top: "#4a86d0", horizon: "#d4e4f1", sun: "#fff0d8", si: 2.7, hs: "#d4e6ff", hg: "#8d84b4", hi: 1.25, lit: "#ffffff", shade: "#a9b8d6", az: -0.35, el: 0.42 },
-  { t: 0.45, top: "#2f6fd0", horizon: "#cfe4f6", sun: "#fffaf0", si: 3.0, hs: "#dcecff", hg: "#9088b8", hi: 1.3, lit: "#ffffff", shade: "#b3c2de", az: 1.2, el: 1.05 },
-  { t: 0.75, top: "#3d6ab6", horizon: "#efd8ba", sun: "#ffe0ae", si: 2.8, hs: "#e4e4f4", hg: "#9a84a8", hi: 1.2, lit: "#fff4e4", shade: "#a8a6c8", az: 2.6, el: 0.55 },
-  { t: 1, top: "#33508f", horizon: "#f4b47c", sun: "#ffa85a", si: 2.6, hs: "#f2d2c0", hg: "#8a6c9c", hi: 1.1, lit: "#ffd4a0", shade: "#8e7aa8", az: 3.25, el: 0.2 },
-];
+interface LookKey {
+  top: string;
+  horizon: string;
+  sun: string;
+  si: number;
+  hs: string;
+  hg: string;
+  hi: number;
+  lit: string;
+  shade: string;
+  az: number;
+  el: number;
+  night: number;
+  haze: number;
+}
 
-const parsed = KEYS.map((k) => ({
-  ...k,
-  cTop: new THREE.Color(k.top),
-  cHorizon: new THREE.Color(k.horizon),
-  cSun: new THREE.Color(k.sun),
-  cHs: new THREE.Color(k.hs),
-  cHg: new THREE.Color(k.hg),
-  cLit: new THREE.Color(k.lit),
-  cShade: new THREE.Color(k.shade),
-}));
+/** Every sky the game flies under. At night the "sun" is the moon. */
+const KEYS: Record<LookId, LookKey> = {
+  dawn: { top: "#5f7fc8", horizon: "#f6cdb6", sun: "#ffd9b8", si: 2.3, hs: "#e6dcf0", hg: "#8f7fa8", hi: 1.15, lit: "#fff0e6", shade: "#a79cc4", az: -0.9, el: 0.22, night: 0.12, haze: 0.9 },
+  morning: { top: "#4a86d0", horizon: "#d4e4f1", sun: "#fff0d8", si: 2.7, hs: "#d4e6ff", hg: "#8d84b4", hi: 1.25, lit: "#ffffff", shade: "#a9b8d6", az: -0.35, el: 0.42, night: 0, haze: 1 },
+  noon: { top: "#2f6fd0", horizon: "#cfe4f6", sun: "#fffaf0", si: 3.0, hs: "#dcecff", hg: "#9088b8", hi: 1.3, lit: "#ffffff", shade: "#b3c2de", az: 1.2, el: 1.05, night: 0, haze: 1 },
+  afternoon: { top: "#3d6ab6", horizon: "#efd8ba", sun: "#ffe0ae", si: 2.8, hs: "#e4e4f4", hg: "#9a84a8", hi: 1.2, lit: "#fff4e4", shade: "#a8a6c8", az: 2.6, el: 0.55, night: 0, haze: 1 },
+  sunset: { top: "#33508f", horizon: "#f4b47c", sun: "#ffa85a", si: 2.6, hs: "#f2d2c0", hg: "#8a6c9c", hi: 1.1, lit: "#ffd4a0", shade: "#8e7aa8", az: 3.25, el: 0.2, night: 0.08, haze: 0.95 },
+  dusk: { top: "#2b2f6b", horizon: "#e98f6e", sun: "#ff8f55", si: 2.0, hs: "#d2a8c8", hg: "#5f4c7c", hi: 0.95, lit: "#ffb890", shade: "#6c5c98", az: 3.4, el: 0.12, night: 0.35, haze: 0.9 },
+  overcast: { top: "#6f7f9c", horizon: "#b9c3d0", sun: "#f2f4f8", si: 1.7, hs: "#d5dde8", hg: "#7c8094", hi: 1.25, lit: "#e6ebf2", shade: "#8b93a8", az: 1.0, el: 0.9, night: 0, haze: 0.7 },
+  storm: { top: "#3f4860", horizon: "#7f8a9c", sun: "#dfe6f2", si: 1.25, hs: "#aebace", hg: "#565b70", hi: 1.1, lit: "#aab3c4", shade: "#5d6478", az: 1.0, el: 0.8, night: 0.1, haze: 0.5 },
+  night: { top: "#060b1f", horizon: "#1c2c5a", sun: "#b9ccff", si: 0.95, hs: "#6f8ad0", hg: "#232a52", hi: 0.8, lit: "#8ea4dc", shade: "#27335e", az: 0.6, el: 0.75, night: 1, haze: 0.85 },
+};
 
-export function skyLook(t: number, out: SkyLook) {
-  t = Math.min(1, Math.max(0, t));
-  let i = 0;
-  while (i < parsed.length - 2 && t > parsed[i + 1].t) i++;
-  const a = parsed[i];
-  const b = parsed[i + 1];
-  const k = (t - a.t) / (b.t - a.t);
+const parsed = Object.fromEntries(
+  (Object.keys(KEYS) as LookId[]).map((id) => {
+    const k = KEYS[id];
+    return [
+      id,
+      {
+        ...k,
+        cTop: new THREE.Color(k.top),
+        cHorizon: new THREE.Color(k.horizon),
+        cSun: new THREE.Color(k.sun),
+        cHs: new THREE.Color(k.hs),
+        cHg: new THREE.Color(k.hg),
+        cLit: new THREE.Color(k.lit),
+        cShade: new THREE.Color(k.shade),
+      },
+    ];
+  }),
+) as Record<LookId, LookKey & { cTop: THREE.Color; cHorizon: THREE.Color; cSun: THREE.Color; cHs: THREE.Color; cHg: THREE.Color; cLit: THREE.Color; cShade: THREE.Color }>;
+
+/** The sky `k` of the way from look `from` to look `to` (k = 0: just `from`). */
+export function skyLook(from: LookId, to: LookId, k: number, out: SkyLook) {
+  const a = parsed[from] ?? parsed.morning;
+  const b = parsed[to] ?? a;
+  k = Math.min(1, Math.max(0, k));
   out.top.copy(a.cTop).lerp(b.cTop, k);
   out.horizon.copy(a.cHorizon).lerp(b.cHorizon, k);
   out.sun.copy(a.cSun).lerp(b.cSun, k);
@@ -55,6 +88,8 @@ export function skyLook(t: number, out: SkyLook) {
   out.cloudShade.copy(a.cShade).lerp(b.cShade, k);
   out.sunIntensity = a.si + (b.si - a.si) * k;
   out.hemiIntensity = a.hi + (b.hi - a.hi) * k;
+  out.night = a.night + (b.night - a.night) * k;
+  out.haze = a.haze + (b.haze - a.haze) * k;
   const az = a.az + (b.az - a.az) * k;
   const el = a.el + (b.el - a.el) * k;
   out.sunDir.set(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el)).normalize();
@@ -72,6 +107,8 @@ export const newLook = (): SkyLook => ({
   cloudLit: new THREE.Color(),
   cloudShade: new THREE.Color(),
   sunDir: new THREE.Vector3(0, 1, 0),
+  night: 0,
+  haze: 1,
 });
 
 // --- Sky dome -----------------------------------------------------------------------------------------
@@ -455,14 +492,71 @@ export class Beam {
   }
 }
 
-/** One shared material for every updraft column. */
-export class UpdraftColumns {
+/** Columns of rising (warm, pale gold) or sinking (cold, blue) air: one shared material for all of them. */
+export class AirColumns {
   readonly group = new THREE.Group();
   private readonly geometry = beamGeometry();
   private readonly material: THREE.ShaderMaterial;
+  private readonly uniforms: { uTime: { value: number }; uColor: { value: THREE.Color }; uDir: { value: number } };
+
+  constructor(columns: { x: number; z: number; r: number }[], height: number, down = false) {
+    this.uniforms = { uTime: { value: 0 }, uColor: { value: new THREE.Color(down ? "#8fb8ff" : "#fff5db") }, uDir: { value: down ? -1 : 1 } };
+    this.material = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+      uniforms: this.uniforms,
+      vertexShader: /* glsl */ `
+        varying vec2 vUv; varying float vEdge;
+        void main() {
+          vUv = uv;
+          vec3 n = normalize(normalMatrix * normal);
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vEdge = 1.0 - abs(dot(n, normalize(-mv.xyz)));
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform float uTime; uniform vec3 uColor; uniform float uDir;
+        varying vec2 vUv; varying float vEdge;
+        void main() {
+          float band = fract(vUv.x * 5.0 + vUv.y * 7.0 - uTime * 0.45 * uDir);
+          float swirl = smoothstep(0.42, 0.5, band) * smoothstep(0.62, 0.5, band);
+          float fade = smoothstep(0.0, 0.12, vUv.y) * smoothstep(1.0, 0.6, vUv.y);
+          float a = (0.05 + swirl * 0.22) * fade * (0.35 + 0.65 * vEdge);
+          gl_FragColor = vec4(uColor * a, a);
+        }`,
+    });
+    for (const c of columns) {
+      const m = new THREE.Mesh(this.geometry, this.material);
+      m.scale.set(c.r, height, c.r);
+      m.position.set(c.x, 0, c.z);
+      m.renderOrder = 6;
+      this.group.add(m);
+    }
+  }
+
+  update(dt: number) {
+    this.uniforms.uTime.value += dt;
+  }
+
+  dispose() {
+    this.geometry.dispose();
+    this.material.dispose();
+  }
+}
+
+// --- Jet streams ---------------------------------------------------------------------------------------------
+
+/** Faint tubes of fast air with bands racing along them (one shared material). */
+export class JetTubes {
+  readonly group = new THREE.Group();
+  private readonly geometry = new THREE.CylinderGeometry(1, 1, 1, 20, 1, true);
+  private readonly material: THREE.ShaderMaterial;
   private readonly uniforms = { uTime: { value: 0 } };
 
-  constructor(columns: { x: number; z: number; r: number }[], height: number) {
+  constructor(jets: JetDef[]) {
     this.material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
@@ -483,17 +577,25 @@ export class UpdraftColumns {
         uniform float uTime;
         varying vec2 vUv; varying float vEdge;
         void main() {
-          float swirl = smoothstep(0.42, 0.5, fract(vUv.x * 5.0 + vUv.y * 7.0 - uTime * 0.45)) * smoothstep(0.62, 0.5, fract(vUv.x * 5.0 + vUv.y * 7.0 - uTime * 0.45));
-          float fade = smoothstep(0.0, 0.12, vUv.y) * smoothstep(1.0, 0.6, vUv.y);
-          float a = (0.05 + swirl * 0.22) * fade * (0.35 + 0.65 * vEdge);
-          gl_FragColor = vec4(vec3(1.0, 0.96, 0.86) * a, a);
+          float band = fract(vUv.y * 14.0 - uTime * 1.6 + sin(vUv.x * 12.566) * 0.35);
+          float streak = smoothstep(0.0, 0.5, band) * smoothstep(1.0, 0.5, band);
+          float fade = smoothstep(0.0, 0.08, vUv.y) * smoothstep(1.0, 0.92, vUv.y);
+          float a = (0.03 + streak * 0.16) * fade * (0.3 + 0.7 * vEdge);
+          gl_FragColor = vec4(vec3(0.62, 0.92, 1.0) * a, a);
         }`,
     });
-    for (const c of columns) {
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const j of jets) {
+      const a = new THREE.Vector3(...j.a);
+      const b = new THREE.Vector3(...j.b);
+      const dir = b.clone().sub(a);
+      const len = dir.length();
       const m = new THREE.Mesh(this.geometry, this.material);
-      m.scale.set(c.r, height, c.r);
-      m.position.set(c.x, 0, c.z);
+      m.position.copy(a).addScaledVector(dir, 0.5);
+      m.quaternion.setFromUnitVectors(up, dir.normalize());
+      m.scale.set(j.r, len, j.r);
       m.renderOrder = 6;
+      m.frustumCulled = false;
       this.group.add(m);
     }
   }
@@ -505,6 +607,125 @@ export class UpdraftColumns {
   dispose() {
     this.geometry.dispose();
     this.material.dispose();
+  }
+}
+
+// --- Stars and lamp glows (night) ----------------------------------------------------------------------------
+
+/** A dome of stars that follows the camera; `opacity` fades it in with the night. */
+export class Stars {
+  readonly points: THREE.Points;
+  private readonly material: THREE.PointsMaterial;
+
+  constructor(count = 700) {
+    const pos = new Float32Array(count * 3);
+    let seed = 99;
+    const rnd = () => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    };
+    for (let i = 0; i < count; i++) {
+      const a = rnd() * Math.PI * 2;
+      const y = 0.04 + rnd() * 0.96;
+      const s = Math.sqrt(1 - y * y);
+      pos.set([Math.cos(a) * s * 2500, y * 2500, Math.sin(a) * s * 2500], i * 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    this.material = new THREE.PointsMaterial({ color: "#dfe8ff", size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false });
+    this.points = new THREE.Points(geo, this.material);
+    this.points.renderOrder = -9;
+    this.points.frustumCulled = false;
+    this.points.visible = false;
+  }
+
+  set(opacity: number, at: THREE.Vector3) {
+    this.points.visible = opacity > 0.02;
+    this.material.opacity = opacity;
+    this.points.position.copy(at);
+  }
+
+  dispose() {
+    this.points.geometry.dispose();
+    this.material.dispose();
+  }
+}
+
+/** Soft additive discs (lamps, lit windows, lantern balloons) in one draw call; set them every frame. */
+export class Glows {
+  readonly mesh: THREE.Mesh;
+  private readonly off: Float32Array;
+  private readonly extra: Float32Array;
+  private readonly geometry = new THREE.InstancedBufferGeometry();
+  private readonly uniforms = { uAlpha: { value: 0 } };
+  private n = 0;
+
+  constructor(private readonly capacity = 160) {
+    const base = new THREE.PlaneGeometry(1, 1);
+    this.geometry.index = base.index;
+    this.geometry.setAttribute("position", base.attributes.position);
+    this.geometry.setAttribute("uv", base.attributes.uv);
+    this.off = new Float32Array(capacity * 3);
+    this.extra = new Float32Array(capacity * 4);
+    this.geometry.setAttribute("aOffset", new THREE.InstancedBufferAttribute(this.off, 3).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.setAttribute("aExtra", new THREE.InstancedBufferAttribute(this.extra, 4).setUsage(THREE.DynamicDrawUsage));
+    this.geometry.instanceCount = 0;
+    const material = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+      uniforms: this.uniforms,
+      vertexShader: /* glsl */ `
+        attribute vec3 aOffset; attribute vec4 aExtra;
+        varying vec2 vUv; varying vec3 vColor;
+        void main() {
+          vUv = uv;
+          vColor = aExtra.rgb;
+          vec4 mv = viewMatrix * vec4(aOffset, 1.0);
+          mv.xy += position.xy * aExtra.a;
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform float uAlpha;
+        varying vec2 vUv; varying vec3 vColor;
+        void main() {
+          float r = length(vUv - 0.5) * 2.0;
+          float a = (pow(max(0.0, 1.0 - r), 2.2) * 0.9 + smoothstep(0.25, 0.0, r) * 0.6) * uAlpha;
+          if (a < 0.004) discard;
+          gl_FragColor = vec4(vColor * a, a);
+        }`,
+    });
+    this.mesh = new THREE.Mesh(this.geometry, material);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 5;
+    this.mesh.visible = false;
+    base.dispose();
+  }
+
+  /** Starts a new frame's list. */
+  begin(alpha: number) {
+    this.n = 0;
+    this.uniforms.uAlpha.value = alpha;
+    this.mesh.visible = alpha > 0.02;
+  }
+
+  add(x: number, y: number, z: number, size: number, color: THREE.Color) {
+    if (this.n >= this.capacity) return;
+    const i = this.n++;
+    this.off.set([x, y, z], i * 3);
+    this.extra.set([color.r, color.g, color.b, size], i * 4);
+  }
+
+  end() {
+    this.geometry.instanceCount = this.n;
+    (this.geometry.attributes.aOffset as THREE.InstancedBufferAttribute).needsUpdate = true;
+    (this.geometry.attributes.aExtra as THREE.InstancedBufferAttribute).needsUpdate = true;
+  }
+
+  dispose() {
+    this.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
   }
 }
 

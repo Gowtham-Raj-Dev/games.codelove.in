@@ -1,13 +1,17 @@
 import * as THREE from "three";
+import { AdaptiveRes } from "../shared/adaptive-res";
 import { audio } from "../shared/audio";
 import { disposeTree, loadModels, makeProto, type LoadedModel, type LoadProgress } from "../shared/assets";
 import { music } from "../shared/music";
+import { inPlayables } from "../shared/playables";
 import { ISLAND_DRIFT } from "../shared/songs";
 import { Animator, turnTowards, yawTo } from "./anim";
 import { Sfx } from "./audio";
+import { CASTAWAYS, islandIndex, ISLANDS, KITS, perkLevel, type IslandDef, type Loadout, type Loot, type Progress, type WeatherKind } from "./campaign";
 import { Creature, pushOut, type Blocker, type CreatureAssets, type CreatureCtx } from "./creatures";
 import {
   BUILDS,
+  CREATURE_KINDS,
   DAWN,
   DAY,
   DUSK,
@@ -17,9 +21,6 @@ import {
   isFood,
   ITEMS,
   NIGHT,
-  NOTES,
-  OBJECTIVES,
-  raidPlan,
   RECIPE,
   RECIPES,
   RESOURCES,
@@ -34,7 +35,7 @@ import {
   type ResourceId,
   type ToolId,
 } from "./data";
-import { makeSkyState, seaHeight, SkyDome, skyAt, Water } from "./environment";
+import { makeSkyState, seaHeight, SkyDome, skyAt, tintSky, Water } from "./environment";
 import { Particles, Popups, Ring, Telegraphs } from "./fx";
 import { renderIcons } from "./icons";
 import { BUILD, CHAR, HELD, ITEM, MODELS, WORLD } from "./manifest";
@@ -49,9 +50,11 @@ const PLAYER_H = 1.6;
 const PLAYER_R = 0.38;
 const WALK = 4.6;
 const RUN = 7.0;
-const SAVE_KEY = "castaway:save:v1";
-const MAX_CREATURES = 13;
+const SAVE_KEY = "castaway:run:v2";
+const MAX_CREATURES = 16;
 const NIGHT_LEN = (DAWN - NIGHT) * DAY;
+/** Seconds between falling and the "you passed out" screen. */
+const FAINT_DELAY = 1.6;
 
 /** Held items, in metres. */
 const HELD_FITS: Record<string, { scale: number }> = {
@@ -81,6 +84,9 @@ const ITEM_FITS: Record<string, { scale: number }> = {
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
+/** Meals that count as provisions for a crossing. */
+const COOKED: FoodId[] = ["fishCooked", "bigFishCooked", "meatCooked"];
+
 // --- Public types ----------------------------------------------------------------------------------
 
 export type Phase = "loading" | "menu" | "playing" | "paused" | "book" | "dead" | "won" | "error";
@@ -107,11 +113,14 @@ export interface CraftView {
 }
 
 export interface Hud {
+  /** The island being played (index into ISLANDS). */
+  island: number;
   day: number;
   t: number;
   period: string;
   night: boolean;
   health: number;
+  maxHealth: number;
   hunger: number;
   warmth: number;
   res: Record<ResourceId, number>;
@@ -125,6 +134,13 @@ export interface Hud {
   placing: { name: string; valid: boolean; reason: string } | null;
   objective: string;
   objectiveNo: number;
+  objectiveCount: number;
+  /** "2 of 3" for objectives that count. */
+  progress: [number, number] | null;
+  /** The island's bonus goal is met (so far). */
+  bonus: boolean;
+  /** Rain, heat, a blizzard or fog right now (null = calm); `shade`: out of the heat. */
+  weather: { kind: WeatherKind; shade: boolean } | null;
   sleeping: boolean;
   ship: boolean;
   danger: number;
@@ -144,14 +160,18 @@ export interface Toast {
 }
 
 export interface RunSummary {
+  island: number;
+  /** The day the island was left on (1-based). */
   day: number;
-  /** In-game days since the wreck. */
+  /** In-game days since landing. */
   days: number;
   kills: number;
   crafted: number;
   built: number;
   fish: number;
   deaths: number;
+  /** The island's bonus goal was met. */
+  bonus: boolean;
 }
 
 export interface DeathInfo {
@@ -161,8 +181,11 @@ export interface DeathInfo {
 }
 
 export interface SaveInfo {
+  island: number;
   day: number;
   t: number;
+  /** Things ticked off the island's list. */
+  done: number;
 }
 
 export interface GameEvents {
@@ -174,11 +197,12 @@ export interface GameEvents {
   toast(toast: Toast): void;
   banner(title: string, sub?: string): void;
   hurt(): void;
-  note(text: string, index: number): void;
+  note(text: string, index: number, total: number): void;
   died(info: DeathInfo): void;
   won(summary: RunSummary): void;
   achieve(id: string): void;
-  day(day: number): void;
+  /** One of the island's eight things to do was ticked off. */
+  objective(island: number, index: number): void;
   saved(info: SaveInfo | null): void;
 }
 
@@ -259,8 +283,25 @@ interface Fishing {
   tries: number;
 }
 
+interface Stats {
+  kills: number;
+  killsBy: Partial<Record<CreatureKind, number>>;
+  crafted: number;
+  built: number;
+  fish: number;
+  deaths: number;
+  cooked: number;
+  felled: number;
+  caught: number;
+}
+
+const freshStats = (): Stats => ({ kills: 0, killsBy: {}, crafted: 0, built: 0, fish: 0, deaths: 0, cooked: 0, felled: 0, caught: 0 });
+
+/** One island in progress. */
 interface Save {
-  v: 1;
+  v: 2;
+  /** The island's id. */
+  island: string;
   clock: number;
   p: { x: number; z: number; yaw: number; hp: number; hunger: number; warmth: number };
   inv: Partial<Record<ItemId, number>>;
@@ -272,11 +313,98 @@ interface Save {
   home: { x: number; z: number } | null;
   satchel: { x: number; z: number; items: Partial<Record<ItemId, number>> } | null;
   ship: { until: number } | null;
-  stats: RunSummary & { cooked: number; opened: number; felled: number; caught: number };
+  stats: Stats;
   lastBuild: BuildId | null;
   sel: number;
   food: FoodId | null;
   nightDone: number;
+  /** How far down the island's list. */
+  obj: number;
+}
+
+/** Where the island in progress is kept (YouTube Playables allows no browser storage: there it lasts the session). */
+let memorySave: string | null = null;
+const runStore = {
+  get(): string | null {
+    if (inPlayables()) return memorySave;
+    try {
+      return window.localStorage.getItem(SAVE_KEY);
+    } catch {
+      return memorySave;
+    }
+  },
+  set(text: string | null) {
+    memorySave = text;
+    if (inPlayables()) return;
+    try {
+      if (text === null) window.localStorage.removeItem(SAVE_KEY);
+      else window.localStorage.setItem(SAVE_KEY, text);
+    } catch {
+      // Storage full or blocked: the island lasts for this visit only.
+    }
+  },
+};
+
+const fin = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const clampNum = (v: unknown, lo: number, hi: number, fallback: number) => (fin(v) ? Math.min(hi, Math.max(lo, v)) : fallback);
+
+/** A stack of items from a save: only known items, whole numbers, sensible amounts. */
+function saneItems(raw: unknown): Partial<Record<ItemId, number>> {
+  const out: Partial<Record<ItemId, number>> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Object.prototype.hasOwnProperty.call(ITEMS, k)) continue;
+    const n = Math.floor(Number(v));
+    if (Number.isFinite(n) && n > 0) out[k as ItemId] = Object.prototype.hasOwnProperty.call(TOOLS, k) ? 1 : Math.min(9999, n);
+  }
+  return out;
+}
+
+/**
+ * A saved island as the game can use it, or null when it isn't one (an old version, another game's
+ * data, hand-edited rubbish). Every field is checked: a broken save may lose things, never crash.
+ */
+function saneSave(raw: unknown): Save | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  if (r.v !== 2 || typeof r.island !== "string" || islandIndex(r.island) < 0 || !fin(r.clock) || r.clock < 0) return null;
+  const def = ISLANDS[islandIndex(r.island)];
+  const p = (r.p && typeof r.p === "object" ? r.p : {}) as Record<string, unknown>;
+  const spot = (v: unknown): { x: number; z: number } | null => {
+    const o = v as { x?: unknown; z?: unknown } | null;
+    return o && typeof o === "object" && fin(o.x) && fin(o.z) && Math.abs(o.x) < 80 && Math.abs(o.z) < 80 ? { x: o.x, z: o.z } : null;
+  };
+  const names = (v: unknown, known: object) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && Object.prototype.hasOwnProperty.call(known, x)) : []);
+  const s = (r.stats && typeof r.stats === "object" ? r.stats : {}) as Record<string, unknown>;
+  const count = (v: unknown) => Math.floor(clampNum(v, 0, 1e6, 0));
+  const killsBy: Partial<Record<CreatureKind, number>> = {};
+  const rawKills = (s.killsBy && typeof s.killsBy === "object" ? s.killsBy : {}) as Record<string, unknown>;
+  for (const k of CREATURE_KINDS) if (count(rawKills[k]) > 0) killsBy[k] = count(rawKills[k]);
+  const sat = r.satchel as { items?: unknown } | null;
+  const satSpot = spot(sat);
+  const ship = r.ship as { until?: unknown } | null;
+  return {
+    v: 2,
+    island: r.island,
+    clock: Math.min(r.clock, DAY * 5000),
+    // (A position that makes no sense is put right when the save is applied.)
+    p: { x: fin(p.x) ? p.x : NaN, z: fin(p.z) ? p.z : NaN, yaw: clampNum(p.yaw, -1e3, 1e3, 0), hp: clampNum(p.hp, 1, 1000, 100), hunger: clampNum(p.hunger, 0, 100, 100), warmth: clampNum(p.warmth, 0, 100, 100) },
+    inv: saneItems(r.inv),
+    seen: names(r.seen, ITEMS),
+    crafted: names(r.crafted, RECIPE) as RecipeId[],
+    structures: (Array.isArray(r.structures) ? r.structures : []) as SavedStructure[],
+    nodes: (Array.isArray(r.nodes) ? r.nodes : []) as (number | string)[][],
+    notes: Array.isArray(r.notes) ? [...new Set(r.notes.filter((n): n is number => Number.isInteger(n) && n >= 0 && n < def.notes.length))] : [],
+    home: spot(r.home),
+    satchel: satSpot ? { ...satSpot, items: saneItems(sat?.items) } : null,
+    ship: ship && typeof ship === "object" && fin(ship.until) ? { until: ship.until } : null,
+    stats: { kills: count(s.kills), killsBy, crafted: count(s.crafted), built: count(s.built), fish: count(s.fish), deaths: count(s.deaths), cooked: count(s.cooked), felled: count(s.felled), caught: count(s.caught) },
+    lastBuild: typeof r.lastBuild === "string" && Object.prototype.hasOwnProperty.call(BUILDS, r.lastBuild) ? (r.lastBuild as BuildId) : null,
+    sel: Math.floor(clampNum(r.sel, 0, 5, 0)),
+    food: typeof r.food === "string" && Object.prototype.hasOwnProperty.call(FOOD, r.food) ? (r.food as FoodId) : null,
+    nightDone: count(r.nightDone),
+    obj: Math.floor(clampNum(r.obj, 0, def.objectives.length - 1, 0)),
+  };
 }
 
 // --- Game ------------------------------------------------------------------------------------------
@@ -289,12 +417,25 @@ export class CastawayGame {
   private readonly timer = new THREE.Timer();
   private raf = 0;
   private disposed = false;
+  /** YouTube Playables paused the game: no frames at all. */
+  private suspended = false;
   private resizeObserver: ResizeObserver | null = null;
-  private readonly res = { safe: 1, max: 1, min: 0.6, cur: 1, acc: 0, n: 0, good: 0 };
+  private readonly adaptive: AdaptiveRes;
   private readonly coarse: boolean;
 
+  // The island being played (or shown behind the menu), and what the player bought.
+  private islandNo = 0;
+  private def: IslandDef = ISLANDS[0];
+  private loadout: Loadout = { castaway: CASTAWAYS[0].id, kit: KITS[0].id, perks: {} };
+  private castawayId = CASTAWAYS[0].id;
+  private castawayWanted = CASTAWAYS[0].id;
+  private maxHp = SURVIVAL.maxHealth;
+  private hungerK = 1;
+  private coldK = 1;
+  private damageK = 1;
+
   // Environment
-  private readonly island = new Island();
+  private island = new Island(ISLANDS[0]);
   private readonly skyDome = new SkyDome();
   private readonly sea: Water;
   private readonly pond: Water;
@@ -323,6 +464,10 @@ export class CastawayGame {
   private readonly fire = new Particles(900, true);
   private readonly dust = new Particles(900, false);
   private readonly smoke = new Particles(260, false);
+  /** Rain and snow, falling around the castaway. */
+  private readonly precip = new Particles(700, false);
+  private precipAcc = 0;
+  private readonly weather = { level: 0, shade: false, gloom: 0, fogK: 1 };
   private readonly popups = new Popups(18);
   private readonly focusRing = new Ring("#fb923c", { width: 0.14, dash: 10 });
   private readonly placeRing = new Ring("#4ade80", { width: 0.1 });
@@ -349,10 +494,14 @@ export class CastawayGame {
   private spawnQueue: { at: number; kind: CreatureKind }[] = [];
   private nightStart = -1;
   private nightDone = 0;
+  /** The night the Drowned Captain last came on. */
+  private bossNight = -1;
   private lastT = 0;
-  private stats = { day: 1, days: 0, kills: 0, crafted: 0, built: 0, fish: 0, deaths: 0, cooked: 0, opened: 0, felled: 0, caught: 0 };
+  private stats = freshStats();
   private achieved = new Set<string>();
   private objective = 0;
+  private sailed = false;
+  private bonus = false;
   private hudCache = "";
   private hudT = 0;
   private checkT = 0;
@@ -390,10 +539,8 @@ export class CastawayGame {
   ) {
     this.coarse = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.res.max = Math.min(window.devicePixelRatio, 2);
-    this.res.safe = this.res.cur = Math.min(this.res.max, this.coarse ? 1.5 : 2);
-    this.res.min = Math.min(this.res.max, 0.6);
-    this.renderer.setPixelRatio(this.res.cur);
+    // Phones start a little under their own sharpness and climb while the frames stay smooth.
+    this.adaptive = new AdaptiveRes(this.renderer, () => this.resize(), { start: this.coarse ? 1.5 : 2, max: 2, min: 0.6 });
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
@@ -449,18 +596,25 @@ export class CastawayGame {
     const ground = (x: number, z: number) => Math.max(this.island.height(x, z), this.island.waterLevel(x, z) - 0.02);
     this.dust.ground = ground;
     this.fire.ground = ground;
-    scene.add(this.fire.points, this.dust.points, this.smoke.points, this.popups.group, this.focusRing.mesh, this.placeRing.mesh, this.telegraphs.group);
+    scene.add(this.fire.points, this.dust.points, this.smoke.points, this.precip.points, this.popups.group, this.focusRing.mesh, this.placeRing.mesh, this.telegraphs.group);
   }
 
-  async load(sizes: Record<string, number>) {
+  /** Loads the models and shows the menu on `island`, with the castaway from `loadout`. */
+  async load(sizes: Record<string, number>, loadout: Loadout, island = 0) {
     try {
-      const models = await loadModels(MODELS, this.renderer, (p) => !this.disposed && this.events.progress(p), { sizes });
+      this.loadout = loadout;
+      // The castaway the player picked comes with the first batch; the others load when they are tried on.
+      const picked = CASTAWAYS.find((c) => c.id === loadout.castaway) ?? CASTAWAYS[0];
+      const keys = picked.model === CHAR.player ? MODELS : [CHAR.player, picked.model, ...MODELS.slice(1)];
+      const models = await loadModels(keys, this.renderer, (p) => !this.disposed && this.events.progress(p), { sizes });
       if (this.disposed) return;
       this.models = models;
       const required = [CHAR.player, WORLD.tree, WORLD.palm, WORLD.rockA, BUILD.campfire, CHAR.crab];
       if (!required.every((k) => models.has(k))) throw new Error("Some game models could not be loaded. Check your connection and reload.");
       this.bakeAll(models);
-      this.buildPlayer(models.get(CHAR.player)!);
+      const body = models.get(picked.model);
+      this.buildPlayer(body ?? models.get(CHAR.player)!);
+      this.castawayId = this.castawayWanted = body ? picked.id : CASTAWAYS[0].id;
       this.buildCreatureAssets(models);
       const shipB = this.baked.get(WORLD.ship);
       if (shipB) {
@@ -481,19 +635,19 @@ export class CastawayGame {
       this.events.icons(this.icons);
       this.structures = new Structures(this.baked, (x, z) => this.island.height(x, z));
       this.scene.add(this.structures.group);
-      this.newWorld();
-      // Original parsed scenes aren't needed any more (bakes and the characters keep what they use).
-      for (const [key, m] of models) if (!key.startsWith("mini-characters") && !key.startsWith("graveyard-kit") && !key.startsWith("cube-pets")) disposeTree(m.scene);
+      // Original parsed scenes aren't needed any more (the bakes copied what they use; the characters keep theirs).
+      const characters = new Set<string>(Object.values(CHAR));
+      for (const [key, m] of models) if (!characters.has(key)) disposeTree(m.scene);
       for (let i = 0; i < 4; i++) this.creature("crab");
       for (let i = 0; i < 2; i++) this.creature("drowned");
       this.creature("brute");
       this.creature("ghost");
+      this.setIsland(island, true);
       this.setMenuScene();
       this.renderer.compile(this.scene, this.camera);
       music.play(ISLAND_DRIFT, 0);
       this.setPhase("menu");
       this.events.saved(CastawayGame.saveInfo());
-      if (process.env.NODE_ENV !== "production") (window as unknown as { __castaway?: CastawayGame }).__castaway = this;
     } catch (err) {
       console.error(err);
       this.setPhase("error");
@@ -568,42 +722,115 @@ export class CastawayGame {
     }
     const anim = new Animator(m.scene, m.animations);
     anim.play("idle");
-    this.p = {
-      root,
-      model: proto.object,
-      anim,
-      hand,
-      held,
-      heldKey: null,
-      charScale,
-      x: 0,
-      z: 0,
-      y: 0,
-      yaw: Math.PI,
-      vx: 0,
-      vz: 0,
-      state: "free",
-      act: null,
-      swing: null,
-      combo: 0,
-      comboT: 0,
-      hp: 100,
-      hunger: 100,
-      warmth: 100,
-      invuln: 0,
-      stepT: 0,
-      kx: 0,
-      kz: 0,
-      deadT: 0,
-    };
+    const body = { root, model: proto.object, anim, hand, held, heldKey: null, charScale };
+    // A new castaway steps into the old one's place: same spot, same state.
+    if (this.p) Object.assign(this.p, body);
+    else {
+      this.p = {
+        ...body,
+        x: 0,
+        z: 0,
+        y: 0,
+        yaw: Math.PI,
+        vx: 0,
+        vz: 0,
+        state: "free",
+        act: null,
+        swing: null,
+        combo: 0,
+        comboT: 0,
+        hp: this.maxHp,
+        hunger: 100,
+        warmth: 100,
+        invuln: 0,
+        stepT: 0,
+        kx: 0,
+        kz: 0,
+        deadT: 0,
+      };
+    }
+  }
+
+  /**
+   * Puts another castaway in the player's place (from the shop). Its model is downloaded the first
+   * time; `onProgress` follows that. False when it could not be loaded or a newer pick overtook it.
+   */
+  async setCastaway(id: string, onProgress?: (ratio: number) => void): Promise<boolean> {
+    const def = CASTAWAYS.find((c) => c.id === id) ?? CASTAWAYS[0];
+    this.castawayWanted = def.id;
+    if (def.id === this.castawayId) return true;
+    if (!this.models || !this.p) return false;
+    let m = this.models.get(def.model);
+    if (!m) {
+      const loaded = await loadModels([def.model], this.renderer, (p) => onProgress?.(p.ratio));
+      if (this.disposed) return false;
+      m = loaded.get(def.model);
+      if (!m) return false;
+      this.models.set(def.model, m);
+    }
+    // Another castaway was picked while this one was on its way, or the island is being played.
+    if (this.castawayWanted !== def.id || this.castawayId === def.id) return this.castawayId === def.id;
+    if (this.phase !== "menu" && this.p.state !== "free") return false;
+    const old = this.p;
+    const heldKey = old.heldKey;
+    for (const h of old.held.values()) h.removeFromParent();
+    old.anim.stopAll();
+    old.model.rotation.set(0, 0, 0);
+    old.model.position.set(0, 0, 0);
+    old.root.removeFromParent();
+    this.buildPlayer(m);
+    this.castawayId = def.id;
+    this.p.root.position.set(old.x, old.y, old.z);
+    this.p.root.rotation.y = old.yaw;
+    this.setHeld(heldKey);
+    this.p.anim.play(this.phase === "menu" ? "sit" : "idle", { fade: 0 });
+    return true;
+  }
+
+  /** The castaway standing in the game right now. */
+  get castaway() {
+    return this.castawayId;
+  }
+
+  /** What the player bought: applies from the next island started (the castaway's model is set with setCastaway). */
+  setLoadout(loadout: Loadout) {
+    this.loadout = loadout;
+  }
+
+  /** The island's ground, sea and pond (`force`: also when it is the island already up). */
+  private setIsland(i: number, force = false) {
+    const def = ISLANDS[i] ?? ISLANDS[0];
+    if (def === this.def && !force) return;
+    this.island.dispose();
+    this.island = new Island(def);
+    this.scene.add(this.island.mesh);
+    this.def = def;
+    this.islandNo = ISLANDS.indexOf(def);
+    this.sea.setGround(this.island.heightTexture);
+    this.sea.colors = def.water;
+    this.pond.setGround(this.island.heightTexture);
+    this.pond.mesh.visible = POND.r > 0;
+    this.pond.mesh.position.set(POND.x, POND.level, POND.z);
+    this.precip.clear();
+    this.weather.level = 0;
+  }
+
+  /** The menu's backdrop turns to another island (the chart's pick). */
+  showIsland(i: number) {
+    if (this.phase !== "menu" || !this.p || ISLANDS[i] === this.def || !ISLANDS[i]) return;
+    this.setIsland(i);
+    this.setMenuScene();
   }
 
   private buildCreatureAssets(models: Map<string, LoadedModel>) {
     const defs: [CreatureKind, string, number][] = [
-      [ "crab", CHAR.crab, 0.9 ],
-      [ "drowned", CHAR.drowned, 1.65 ],
-      [ "brute", CHAR.brute, 2.2 ],
-      [ "ghost", CHAR.ghost, 1.5 ],
+      ["crab", CHAR.crab, 0.9],
+      ["drowned", CHAR.drowned, 1.65],
+      ["brute", CHAR.brute, 2.2],
+      ["ghost", CHAR.ghost, 1.5],
+      ["boar", CHAR.boar, 1.05],
+      ["bear", CHAR.bear, 1.55],
+      ["captain", CHAR.captain, 2.5],
     ];
     for (const [kind, key, height] of defs) {
       const m = models.get(key);
@@ -638,7 +865,7 @@ export class CastawayGame {
       this.world.group.removeFromParent();
       this.world.dispose();
     }
-    this.world = new World(this.island, this.baked);
+    this.world = new World(this.island, this.baked, this.def);
     this.world.blocked = (n) => {
       if (n.r <= 0) return false;
       if (Math.hypot(this.p.x - n.x, this.p.z - n.z) < n.r + 1) return true;
@@ -673,13 +900,23 @@ export class CastawayGame {
     this.structures.add("fence", CAMP.x - 1.6, CAMP.z - 5.2, 0.2);
     this.structures.add("torchPost", CAMP.x + 4.2, CAMP.z + 1.8, 0);
     this.clock = DAY * 0.655;
-    this.p.x = CAMP.x + 1.5;
-    this.p.z = CAMP.z + 1.3;
-    this.p.yaw = yawTo(CAMP.x - this.p.x, CAMP.z - this.p.z);
-    this.p.state = "free";
-    this.p.root.visible = true;
-    this.p.anim.play("sit", { fade: 0 });
+    const p = this.p;
+    p.x = CAMP.x + 1.5;
+    p.z = CAMP.z + 1.3;
+    p.yaw = yawTo(CAMP.x - p.x, CAMP.z - p.z);
+    p.state = "free";
+    p.act = null;
+    p.swing = null;
+    p.root.visible = true;
+    p.root.rotation.set(0, 0, 0);
+    p.model.rotation.set(0, 0, 0);
+    p.model.position.set(0, 0, 0);
+    p.anim.play("sit", { fade: 0 });
+    this.sleepingIn = null;
     this.setHeld(HELD.axe);
+    // A taste of the island's weather behind the menu.
+    const w = this.def.climate.weather;
+    this.weather.level = w === "rain" || w === "blizzard" ? 0.5 : w === "fog" ? 0.7 : 0;
     this.menuT = 0;
     this.camInit = false;
   }
@@ -693,23 +930,48 @@ export class CastawayGame {
     this.fire.clear();
     this.dust.clear();
     this.smoke.clear();
+    this.precip.clear();
     this.popups.clear();
     this.cancelPlacing();
     this.fishing = null;
     this.spawnQueue = [];
     this.raft = null;
     this.escapeT = -1;
+    this.sailed = false;
+    this.clearInput();
+    this.actionBuf = 0;
     if (this.ship) this.ship.visible = false;
     if (this.satchelMesh) this.satchelMesh.visible = false;
   }
 
-  /** New game, or carry on from the save. */
-  start(resume: boolean) {
+  /** What the perks and the castaway change. */
+  private applyLoadout() {
+    const l = this.loadout;
+    this.maxHp = SURVIVAL.maxHealth + 15 * perkLevel(l, "vigor");
+    this.hungerK = 1 - 0.1 * perkLevel(l, "belly");
+    this.coldK = (1 - 0.15 * perkLevel(l, "coat")) * (l.castaway === "yuki" ? 0.67 : 1);
+    this.damageK = (1 + 0.12 * perkLevel(l, "arm")) * (l.castaway === "brom" ? 1.25 : 1);
+  }
+
+  /** Things the castaway lands with: tools are owned once, the rest stacks. */
+  private bring(items: Loot) {
+    for (const [id, n] of Object.entries(items) as [ItemId, number][]) {
+      if (!(n > 0)) continue;
+      this.inv[id] = id in TOOLS ? 1 : this.count(id) + n;
+      this.seen.add(id);
+    }
+  }
+
+  /** A fresh landing on `island`, or (with `resume`) the island in progress from the save. */
+  start(island: number, resume = false) {
     if (!this.p) return;
     audio.unlock();
+    this.setShowcase(false);
     const save = resume ? CastawayGame.readSave() : null;
     this.clearRun();
+    this.setIsland(save ? islandIndex(save.island) : island);
     this.newWorld();
+    this.applyLoadout();
     this.inv = {};
     this.seen = new Set();
     this.crafted = new Set();
@@ -720,29 +982,55 @@ export class CastawayGame {
     this.selected = 0;
     this.food = null;
     this.lastBuild = null;
+    this.lastRot = {};
+    this.preferHammer = true;
     this.achieved = new Set();
-    this.stats = { day: 1, days: 0, kills: 0, crafted: 0, built: 0, fish: 0, deaths: 0, cooked: 0, opened: 0, felled: 0, caught: 0 };
+    this.stats = freshStats();
     this.nightDone = 0;
     this.nightStart = -1;
+    this.bossNight = -1;
+    this.objective = 0;
+    this.bonus = false;
+    this.sleepingIn = null;
+    this.attackedT = 0;
+    this.shake = 0;
+    this.saveT = 0;
     const p = this.p;
     p.state = "free";
     p.act = null;
     p.swing = null;
-    p.hp = 100;
+    p.combo = 0;
+    p.comboT = 0;
+    p.hp = this.maxHp;
     p.hunger = 100;
     p.warmth = 100;
     p.invuln = 2;
+    p.deadT = 0;
     p.vx = p.vz = p.kx = p.kz = 0;
     p.root.rotation.set(0, 0, 0);
-    if (save) this.applySave(save);
-    else {
-      this.clock = START_CLOCK;
+    p.model.rotation.set(0, 0, 0);
+    p.model.position.set(0, 0, 0);
+    const land = () => {
       p.x = COVE.x - 5;
       p.z = COVE.z - 6.5;
-      // Facing the wreck, the camera looking past the castaway out to sea.
+      // Facing the cove, the camera looking past the castaway out to sea.
       p.yaw = yawTo(COVE.x - p.x, COVE.z + 1.5 - p.z);
-      this.events.banner("Day 1", "Washed ashore");
+    };
+    if (save) {
+      this.applySave(save);
+      // A saved spot out at sea or off the map: back to the landing beach.
+      if (!fin(p.x) || !fin(p.z) || Math.abs(p.x) > 80 || Math.abs(p.z) > 80 || this.island.height(p.x, p.z) < this.island.waterLevel(p.x, p.z) - 0.85) land();
+    } else {
+      this.clock = START_CLOCK;
+      land();
+      this.bring(this.def.gear);
+      this.bring((KITS.find((k) => k.id === this.loadout.kit) ?? KITS[0]).items);
+      this.food = this.foodsOwned()[0] ?? null;
+      this.events.banner(this.def.name, this.def.intro);
     }
+    // Recipes known on landing are not "new".
+    this.knownRecipes = new Set(this.unlockedList());
+    this.spawnWild();
     this.lastT = (this.clock % DAY) / DAY;
     this.camYaw = p.yaw + Math.PI;
     this.camDist = this.coarse ? 12 : 11;
@@ -750,14 +1038,32 @@ export class CastawayGame {
     this.camInit = false;
     this.p.anim.play("idle", { fade: 0 });
     this.updateHeld();
-    this.objective = this.computeObjective();
     this.hudCache = "";
+    this.checkT = 0.6;
     this.sfx.start();
     music.play(ISLAND_DRIFT, 1);
     music.setIntensity(1);
     music.duck(false);
     this.setPhase("playing");
+    this.emitHud(true);
     this.save();
+  }
+
+  /** The island again from its landing (the one in progress is thrown away). */
+  restart() {
+    if (!this.p || this.phase === "loading" || this.phase === "error") return;
+    CastawayGame.clearSave();
+    this.start(this.islandNo);
+  }
+
+  /** The island being played (or shown behind the menu). */
+  get islandIndex() {
+    return this.islandNo;
+  }
+
+  /** YouTube Playables pauses and resumes the whole game: while suspended no frame runs. */
+  setSuspended(on: boolean) {
+    this.suspended = on;
   }
 
   pause() {
@@ -788,6 +1094,8 @@ export class CastawayGame {
   }
 
   toMenu() {
+    // Leaving from the "you passed out" screen: the island is kept as it will be on waking.
+    if (this.phase === "dead") this.respawn();
     if (this.phase === "playing" || this.phase === "paused" || this.phase === "book") this.save();
     music.play(ISLAND_DRIFT, 0);
     music.setIntensity(0);
@@ -801,10 +1109,8 @@ export class CastawayGame {
 
   static readSave(): Save | null {
     try {
-      const raw = window.localStorage.getItem(SAVE_KEY);
-      if (!raw) return null;
-      const s = JSON.parse(raw) as Save;
-      return s && s.v === 1 ? s : null;
+      const raw = runStore.get();
+      return raw ? saneSave(JSON.parse(raw)) : null;
     } catch {
       return null;
     }
@@ -812,22 +1118,19 @@ export class CastawayGame {
 
   static saveInfo(): SaveInfo | null {
     const s = CastawayGame.readSave();
-    return s ? { day: Math.floor(s.clock / DAY) + 1, t: (s.clock % DAY) / DAY } : null;
+    return s ? { island: islandIndex(s.island), day: Math.floor(s.clock / DAY) + 1, t: (s.clock % DAY) / DAY, done: s.obj } : null;
   }
 
   static clearSave() {
-    try {
-      window.localStorage.removeItem(SAVE_KEY);
-    } catch {
-      // Storage blocked.
-    }
+    runStore.set(null);
   }
 
   private save() {
     if (!this.p || this.p.state === "dead" || this.escapeT >= 0 || (this.phase !== "playing" && this.phase !== "paused" && this.phase !== "book")) return;
     const p = this.p;
     const s: Save = {
-      v: 1,
+      v: 2,
+      island: this.def.id,
       clock: Math.round(this.clock * 10) / 10,
       p: { x: round2(p.x), z: round2(p.z), yaw: round2(p.yaw), hp: round2(p.hp), hunger: round2(p.hunger), warmth: round2(p.warmth) },
       inv: this.inv,
@@ -844,12 +1147,14 @@ export class CastawayGame {
       sel: this.selected,
       food: this.food,
       nightDone: this.nightDone,
+      obj: this.objective,
     };
     try {
-      window.localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+      runStore.set(JSON.stringify(s));
     } catch {
-      // Storage full or blocked: the run just isn't saved.
+      // Something in it wouldn't serialize: the island just isn't saved this time.
     }
+    this.events.saved({ island: this.islandNo, day: Math.floor(this.clock / DAY) + 1, t: (this.clock % DAY) / DAY, done: this.objective });
   }
 
   private applySave(s: Save) {
@@ -858,27 +1163,29 @@ export class CastawayGame {
     p.x = s.p.x;
     p.z = s.p.z;
     p.yaw = s.p.yaw;
-    p.hp = s.p.hp;
+    p.hp = Math.min(this.maxHp, s.p.hp);
     p.hunger = s.p.hunger;
     p.warmth = s.p.warmth;
     this.inv = { ...s.inv };
     this.seen = new Set(s.seen);
+    for (const id of Object.keys(this.inv)) this.seen.add(id);
     this.crafted = new Set(s.crafted);
     this.notes = new Set(s.notes);
     this.home = s.home;
     this.satchel = s.satchel;
-    this.stats = { ...this.stats, ...s.stats };
+    this.stats = { ...freshStats(), ...s.stats, killsBy: { ...s.stats.killsBy } };
     this.lastBuild = s.lastBuild;
-    this.selected = s.sel ?? 0;
+    this.selected = s.sel;
     this.food = s.food;
-    this.nightDone = s.nightDone ?? 0;
+    this.nightDone = s.nightDone;
+    this.objective = s.obj;
     this.world.restore(s.nodes);
     this.structures.restore(s.structures);
     this.raft = this.structures.list.find((x) => x.kind === "raft") ?? null;
-    if (s.ship && s.ship.until > this.clock) this.showShip(s.ship.until, false);
+    if (this.def.escape === "ship" && s.ship && s.ship.until > this.clock) this.showShip(s.ship.until, false);
     this.updateSatchel();
     const day = Math.floor(this.clock / DAY) + 1;
-    this.events.banner(`Day ${day}`, "Back on the island");
+    this.events.banner(`Day ${day}`, `Back on ${this.def.name}`);
     // A night already under way keeps raiding.
     const t = (this.clock % DAY) / DAY;
     if (t >= NIGHT && t < DAWN) this.beginNight(day, (t - NIGHT) * DAY);
@@ -1005,11 +1312,12 @@ export class CastawayGame {
     const spot = h ?? { x: CAMP.x + 1, z: CAMP.z + 2 };
     p.x = spot.x + 1.2;
     p.z = spot.z + 0.8;
-    p.hp = 60;
+    p.hp = Math.round(this.maxHp * 0.6);
     p.hunger = Math.max(p.hunger, 45);
     p.warmth = Math.max(p.warmth, 70);
     p.state = "free";
     p.invuln = 4;
+    p.vx = p.vz = p.kx = p.kz = 0;
     p.root.rotation.set(0, 0, 0);
     p.anim.play("idle", { fade: 0 });
     // Creatures right on top of the spawn back off.
@@ -1080,7 +1388,9 @@ export class CastawayGame {
   private unlocked(id: RecipeId) {
     const r = RECIPE[id];
     if (!r) return false;
-    if (r.after && !this.crafted.has(r.after) && !this.builtKinds.has(r.after as BuildId)) return false;
+    if (r.shipOnly && this.def.escape !== "ship") return false;
+    // (A tool brought along counts like one crafted here.)
+    if (r.after && !this.crafted.has(r.after) && !this.builtKinds.has(r.after as BuildId) && !this.has(r.after as ItemId)) return false;
     return Object.keys(r.cost).every((k) => this.seen.has(k));
   }
 
@@ -1310,9 +1620,9 @@ export class CastawayGame {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.frame);
     this.timer.update(time);
-    const real = Math.min(this.timer.getDelta(), 1 / 20);
-    if (this.phase === "loading" || this.phase === "error" || !this.p) return;
-    if (this.phase === "playing" || this.phase === "menu") this.adaptResolution(real);
+    const raw = this.timer.getDelta();
+    const real = Math.min(raw, 1 / 20);
+    if (this.suspended || this.phase === "loading" || this.phase === "error" || !this.p) return;
     this.elapsed += real;
 
     if (this.phase === "playing") {
@@ -1323,14 +1633,18 @@ export class CastawayGame {
     else if (this.phase === "dead" || this.phase === "won") this.updateIdle(real);
 
     if (this.phase !== "paused" && this.phase !== "book") {
+      this.updatePrecip(real);
       this.fire.update(real);
       this.dust.update(real);
       this.smoke.update(real);
+      this.precip.update(real);
       this.popups.update(real);
       this.telegraphs.update(this.phase === "playing" ? real : 0);
     }
     this.updateEnvironment(real);
     this.updateCamera(this.phase === "paused" || this.phase === "book" ? 0 : real);
+    // (Right before the frame is drawn: changing the pixel ratio clears the canvas.)
+    if (this.phase === "playing" || this.phase === "menu") this.adaptive.tick(raw);
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -1371,9 +1685,16 @@ export class CastawayGame {
 
     this.world.update(dt, this.clock);
     this.structures.update(dt, { fire: this.fire, smoke: this.smoke });
+    this.updateWeather(dt, t, day);
     this.updatePlayer(dt);
     this.updateSurvival(dt, t);
     this.updateNight(dt, t, day);
+    // Crates worth finding (the wreck's, the cache's, the buried chest) sparkle until opened.
+    for (const n of this.world.specials) {
+      if (!n.alive || Math.random() > dt * (n.hidden ? 16 : 4)) continue;
+      const up = n.hidden ? rand(0, 9) : rand(0, 1.4);
+      this.fire.emit({ x: n.x + rand(-0.45, 0.45), y: n.y + 0.5 + up, z: n.z + rand(-0.45, 0.45), vy: rand(0.5, 1.3), life: rand(0.8, 1.3), size: n.hidden ? 0.2 : 0.13, endSize: 0.02, color: "#fff2a8", endColor: "#ffb020", alpha: 0.9 });
+    }
     const ctx = this.creatureCtx;
     ctx.player.x = p.x;
     ctx.player.z = p.z;
@@ -1387,7 +1708,7 @@ export class CastawayGame {
       if (!c.active) continue;
       c.update(dt, ctx);
       c.bar.update(dt, this.camera, c.x, c.y + c.def.height + 0.45, c.z);
-      if (c.active && c.state !== "dying") alive++;
+      if (c.hostile) alive++;
     }
     this.updatePickups(dt);
     this.updateShip(dt);
@@ -1405,7 +1726,8 @@ export class CastawayGame {
     const shore = Math.max(0, 1 - Math.max(0, this.island.height(p.x, p.z) - 0.3) / 3);
     let fireNear = 0;
     for (const s of this.structures.list) if (s.light > 0) fireNear = Math.max(fireNear, 1 - Math.min(1, Math.hypot(s.x - p.x, s.z - p.z) / (s.kind === "signal" ? 18 : 10)));
-    this.sfx.ambience(realDt, this.elapsed, { sea: shore, night: this.sky.darkness, fire: fireNear });
+    const wk = this.def.climate.weather;
+    this.sfx.ambience(realDt, this.elapsed, { sea: shore, night: this.sky.darkness, fire: fireNear, rain: wk === "rain" ? this.weather.level : 0, gale: wk === "blizzard" ? this.weather.level : 0 });
 
     this.checkT -= realDt;
     if (this.checkT <= 0) {
@@ -1445,6 +1767,9 @@ export class CastawayGame {
     if (this.shipUntil > 0 && this.clock > this.shipUntil && this.escapeT < 0) {
       this.shipUntil = 0;
       if (this.ship) this.ship.visible = false;
+      // Back to "light the signal fire": the ship has to be called again.
+      const last = this.def.objectives.length - 1;
+      if (this.objective === last) this.objective = last - 1;
       this.events.banner("The ship sailed on", "Light the signal fire again tonight");
     }
   }
@@ -1452,7 +1777,7 @@ export class CastawayGame {
   private beginNight(day: number, elapsed: number) {
     this.nightStart = this.clock - elapsed;
     for (const s of this.structures.list) if (s.kind === "signal") s.burn = 0;
-    const plan = raidPlan(day);
+    const plan = this.def.raid(day);
     const r = rng(day * 977 + 13);
     for (let i = plan.length - 1; i > 0; i--) {
       const j = Math.floor(r() * (i + 1));
@@ -1464,8 +1789,6 @@ export class CastawayGame {
   }
 
   private newDay(day: number) {
-    this.stats.day = day;
-    this.events.day(day);
     this.sfx.dawn();
     if (day - 1 > this.nightDone) {
       this.nightDone = day - 1;
@@ -1475,13 +1798,15 @@ export class CastawayGame {
     this.events.banner(`Day ${day}`, this.dawnLine(day));
     // Signal fires that burnt through most of the night bring a ship.
     const signal = this.structures.list.find((s) => s.kind === "signal");
-    if (signal && signal.lit && signal.burn >= NIGHT_LEN * 0.6) {
+    if (this.def.escape === "ship" && signal && signal.lit && signal.burn >= NIGHT_LEN * 0.6) {
       this.showShip(this.clock + DAY * (DUSK + 0.02), true);
     }
     for (const s of this.structures.list) if (s.kind === "signal") s.lit = false;
+    // The island's animals come back.
+    this.spawnWild();
     // Flotsam washes up.
-    const r = rng(day * 31 + 7);
-    const n = this.world.washUp(1 + (day % 2), r, () => {
+    const r = rng(day * 31 + 7 + this.def.terrain.seed * 1000);
+    const n = this.world.washUp(this.def.flotsam + (day % 2) + perkLevel(this.loadout, "comber"), r, () => {
       const loot: Partial<Record<ItemId, number>> = { planks: 2 + Math.floor(r() * 3), fiber: 2 };
       if (r() < 0.65) loot.scrap = 1 + Math.floor(r() * 2);
       if (r() < 0.4) loot.cloth = 1;
@@ -1519,32 +1844,126 @@ export class CastawayGame {
     if (t < NIGHT || t >= DAWN || this.nightStart < 0) return;
     const into = this.clock - this.nightStart;
     // Signal fire burn time.
-    for (const s of this.structures.list) if (s.kind === "signal" && s.lit) s.burn += dt;
+    let signal = false;
+    for (const s of this.structures.list) {
+      if (s.kind !== "signal" || !s.lit) continue;
+      s.burn += dt;
+      signal = true;
+    }
     while (this.spawnQueue.length && this.spawnQueue[0].at <= into) {
       const next = this.spawnQueue.shift()!;
       this.spawnCreature(next.kind, day);
     }
+    // The Drowned Captain comes for a burning signal fire, once a night.
+    if (this.def.boss && signal && this.bossNight !== day && into > NIGHT_LEN * 0.28 && into < NIGHT_LEN * 0.8) {
+      this.bossNight = day;
+      if (this.spawnCreature("captain", day, true)) {
+        this.sfx.nightFalls();
+        this.events.banner("The Drowned Captain", "He has come for your signal fire");
+      }
+    }
   }
 
-  private spawnCreature(kind: CreatureKind, day: number) {
+  /** Something climbs out of the surf on the castaway's side of the island. */
+  private spawnCreature(kind: CreatureKind, day: number, always = false) {
     const alive = this.creatures.filter((c) => c.active).length;
-    if (alive >= MAX_CREATURES) return;
+    if (alive >= MAX_CREATURES && !always) return false;
     const c = this.creature(kind);
-    if (!c) return;
+    if (!c) return false;
     const p = this.p;
     const pa = Math.atan2(p.z, p.x);
-    for (let k = 0; k < 30; k++) {
-      const a = pa + rand(-1.3, 1.3);
+    for (let k = 0; k < 60; k++) {
+      const a = pa + rand(-1.3, 1.3) * (k < 30 ? 1 : 2.4);
       const d = this.island.coast(a) * rand(1.04, 1.1);
       const x = Math.cos(a) * d;
       const z = Math.sin(a) * d;
       const h = this.island.height(x, z);
       if (h > -0.5 || h < -2.6) continue;
       if (Math.hypot(x - p.x, z - p.z) < 14) continue;
-      const hp = Math.round(c.def.hp * (1 + 0.08 * (day - 1)));
+      const hp = Math.round(c.def.hp * (c.def.boss ? 1 : 1 + 0.08 * (day - 1)));
       c.spawn(x, z, hp, this.creatureCtx);
       c.maxHp = hp;
-      return;
+      return true;
+    }
+    return false;
+  }
+
+  /** Tops the island's animals up to their number, somewhere inland and away from the camp and the castaway. */
+  private spawnWild() {
+    const p = this.p;
+    for (const w of this.def.wild) {
+      let have = this.creatures.filter((c) => c.active && c.kind === w.kind && c.state !== "dying").length;
+      for (let k = 0; k < 300 && have < w.count; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const d = 8 + Math.random() * 30;
+        const x = Math.cos(a) * d;
+        const z = Math.sin(a) * d;
+        const b = this.island.biome(x, z);
+        if ((b !== "grass" && b !== "forest") || this.island.slope(x, z) > 0.6) continue;
+        if (Math.hypot(x - CAMP.x, z - CAMP.z) < 20 || Math.hypot(x - p.x, z - p.z) < 18) continue;
+        const c = this.creature(w.kind);
+        if (!c) break;
+        c.spawn(x, z, c.def.hp, this.creatureCtx);
+        c.maxHp = c.def.hp;
+        have++;
+      }
+    }
+  }
+
+  /** How hard the island's weather is coming down at this time of this day (0 = clear), the same on every visit. */
+  private weatherTarget(day: number, t: number) {
+    const kind = this.def.climate.weather;
+    if (kind === "none") return 0;
+    const night = t >= NIGHT && t < DAWN;
+    if (kind === "fog") return night ? 1 : 0.6;
+    const bump = (a: number, b: number) => (t > a && t < b ? Math.min(1, (t - a) / 0.03, (b - t) / 0.03) : 0);
+    // The sun is at its worst around noon.
+    if (kind === "heat") return bump(0.2, 0.58);
+    const r = rng(this.def.terrain.seed * 7919 + day * 131);
+    const start = (kind === "rain" ? 0.26 : 0.4) + r() * 0.2;
+    const len = 0.11 + r() * 0.08;
+    const atNight = r() < (kind === "rain" ? 0.7 : 0.6);
+    // The first morning is always fair: time to make camp.
+    if (day === 1 && t < 0.3) return 0;
+    return Math.max(bump(start, start + len), atNight ? bump(0.73, 0.93) * 0.85 : 0);
+  }
+
+  private updateWeather(dt: number, t: number, day: number) {
+    const w = this.weather;
+    const kind = this.def.climate.weather;
+    w.level += (this.weatherTarget(day, t) - w.level) * (1 - Math.exp(-dt * 1.2));
+    if (w.level < 0.005) w.level = 0;
+    // Rain eats the campfires' wood.
+    if (kind === "rain" && w.level > 0.1) {
+      for (const s of this.structures.list) if (s.kind === "campfire" && s.lit) s.fuel = Math.max(0, s.fuel - dt * 1.5 * w.level);
+    }
+    // Shade from the heat: under a palm, by a tent, or standing in water.
+    if (kind === "heat") {
+      const p = this.p;
+      let shade = this.island.height(p.x, p.z) < this.island.waterLevel(p.x, p.z) - 0.12;
+      if (!shade) for (const s of this.structures.list) if (s.kind === "tent" && Math.hypot(s.x - p.x, s.z - p.z) < 3) shade = true;
+      if (!shade) for (const n of this.world.near(p.x, p.z, 3.6, this.nearTmp)) if (n.kind === "palm" && n.alive) shade = true;
+      w.shade = shade;
+    } else w.shade = false;
+  }
+
+  /** Rain and snow fall around the castaway (or the menu's camp). */
+  private updatePrecip(dt: number) {
+    const kind = this.def.climate.weather;
+    const lvl = this.weather.level;
+    const snow = kind === "blizzard";
+    const amount = kind === "rain" ? lvl : snow ? 0.18 + lvl * 0.82 : 0;
+    if (amount < 0.03) return;
+    this.precipAcc += (snow ? 120 : 330) * amount * dt;
+    const c = this.camLook;
+    while (this.precipAcc >= 1) {
+      this.precipAcc--;
+      const a = Math.random() * Math.PI * 2;
+      const d = Math.sqrt(Math.random()) * 17;
+      const x = c.x + Math.cos(a) * d;
+      const z = c.z + Math.sin(a) * d;
+      if (snow) this.precip.emit({ x, y: c.y + rand(1, 9), z, vx: 0.6 + lvl * 7 + rand(-0.5, 0.5), vy: -rand(1.6, 2.8) - lvl * 2, vz: rand(-0.6, 0.6), life: rand(1.6, 2.8), size: rand(0.09, 0.15), endSize: 0.08, color: "#ffffff", alpha: 0.9 });
+      else this.precip.emit({ x, y: c.y + rand(4, 11), z, vx: 2.2, vy: -rand(17, 21), vz: 0.4, life: rand(0.4, 0.6), size: 0.085, endSize: 0.06, color: "#d5e8f5", alpha: 0.55 });
     }
   }
 
@@ -1561,9 +1980,12 @@ export class CastawayGame {
     p.anim.update(dt);
 
     if (p.state === "dead") {
+      const before = p.deadT;
       p.deadT += dt;
       p.y = this.island.height(p.x, p.z);
       this.placeModel();
+      // The fall plays out, then the "you passed out" screen.
+      if (before < FAINT_DELAY && p.deadT >= FAINT_DELAY) this.faint();
       return;
     }
     if (p.state === "board") {
@@ -1819,9 +2241,9 @@ export class CastawayGame {
         case "pebble":
           return { text: "Take stones", ok: true, key: k };
         case "crate":
-          return { text: node.floating ? "Open washed-up crate" : "Search the crate", ok: true, key: k };
+          return { text: node.hidden ? "Dig up the buried chest" : node.floating ? "Open washed-up crate" : "Search the crate", ok: true, key: k };
         case "bottle":
-          return { text: "A message in a bottle!", ok: true, key: k };
+          return { text: this.def.treasure ? "A map in a bottle!" : "A message in a bottle!", ok: true, key: k };
         case "fish":
           return this.has("spear") ? { text: "Spear fish", ok: true, key: k } : { text: "Fish! You need a spear", ok: false, key: k };
         default:
@@ -1854,8 +2276,11 @@ export class CastawayGame {
           if (s.lit) return { text: "The signal fire is burning", ok: false, key: k };
           if (!evening) return { text: "Light it at dusk or night", ok: false, key: k };
           return this.count("wood") >= 5 ? { text: "Light the signal fire (5 wood)", ok: true, key: k } : { text: "Light it: needs 5 wood", ok: false, key: k };
-        case "raft":
-          return this.shipUntil > this.clock ? { text: "Sail to the ship!", ok: true, key: k } : { text: "Wait for a ship (keep a signal fire lit all night)", ok: false, key: k };
+        case "raft": {
+          if (this.def.escape === "ship") return this.shipUntil > this.clock ? { text: "Sail to the ship!", ok: true, key: k } : { text: "Wait for a ship (keep a signal fire lit all night)", ok: false, key: k };
+          const why = this.cantSail();
+          return why ? { text: why, ok: false, key: k } : { text: "Set sail for the next island", ok: true, key: k };
+        }
         case "torchPost":
           return { text: "Torch post", ok: false, key: k };
         default:
@@ -2005,7 +2430,7 @@ export class CastawayGame {
             this.sfx.treeFall();
             this.stats.felled++;
             this.achieve("timber");
-            const wood = 3 + (tool === "axeIron" ? 2 : 0);
+            const wood = 3 + (tool === "axeIron" ? 2 : 0) + (this.loadout.castaway === "otto" ? 2 : 0);
             this.give("wood", wood, n.x, n.y + 1.5, n.z);
             if (Math.random() < 0.5) this.give("fiber", 1, n.x, n.y + 2, n.z);
           }
@@ -2053,8 +2478,8 @@ export class CastawayGame {
           this.world.deplete(n, 0, this.clock);
           this.notes.add(n.tag);
           this.sfx.bottle();
-          this.events.note(NOTES[n.tag] ?? "", n.tag);
-          if (this.notes.size >= NOTES.length) this.achieve("notes");
+          this.events.note(this.def.notes[n.tag] ?? "", this.notes.size - 1, this.def.flora.bottles);
+          if (this.notes.size >= this.def.flora.bottles) this.achieve("notes");
           return;
         }
         this.world.deplete(n, n.kind === "mushroom" ? DAY : 0, this.clock);
@@ -2065,9 +2490,14 @@ export class CastawayGame {
       case "open": {
         if (!n || !n.alive) return;
         this.sfx.crate();
-        this.stats.opened++;
         const loot = n.loot ?? { wood: 2 };
         this.world.deplete(n, 0, this.clock);
+        // (An opened crate has no health left: that is how the island's list counts them.)
+        n.hp = 0;
+        if (n.hidden) {
+          this.achieve("treasure");
+          this.sfx.fanfare();
+        }
         this.dust.burst(18, n.x, n.y + 0.5, n.z, { speed: 4, up: 4, life: 0.8, size: 0.2, color: "#b7834f", gravity: 9, drag: 1, jitter: 0.4 });
         for (const [id, c] of Object.entries(loot) as [ItemId, number][]) if (c > 0) this.give(id, c, n.x, n.y + 0.7, n.z);
         return;
@@ -2077,10 +2507,13 @@ export class CastawayGame {
         if (!id || this.count(id) <= 0) return;
         this.inv[id] = this.count(id) - 1;
         const fd = FOOD[id];
-        p.hunger = Math.min(100, p.hunger + fd.hunger);
-        p.hp = Math.max(1, Math.min(100, p.hp + fd.health));
+        // (Mara the forager gets more out of what grows wild.)
+        const plain = id === "berries" || id === "coconut" || id === "mushroom";
+        const fill = Math.round(fd.hunger * (plain && this.loadout.castaway === "mara" ? 1.5 : 1));
+        p.hunger = Math.min(100, p.hunger + fill);
+        p.hp = Math.max(1, Math.min(this.maxHp, p.hp + fd.health));
         this.sfx.eat();
-        this.popups.show(`+${fd.hunger} food`, p.x, p.y + 2.1, p.z, "#fdba74", 0.8);
+        this.popups.show(`+${fill} food`, p.x, p.y + 2.1, p.z, "#fdba74", 0.8);
         if (fd.health < 0) this.toast("Raw food upsets your stomach — cook it at a campfire", "warn");
         this.dust.burst(6, hx, p.y + 1.2, hz, { speed: 1.2, up: 1, life: 0.5, size: 0.1, color: "#f5d0a0", gravity: 6 });
         if (this.count(id) <= 0) this.food = this.foodsOwned()[0] ?? null;
@@ -2150,7 +2583,7 @@ export class CastawayGame {
           this.sfx.pickup();
           return;
         }
-        const near = this.creatures.some((c) => c.active && c.state !== "dying" && Math.hypot(c.x - p.x, c.z - p.z) < 12);
+        const near = this.creatures.some((c) => c.hostile && Math.hypot(c.x - p.x, c.z - p.z) < 12);
         if (near) {
           this.toast("You can't sleep with creatures nearby!", "warn");
           this.sfx.denied();
@@ -2192,13 +2625,43 @@ export class CastawayGame {
         return;
       }
       case "raft": {
-        if (this.shipUntil > this.clock) this.beginEscape(s);
-        else this.sfx.denied();
+        if (this.def.escape === "ship") {
+          if (this.shipUntil > this.clock) this.beginEscape(s);
+          else this.sfx.denied();
+          return;
+        }
+        const why = this.cantSail();
+        if (why) {
+          this.toast(why, "warn");
+          this.sfx.denied();
+          return;
+        }
+        // The provisions go aboard.
+        let need = this.def.provisions;
+        for (const f of COOKED) {
+          const take = Math.min(need, this.count(f));
+          this.inv[f] = this.count(f) - take;
+          need -= take;
+        }
+        this.beginEscape(s);
         return;
       }
       default:
         return;
     }
+  }
+
+  private cookedMeals() {
+    return COOKED.reduce((n, f) => n + this.count(f), 0);
+  }
+
+  /** Why the raft can't leave yet ("" = it can): the island's list comes first, then the provisions. */
+  private cantSail() {
+    const last = this.def.objectives.length - 1;
+    if (this.objective < last) return `Not yet — first: ${this.def.objectives[this.objective].text.toLowerCase()}`;
+    const need = this.def.provisions;
+    if (need > 0 && this.cookedMeals() < need) return `Load ${need} cooked meals first (you carry ${this.cookedMeals()})`;
+    return "";
   }
 
   // --- Combat --------------------------------------------------------------------------------------
@@ -2245,12 +2708,12 @@ export class CastawayGame {
         if (d > reach + c.radius) continue;
         const dot = d > 0.01 ? (dx * fx + dz * fz) / d : 1;
         if (dot < 0.25 && d > c.radius + 0.5) continue;
-        const dmg = Math.round(def.damage * (s.step === 2 ? 1.35 : 1) * rand(0.9, 1.1));
+        const dmg = Math.round(def.damage * this.damageK * (s.step === 2 ? 1.35 : 1) * rand(0.9, 1.1));
         const knock = def.knock * (s.step === 2 ? 1.8 : 1);
         const died = c.damage(dmg, dx / (d || 1), dz / (d || 1), knock, this.creatureCtx);
         hits++;
         this.popups.show(String(dmg), c.x, c.y + c.def.height + 0.3, c.z, s.step === 2 ? "#fdba74" : "#fff7ed", 0.9);
-        this.dust.burst(10, c.x, c.y + c.def.height * 0.5, c.z, { speed: 3.5, up: 2, life: 0.45, size: 0.14, color: c.kind === "ghost" ? "#dbeafe" : c.kind === "crab" ? "#f97316" : "#d6d3d1", gravity: 6, jitter: 0.2 });
+        this.dust.burst(10, c.x, c.y + c.def.height * 0.5, c.z, { speed: 3.5, up: 2, life: 0.45, size: 0.14, color: c.kind === "ghost" ? "#dbeafe" : c.kind === "crab" ? "#f97316" : c.kind === "boar" ? "#a16207" : "#d6d3d1", gravity: 6, jitter: 0.2 });
         if (died) this.onKill(c);
       }
       if (hits) {
@@ -2274,9 +2737,14 @@ export class CastawayGame {
 
   private onKill(c: Creature) {
     this.stats.kills++;
+    this.stats.killsBy[c.kind] = (this.stats.killsBy[c.kind] ?? 0) + 1;
     this.sfx.creatureDie();
     if (this.stats.kills >= 25) this.achieve("hunter");
-    if (c.kind === "brute") this.achieve("brute");
+    if (c.kind === "brute" || c.kind === "boar" || c.kind === "bear" || c.kind === "captain") this.achieve(c.kind);
+    if (c.kind === "captain") {
+      this.sfx.fanfare();
+      this.events.banner("The Captain is down", "Keep the signal fire burning");
+    }
     for (const d of c.def.drops) if (Math.random() < d.chance) this.give(d.item, d.count, c.x, c.y + 0.6, c.z);
   }
 
@@ -2336,31 +2804,40 @@ export class CastawayGame {
     p.anim.play("die", { once: true, fade: 0.1 });
     this.sfx.die();
     this.stats.deaths++;
-    // Half of the carried resources stay where you fell.
+    // Half of the carried resources stay where you fell (not with the Tight pack perk).
     const items: Partial<Record<ItemId, number>> = {};
     const lost: string[] = [];
-    for (const r of RESOURCES) {
-      const n = this.count(r);
-      const drop = Math.floor(n / 2);
-      if (drop <= 0) continue;
-      items[r] = drop;
-      this.inv[r] = n - drop;
-      lost.push(`${drop} ${ITEMS[r].name.toLowerCase()}`);
+    if (perkLevel(this.loadout, "pack") < 1) {
+      for (const r of RESOURCES) {
+        const n = this.count(r);
+        const drop = Math.floor(n / 2);
+        if (drop <= 0) continue;
+        items[r] = drop;
+        this.inv[r] = n - drop;
+        lost.push(`${drop} ${ITEMS[r].name.toLowerCase()}`);
+      }
     }
     if (lost.length) {
+      // (A satchel already lying somewhere is folded into the new one.)
+      for (const [id, n] of Object.entries(this.satchel?.items ?? {}) as [ItemId, number][]) items[id] = (items[id] ?? 0) + n;
       this.satchel = { x: p.x, z: p.z, items };
       this.updateSatchel();
     }
+    this.lostText = lost.join(", ");
+    void reason;
+  }
+
+  private lostText = "";
+
+  /** The fall has played out: the "you passed out" screen. */
+  private faint() {
+    if (this.phase !== "playing" || this.p.state !== "dead") return;
     const day = Math.floor(this.clock / DAY) + 1;
     const hasHome = !!this.home && this.structures.list.some((s) => (s.kind === "bedroll" || s.kind === "tent") && Math.hypot(s.x - this.home!.x, s.z - this.home!.z) < 0.5);
-    void reason;
-    setTimeout(() => {
-      if (this.disposed || this.p.state !== "dead") return;
-      this.setPhase("dead");
-      music.duck(true);
-      this.events.died({ day, lost: lost.join(", "), home: hasHome });
-      this.save();
-    }, 1600);
+    this.clearInput();
+    this.setPhase("dead");
+    music.duck(true);
+    this.events.died({ day, lost: this.lostText, home: hasHome });
   }
 
   private updateSatchel() {
@@ -2381,8 +2858,12 @@ export class CastawayGame {
     if (p.state === "dead" || this.escapeT >= 0) return;
     const running = Math.hypot(p.vx, p.vz) > WALK + 0.5;
     const sleeping = p.state === "sleep";
-    p.hunger = Math.max(0, p.hunger - (SURVIVAL.hungerDrain * (sleeping ? 0.6 : 1) + (running ? SURVIVAL.sprintHunger : 0)) * dt);
-    // Warmth: nights are cold away from fire.
+    const climate = this.def.climate;
+    const w = this.weather;
+    // The midday heat doubles the hunger of anyone out of the shade.
+    const heat = climate.weather === "heat" && !w.shade ? 1 + 1.2 * w.level : 1;
+    p.hunger = Math.max(0, p.hunger - (SURVIVAL.hungerDrain * (sleeping ? 0.6 : 1) * heat * this.hungerK + (running ? SURVIVAL.sprintHunger : 0)) * dt);
+    // Warmth: nights are cold away from fire — and on some islands so are the days, the rain and the blizzards.
     const night = t >= NIGHT - 0.03 && t < DAWN + 0.01;
     let warm = false;
     for (const s of this.structures.list) {
@@ -2393,14 +2874,18 @@ export class CastawayGame {
       }
     }
     const tent = sleeping && this.sleepingIn?.kind === "tent";
+    const blizzard = climate.weather === "blizzard" ? 1 + 1.5 * w.level : 1;
+    // What the air takes per second, before a torch or a tent cut it down.
+    const cold = night ? SURVIVAL.coldDrain * climate.nightCold * blizzard : climate.dayCold * blizzard + (climate.weather === "rain" ? 0.5 * w.level : 0);
     if (warm) p.warmth = Math.min(100, p.warmth + SURVIVAL.warmUp * dt);
-    else if (!night) p.warmth = Math.min(100, p.warmth + 2 * dt);
-    else if (tent) p.warmth = Math.max(0, p.warmth - 0.2 * dt);
-    else if (this.carriedLight > 0) p.warmth = Math.max(0, p.warmth - SURVIVAL.torchColdDrain * dt);
-    else p.warmth = Math.max(0, p.warmth - SURVIVAL.coldDrain * dt * (sleeping ? 0.5 : 1));
+    else if (cold <= 0) p.warmth = Math.min(100, p.warmth + 2 * dt);
+    else {
+      const shelter = tent ? 0.15 : this.carriedLight > 0 ? SURVIVAL.torchColdDrain / SURVIVAL.coldDrain : sleeping ? 0.5 : 1;
+      p.warmth = Math.max(0, p.warmth - cold * shelter * this.coldK * dt);
+    }
     if (p.hunger <= 0) p.hp -= SURVIVAL.starveDamage * dt;
     if (p.warmth <= 0) p.hp -= SURVIVAL.freezeDamage * dt;
-    if (p.hunger > 45 && p.warmth > 25 && p.hp < 100) p.hp = Math.min(100, p.hp + (sleeping ? (tent ? SURVIVAL.tentRegen : SURVIVAL.sleepRegen) * 0.35 : SURVIVAL.regen) * dt);
+    if (p.hunger > 45 && p.warmth > 25 && p.hp < this.maxHp) p.hp = Math.min(this.maxHp, p.hp + (sleeping ? (tent ? SURVIVAL.tentRegen : SURVIVAL.sleepRegen) * 0.35 : SURVIVAL.regen) * dt);
     if (p.hp <= 0) {
       if (sleeping) this.wakeUp("");
       this.die(p.hunger <= 0 ? "Starved" : "Froze");
@@ -2454,7 +2939,7 @@ export class CastawayGame {
       return;
     }
     for (const c of this.creatures) {
-      if (c.active && c.state !== "dying" && Math.hypot(c.x - p.x, c.z - p.z) < 11) {
+      if (c.hostile && Math.hypot(c.x - p.x, c.z - p.z) < 11) {
         this.wakeUp("Something is coming!");
         return;
       }
@@ -2469,7 +2954,8 @@ export class CastawayGame {
     this.selected = 2;
     this.preferHammer = false;
     this.updateHeld();
-    const w = 0.2 - Math.min(0.06, this.stats.caught * 0.01);
+    // The green zone narrows a little with every catch (Ines the angler keeps it wide).
+    const w = (0.2 - Math.min(0.06, this.stats.caught * 0.01)) * (this.loadout.castaway === "ines" ? 1.45 : 1);
     const a = rand(0.2, 0.8 - w);
     this.fishing = { node: n, t: 0, needle: 0, dir: 1, speed: rand(0.9, 1.25), a, b: a + w, tries: 0 };
     p.anim.play("holding-right", { fade: 0.15 });
@@ -2778,22 +3264,35 @@ export class CastawayGame {
   private escapeFrom = new THREE.Vector3();
   private escapeTo = new THREE.Vector3();
 
+  /** Off the island: out to the waiting ship, or (by raft alone) out to sea towards the next island. */
   private beginEscape(raft: Structure) {
-    if (!this.ship) return;
+    const toShip = this.def.escape === "ship";
+    if (toShip && !this.ship) return;
     const p = this.p;
     p.state = "board";
+    p.act = null;
+    p.swing = null;
     this.cancelPlacing();
     this.escapeT = 0;
+    this.sailed = true;
     this.raft = raft;
     this.escapeFrom.copy(raft.root.position);
-    const sp = this.ship.position;
-    const dir = new THREE.Vector3(sp.x - raft.x, 0, sp.z - raft.z).normalize();
-    this.escapeTo.set(sp.x - dir.x * 7, 0, sp.z - dir.z * 7);
+    if (toShip && this.ship) {
+      const sp = this.ship.position;
+      const dir = new THREE.Vector3(sp.x - raft.x, 0, sp.z - raft.z).normalize();
+      this.escapeTo.set(sp.x - dir.x * 7, 0, sp.z - dir.z * 7);
+    } else {
+      // Straight out from the shore.
+      const l = Math.hypot(raft.x, raft.z) || 1;
+      this.escapeTo.set(raft.x + (raft.x / l) * 46, 0, raft.z + (raft.z / l) * 46);
+    }
     raft.solid = false;
     p.anim.play("emote-yes", { fade: 0.2 });
     this.sfx.horn();
-    this.events.banner("Set sail!", "Rowing out to the ship…");
+    const next = ISLANDS[this.islandNo + 1];
+    this.events.banner("Set sail!", toShip ? "Rowing out to the ship…" : next ? `Next stop: ${next.name}` : "Out to sea…");
     for (const c of this.creatures) if (c.active) c.despawn();
+    this.telegraphs.clear();
   }
 
   private updateEscape(dt: number) {
@@ -2816,11 +3315,27 @@ export class CastawayGame {
     if (Math.random() < dt * 8) this.splash(x + rand(-1.5, 1.5), z + rand(-1.5, 1.5), 0.5);
     if (this.escapeT > 4 && this.escapeT - dt <= 4) this.sfx.fanfare();
     if (this.escapeT >= 9.5 && this.phase === "playing") {
-      const summary: RunSummary = { day: Math.floor(this.clock / DAY) + 1, days: (this.clock - START_CLOCK) / DAY, kills: this.stats.kills, crafted: this.stats.crafted, built: this.stats.built, fish: this.stats.fish, deaths: this.stats.deaths };
-      this.achieve("rescued");
-      if (summary.day < 6) this.achieve("swift");
+      const last = this.def.objectives.length - 1;
+      const bonus = this.def.bonus.done(this.progressNow());
+      const summary: RunSummary = {
+        island: this.islandNo,
+        day: Math.floor(this.clock / DAY) + 1,
+        days: Math.max(0, (this.clock - START_CLOCK) / DAY),
+        kills: this.stats.kills,
+        crafted: this.stats.crafted,
+        built: this.stats.built,
+        fish: this.stats.fish,
+        deaths: this.stats.deaths,
+        bonus,
+      };
+      this.objective = last;
+      this.achieve("sailor");
+      if (this.def.escape === "ship") this.achieve("rescued");
+      if (summary.day <= this.def.par) this.achieve("swift");
       CastawayGame.clearSave();
+      this.clearInput();
       this.setPhase("won");
+      this.events.objective(this.islandNo, last);
       this.events.won(summary);
       this.events.saved(null);
     }
@@ -2859,7 +3374,12 @@ export class CastawayGame {
 
   private updateEnvironment(dt: number) {
     const t = (this.clock % DAY) / DAY;
-    const sky = skyAt(t, this.sky);
+    // The time of day, then the island's own air and its weather.
+    const wk = this.def.climate.weather;
+    const lvl = this.weather.level;
+    const gloom = wk === "rain" ? lvl * 0.8 : wk === "blizzard" ? lvl * 0.9 : wk === "fog" ? lvl * 0.3 : 0;
+    const fogK = wk === "rain" ? 1 - 0.3 * lvl : wk === "blizzard" ? 1 - 0.6 * lvl : wk === "fog" ? 1 - 0.45 * lvl : 1;
+    const sky = tintSky(skyAt(t, this.sky), this.def.sky, gloom, fogK);
     this.skyDome.update(sky, this.elapsed);
     this.skyDome.mesh.position.copy(this.camera.position);
     this.hemi.color.copy(sky.hemiSky);
@@ -2904,13 +3424,15 @@ export class CastawayGame {
   private updateCamera(dt: number) {
     const p = this.p;
     if (this.phase === "menu" || !p) {
+      // A slow orbit of the camp; the shop moves in on the castaway.
       const a = this.menuT * 0.06 + 0.4;
-      const look = this.tmpV.set(CAMP.x, this.island.height(CAMP.x, CAMP.z) + 0.8, CAMP.z);
-      const pos = new THREE.Vector3(CAMP.x + Math.sin(a) * 10.5, look.y + 4.2, CAMP.z + Math.cos(a) * 10.5);
-      this.camera.position.copy(pos);
+      this.menuDist += ((this.showcase ? 6 : 10.5) - this.menuDist) * (1 - Math.exp(-dt * 4));
+      const d = this.menuDist;
+      const k = (d - 6) / 4.5;
+      const look = this.tmpV.set(CAMP.x + (p ? (p.x - CAMP.x) * (1 - k) : 0), this.island.height(CAMP.x, CAMP.z) + 0.8, CAMP.z + (p ? (p.z - CAMP.z) * (1 - k) : 0));
+      this.camera.position.set(look.x + Math.sin(a) * d, look.y + 1.6 + 2.6 * k, look.z + Math.cos(a) * d);
       this.camLook.copy(look);
       this.camera.lookAt(look);
-      this.camera.updateProjectionMatrix();
       return;
     }
     if (this.keys.has("ArrowLeft")) this.camYaw += 1.9 * dt;
@@ -2972,30 +3494,19 @@ export class CastawayGame {
     this.world?.updateOcclusion(this.camera.position.x, this.camera.position.z, p.root.position.x, p.root.position.z, dt);
   }
 
-  private adaptResolution(real: number) {
-    const r = this.res;
-    r.acc += real;
-    r.n++;
-    if (r.acc < 1.5) return;
-    const avg = r.acc / r.n;
-    r.acc = 0;
-    r.n = 0;
-    let next = r.cur;
-    if (avg > 1 / 48 && r.cur > r.min) {
-      next = Math.max(r.min, r.cur * 0.85);
-      r.max = Math.max(next, Math.min(r.max, r.safe));
-      r.good = 0;
-    } else if (avg < 1 / 57 && r.cur < r.max) {
-      if (++r.good >= 3) {
-        next = Math.min(r.max, r.cur * 1.12);
-        r.good = 0;
-      }
-    } else r.good = 0;
-    if (Math.abs(next - r.cur) > 0.01) {
-      r.cur = next;
-      this.renderer.setPixelRatio(next);
-      this.resize();
-    }
+  private menuDist = 10.5;
+  private showcase = false;
+  private readonly shift = { x: 0, y: 0 };
+
+  /**
+   * The shop is open: the menu's camera moves in on the castaway, and the 3D view slides out from
+   * under the shop's panel (`shift`: fractions of the screen, x < 0 = to the left, y > 0 = up).
+   */
+  setShowcase(on: boolean, shift?: { x: number; y: number }) {
+    this.showcase = on;
+    this.shift.x = on && shift ? shift.x : 0;
+    this.shift.y = on && shift ? shift.y : 0;
+    this.resize();
   }
 
   private resize() {
@@ -3005,50 +3516,59 @@ export class CastawayGame {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.fov = w / h < 0.8 ? 62 : 50;
+    if (this.shift.x || this.shift.y) this.camera.setViewOffset(w, h, -this.shift.x * w, this.shift.y * h, w, h);
+    else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     const ph = this.renderer.domElement.height;
     this.fire.setScale(ph, this.camera.fov);
     this.dust.setScale(ph, this.camera.fov);
     this.smoke.setScale(ph, this.camera.fov);
+    this.precip.setScale(ph, this.camera.fov);
   }
 
   // --- HUD, objectives -----------------------------------------------------------------------------
 
   private periodicChecks(day: number) {
     this.checkSleep();
-    const next = this.computeObjective();
-    if (next !== this.objective) {
-      if (next > this.objective) {
-        this.toast(`Done: ${OBJECTIVES[this.objective]}`, "objective");
-        this.sfx.recipe();
-      }
-      this.objective = next;
+    // The island's list: ticked off in order, and what is ticked stays ticked. (The last one is the escape itself.)
+    const chain = this.def.objectives;
+    const prog = this.progressNow();
+    while (this.objective < chain.length - 1 && chain[this.objective].done(prog)) {
+      this.toast(`Done: ${chain[this.objective].text}`, "objective");
+      this.sfx.recipe();
+      this.events.objective(this.islandNo, this.objective);
+      this.objective++;
     }
+    this.bonus = this.def.bonus.done(prog);
+    // Every bottle map found: the buried chest shows itself.
+    if (this.def.treasure && this.notes.size >= this.def.flora.bottles && this.world.revealTreasure()) {
+      this.sfx.bottle();
+      this.events.banner("X marks the spot", "A chest is buried under the golden sparkle");
+    }
+    if (day >= 7) this.achieve("week");
     this.focusRing.tick(this.elapsed);
-    void day;
   }
 
-  private computeObjective() {
-    const wreckOpened = this.world.nodes.filter((n) => n.kind === "crate" && !n.floating && !n.alive).length;
-    const day = Math.floor(this.clock / DAY) + 1;
-    const walls = this.structures.count(["fence", "gate", "wall"]);
-    const done = [
-      wreckOpened >= 3,
-      this.seen.has("wood") && this.seen.has("stone") && this.seen.has("fiber"),
-      this.crafted.has("axe"),
-      this.stats.felled > 0,
-      this.crafted.has("campfire") || this.structures.count(["campfire"]) > 0,
-      day >= 2,
-      this.stats.caught > 0,
-      this.crafted.has("workbench"),
-      walls >= 4,
-      this.crafted.has("signal"),
-      this.crafted.has("raft"),
-      this.shipUntil > this.clock,
-      false,
-    ];
-    const i = done.findIndex((d) => !d);
-    return i < 0 ? OBJECTIVES.length - 1 : i;
+  /** What the island's list and its bonus goal look at. */
+  private progressNow(): Progress {
+    const opened = this.world.opened();
+    return {
+      day: Math.floor(this.clock / DAY) + 1,
+      opened: opened.crates,
+      treasure: opened.treasure,
+      felled: this.stats.felled,
+      caught: this.stats.caught,
+      cooked: this.stats.cooked,
+      notes: this.notes.size,
+      faints: this.stats.deaths,
+      kills: this.stats.killsBy,
+      ship: this.sailed || this.shipUntil > this.clock,
+      sailed: this.sailed,
+      seen: (id) => this.seen.has(id),
+      owns: (id) => this.has(id),
+      made: (id) => this.crafted.has(id),
+      standing: (kinds) => this.structures.count(kinds),
+    };
   }
 
   private period(t: number) {
@@ -3078,12 +3598,17 @@ export class CastawayGame {
     let cooking: number | null = null;
     for (const s of this.structures.list) if (s.cooking && !s.cooking.done && Math.hypot(s.x - p.x, s.z - p.z) < 8) cooking = Math.min(1, s.cooking.t / 6);
     const pl = this.placing;
+    const chain = this.def.objectives;
+    const goal = chain[Math.min(this.objective, chain.length - 1)];
+    const wk = this.def.climate.weather;
     const hud: Hud = {
+      island: this.islandNo,
       day: Math.floor(this.clock / DAY) + 1,
       t: Math.round(t * 200) / 200,
       period: this.period(t),
       night: t >= NIGHT && t < DAWN,
       health: Math.max(0, Math.ceil(p.hp)),
+      maxHealth: this.maxHp,
       hunger: Math.ceil(p.hunger),
       warmth: Math.ceil(p.warmth),
       res,
@@ -3095,11 +3620,15 @@ export class CastawayGame {
       fishing: f ? { needle: Math.round(f.needle * 100) / 100, a: f.a, b: f.b } : null,
       cooking: cooking === null ? null : Math.round(cooking * 20) / 20,
       placing: pl ? { name: BUILDS[pl.id].name, valid: pl.valid, reason: pl.reason } : null,
-      objective: OBJECTIVES[this.objective],
+      objective: goal.text,
       objectiveNo: this.objective,
+      objectiveCount: chain.length,
+      progress: goal.count ? goal.count(this.progressNow()) : null,
+      bonus: this.bonus,
+      weather: wk !== "none" && this.weather.level > 0.3 ? { kind: wk, shade: this.weather.shade } : null,
       sleeping: p.state === "sleep",
-      ship: this.shipUntil > this.clock,
-      danger: this.creatures.filter((c) => c.active && c.state !== "dying").length,
+      ship: this.shipUntil > this.clock && this.escapeT < 0,
+      danger: this.creatures.filter((c) => c.hostile).length,
       craft: { unlocked: this.unlockedList(), crafted: [...this.crafted], bench: this.benchNear(), chest: this.chestsNear().length > 0, have },
       cold: p.warmth < 25,
       starving: p.hunger < 15,
@@ -3117,18 +3646,51 @@ export class CastawayGame {
   debug = {
     state: () => ({
       phase: this.phase,
+      island: this.islandNo,
       clock: this.clock,
       day: Math.floor(this.clock / DAY) + 1,
       t: (this.clock % DAY) / DAY,
-      p: { x: this.p.x, z: this.p.z, y: this.p.y, hp: this.p.hp, hunger: this.p.hunger, warmth: this.p.warmth, state: this.p.state },
+      p: { x: this.p.x, z: this.p.z, y: this.p.y, yaw: this.p.yaw, hp: this.p.hp, maxHp: this.maxHp, hunger: this.p.hunger, warmth: this.p.warmth, state: this.p.state },
       inv: this.inv,
-      creatures: this.creatures.filter((c) => c.active).map((c) => ({ kind: c.kind, x: c.x, z: c.z, hp: c.hp, state: c.state })),
-      structures: this.structures.list.map((s) => ({ kind: s.kind, x: s.x, z: s.z, hp: s.hp, lit: s.lit, fuel: s.fuel, light: s.light })),
+      creatures: this.creatures.filter((c) => c.active).map((c) => ({ kind: c.kind, x: c.x, z: c.z, hp: c.hp, state: c.state, hostile: c.hostile })),
+      structures: this.structures.list.map((s) => ({ kind: s.kind, x: s.x, z: s.z, hp: s.hp, lit: s.lit, fuel: s.fuel, light: s.light, burn: s.burn, cooking: s.cooking ? s.cooking.done : null })),
       objective: this.objective,
+      objectives: this.def.objectives.length,
+      objectiveText: this.def.objectives[Math.min(this.objective, this.def.objectives.length - 1)].text,
+      bonus: this.bonus,
+      stats: this.stats,
+      notes: this.notes.size,
       focus: this.focus.prompt?.text ?? null,
+      focusOk: this.focus.prompt?.ok ?? false,
+      placing: this.placing ? { id: this.placing.id, valid: this.placing.valid, reason: this.placing.reason, x: this.placing.x, z: this.placing.z } : null,
+      fishing: this.fishing ? { needle: this.fishing.needle, a: this.fishing.a, b: this.fishing.b } : null,
+      unlocked: this.unlockedList(),
+      bench: this.benchNear(),
+      weather: { kind: this.def.climate.weather, level: this.weather.level, shade: this.weather.shade },
       ship: this.shipUntil > this.clock,
-      res: this.res.cur,
+      sailed: this.sailed,
+      escape: this.escapeT,
+      castaway: this.castawayId,
+      loadout: this.loadout,
+      camp: { x: CAMP.x, z: CAMP.z },
+      cove: { x: COVE.x, z: COVE.z },
+      pond: POND.r > 0 ? { x: POND.x, z: POND.z, r: POND.r } : null,
+      cache: this.world.cacheSpot,
+      specials: this.world.specials.map((n) => ({ id: n.id, x: n.x, z: n.z, alive: n.alive, hidden: n.hidden, opened: !n.alive && n.hp <= 0 })),
+      res: this.adaptive.cur,
+      size: { w: this.renderer.domElement.width, h: this.renderer.domElement.height },
     }),
+    /** Runs the simulation `n` steps of `dt` seconds without drawing (a fast clock for the check script). */
+    step: (dt: number, n = 1) => {
+      for (let i = 0; i < n && this.phase === "playing"; i++) this.update(dt, dt);
+      return this.phase;
+    },
+    height: (x: number, z: number) => this.island.height(x, z),
+    slope: (x: number, z: number) => this.island.slope(x, z),
+    biome: (x: number, z: number) => this.island.biome(x, z),
+    coast: (a: number) => this.island.coast(a),
+    selected: () => this.selected,
+    hurt: (dmg: number) => this.hurtPlayer(dmg, this.p.x + 1, this.p.z),
     give: (items: Partial<Record<ItemId, number>>) => {
       for (const [k, v] of Object.entries(items) as [ItemId, number][]) this.addItem(k, v, true);
       this.emitHud(true);
@@ -3143,7 +3705,7 @@ export class CastawayGame {
       this.p.z = z;
       this.camInit = false;
     },
-    nodes: (kind: string) => this.world.nodes.filter((n) => n.kind === kind && n.alive).map((n) => ({ id: n.id, x: n.x, z: n.z, charges: n.charges })),
+    nodes: (kind: string) => this.world.nodes.filter((n) => n.kind === kind && n.alive && !n.hidden).map((n) => ({ id: n.id, x: n.x, z: n.z, r: n.r, charges: n.charges, floating: n.floating, tag: n.tag })),
     spawn: (kind: CreatureKind, x: number, z: number) => {
       const c = this.creature(kind);
       if (c) {
@@ -3208,8 +3770,8 @@ export class CastawayGame {
     this.focusRing.dispose();
     this.placeRing.dispose();
     this.telegraphs.dispose();
+    this.precip.dispose();
     this.ghostMat.dispose();
-    if (process.env.NODE_ENV !== "production") delete (window as unknown as { __castaway?: CastawayGame }).__castaway;
     // The canvas (and its GL context) can be reused by the next mount: leave it in default state.
     this.renderer.resetState();
     this.renderer.dispose();

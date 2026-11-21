@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Proto } from "../shared/assets";
-import { RockField, ROCK_KEYS, SATELLITE_KEYS } from "./enemies";
+import { CRYSTAL_KEYS, RockField, ROCK_KEYS, SATELLITE_KEYS } from "./enemies";
 import { Instancer, Sky } from "./fx";
 import { M } from "./manifest";
 import { hash, newFrame, type Rail } from "./rail";
@@ -41,8 +41,11 @@ export class World {
   private readonly sun = new THREE.DirectionalLight("#ffffff", 1.9);
   private readonly fill = new THREE.DirectionalLight("#88ccff", 0.6);
   private readonly rockField: RockField;
+  private readonly crystalField: RockField;
   private readonly trench = new Map<string, Instancer>();
   private readonly derelicts: Instancer[] = [];
+  /** The enemy fleet's capital ships (armada): an instancer and the scale that makes its model one metre long. */
+  private readonly fleet: { inst: Instancer; unit: number }[] = [];
   private backdrops: Backdrop[] = [];
   private stage: StageDef | null = null;
 
@@ -52,7 +55,15 @@ export class World {
   ) {
     scene.add(this.sky.group, this.backdrop, this.group, this.hemi, this.sun, this.sun.target, this.fill, this.fill.target);
     this.rockField = new RockField(protos, ROCK_KEYS.filter((k) => protos.has(k)));
-    this.group.add(this.rockField.group);
+    this.crystalField = new RockField(protos, CRYSTAL_KEYS.filter((k) => protos.has(k)), 200);
+    this.group.add(this.rockField.group, this.crystalField.group);
+    for (const k of [M.cargoA, M.cargoB, M.miner]) {
+      const proto = protos.get(k);
+      if (!proto) continue;
+      const inst = new Instancer(proto, 30);
+      this.fleet.push({ inst, unit: 1 / Math.max(proto.size.x, proto.size.y, proto.size.z, 1e-6) });
+      this.group.add(inst.group);
+    }
 
     // Station trench pieces (unit-sized protos, scaled per instance).
     const trenchKeys = [M.floor, M.floorDetail, M.wall, M.wallWindow, M.wallPillar, M.pipe, M.container, M.barrier, M.display, M.structure, M.supports, M.hangarGlass, M.structureDiagonal];
@@ -86,8 +97,10 @@ export class World {
     this.fill.color.set(stage.sky.nebulaB).lerp(new THREE.Color("#ffffff"), 0.4);
     this.buildBackdrop(stage);
     this.rockField.group.visible = stage.scenery !== "trench";
+    this.crystalField.group.visible = stage.scenery === "nebula";
     for (const i of this.trench.values()) i.group.visible = stage.scenery === "trench";
     for (const i of this.derelicts) i.group.visible = stage.scenery === "graveyard";
+    for (const s of this.fleet) s.inst.group.visible = stage.scenery === "armada";
   }
 
   private buildBackdrop(stage: StageDef) {
@@ -109,6 +122,12 @@ export class World {
     } else if (stage.scenery === "graveyard") {
       add(M.pinkPlanet, [0.6, 0.35, -1], 1500, 760, 0.003, -0.3);
       add(M.bennu, [-0.8, -0.35, -1], 1100, 150, 0.04);
+    } else if (stage.scenery === "nebula") {
+      add(M.pinkPlanet, [-0.5, 0.3, -1], 1500, 1000, 0.003, 0.25);
+      add(M.ringedPlanet, [0.8, 0.5, -1], 1600, 300, 0.004, -0.4);
+    } else if (stage.scenery === "armada") {
+      add(M.ringedPlanet, [0.6, 0.28, -1], 1500, 1100, 0.003, -0.25);
+      add(M.bennu, [-0.75, 0.3, -1], 1150, 200, 0.03);
     } else {
       add(M.ringedPlanet, [0.2, -0.9, -1], 1500, 1300, 0.002, 0.15);
       add(M.pinkPlanet, [-0.7, 0.45, -1], 1600, 260, 0.004, 0.4);
@@ -136,7 +155,37 @@ export class World {
     else if (stage.scenery === "graveyard") {
       this.rockField.update(rail, s - BEHIND, s + AHEAD, time, 0.25);
       this.updateDerelicts(rail, s, time);
+    } else if (stage.scenery === "nebula") {
+      this.rockField.update(rail, s - BEHIND, s + AHEAD, time, 0.3);
+      this.crystalField.update(rail, s - BEHIND, s + AHEAD, time, 0.9);
+    } else if (stage.scenery === "armada") {
+      this.rockField.update(rail, s - BEHIND, s + AHEAD, time, 0.12);
+      this.updateFleet(rail, s);
     } else this.updateTrench(rail, s);
+  }
+
+  /** Capital ships holding formation on both sides of the lane, all heading the way the ship came from. */
+  private updateFleet(rail: Rail, s: number) {
+    if (!this.fleet.length) return;
+    for (const v of this.fleet) v.inst.begin();
+    const step = 70;
+    for (let slot = Math.floor((s - BEHIND - 80) / step); slot * step < s + AHEAD; slot++) {
+      for (let n = 0; n < 2; n++) {
+        if (hash(slot, 31 + n) > 0.7) continue;
+        const ss = slot * step + hash(slot, 33 + n) * step;
+        const side = n === 0 ? -1 : 1;
+        const dist = 55 + hash(slot, 35 + n) * 150;
+        const v = this.fleet[Math.floor(hash(slot, 37 + n) * this.fleet.length)];
+        rail.frame(ss, f);
+        tmpP.copy(f.pos).addScaledVector(f.right, side * dist).addScaledVector(f.up, (hash(slot, 39 + n) - 0.5) * 90);
+        // (The crafts face -Z: half a turn points them back down the lane.)
+        tmpQ.copy(f.quat).multiply(tmpR.setFromAxisAngle(Y_AXIS, Math.PI + (hash(slot, 41 + n) - 0.5) * 0.3));
+        tmpS.setScalar((34 + hash(slot, 43 + n) * 70) * v.unit);
+        tmpM.compose(tmpP, tmpQ, tmpS);
+        v.inst.add(tmpM);
+      }
+    }
+    for (const v of this.fleet) v.inst.end();
   }
 
   private updateDerelicts(rail: Rail, s: number, time: number) {
@@ -213,6 +262,8 @@ export class World {
   dispose() {
     this.sky.dispose();
     this.rockField.dispose();
+    this.crystalField.dispose();
+    for (const v of this.fleet) v.inst.dispose();
     for (const i of this.trench.values()) i.dispose();
     for (const i of this.derelicts) i.dispose();
   }

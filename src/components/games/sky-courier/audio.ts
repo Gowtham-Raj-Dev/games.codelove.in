@@ -8,6 +8,7 @@ export class Sfx {
   private readonly engine = new NoiseLoop({ type: "lowpass", freq: 240, q: 1.4 });
   private readonly wind = new NoiseLoop({ type: "bandpass", freq: 900, q: 0.55 });
   private readonly rush = new NoiseLoop({ type: "highpass", freq: 2400, q: 0.3 });
+  private readonly rain = new NoiseLoop({ type: "highpass", freq: 3400, q: 0.4 });
   private prop: { osc: OscillatorNode; lfo: OscillatorNode; gain: GainNode; depth: GainNode; filter: BiquadFilterNode } | null = null;
   private chimeStep = 0;
   private lastChime = 0;
@@ -20,6 +21,7 @@ export class Sfx {
       this.engine.set(0);
       this.wind.set(0);
       this.rush.set(0);
+      this.rain.set(0);
       this.propLevel(0, 0);
       return;
     }
@@ -150,6 +152,53 @@ export class Sfx {
     audio.noise(1.4, { volume: 0.12, freq: 380, type: "bandpass", q: 0.5, slide: 900 });
   }
 
+  downdraft() {
+    audio.noise(1.4, { volume: 0.12, freq: 1100, type: "bandpass", q: 0.5, slide: -800 });
+  }
+
+  /** Rain on the hull: 0..1, set every frame while flying. */
+  weather(rain: number) {
+    if (!audio.ctx) return;
+    this.rain.set(Math.min(1, Math.max(0, rain)) * 0.11, 3400);
+  }
+
+  /** A gust: a soft warning when it is on its way, the blast when it hits. */
+  gust(hit: boolean) {
+    if (hit) {
+      audio.noise(2.2, { volume: 0.3, freq: 300, type: "bandpass", q: 0.6, slide: 1500 });
+      audio.tone(70, 1.2, { type: "sine", volume: 0.12, slide: 30 });
+    } else {
+      audio.tone(520, 0.12, { type: "triangle", volume: 0.07 });
+      audio.tone(660, 0.12, { type: "triangle", volume: 0.07, delay: 0.14 });
+    }
+  }
+
+  jet() {
+    audio.noise(1.6, { volume: 0.2, freq: 700, type: "bandpass", q: 0.9, slide: 2600 });
+    audio.tone(midi(86), 0.5, { type: "sine", volume: 0.05, slide: 300 });
+  }
+
+  /** A mail bag picked up: a short rising pair that climbs with every bag. */
+  bag(n: number) {
+    const note = CHIME[Math.min(CHIME.length - 1, n)];
+    audio.tone(midi(note), 0.3, { type: "triangle", volume: 0.18 });
+    audio.tone(midi(note + 7), 0.4, { type: "sine", volume: 0.12, delay: 0.07 });
+    audio.noise(0.15, { volume: 0.08, freq: 2400, type: "bandpass" });
+  }
+
+  /** The parcel took a knock (fragile cargo). */
+  crack() {
+    audio.noise(0.12, { volume: 0.22, freq: 4200, type: "highpass" });
+    audio.tone(1500, 0.09, { type: "square", volume: 0.04, slide: -600 });
+  }
+
+  /** The mission is lost. */
+  fail() {
+    audio.tone(midi(62), 0.35, { type: "triangle", volume: 0.16, slide: -30 });
+    audio.tone(midi(57), 0.4, { type: "triangle", volume: 0.15, delay: 0.22, slide: -30 });
+    audio.tone(midi(50), 0.8, { type: "triangle", volume: 0.15, delay: 0.46, slide: -40 });
+  }
+
   countdown(go: boolean) {
     if (go) audio.jingle([74, 81, 86], { type: "square", volume: 0.08, step: 0.05 });
     else audio.tone(midi(69), 0.18, { type: "square", volume: 0.07 });
@@ -177,6 +226,7 @@ export class Sfx {
     this.engine.stop();
     this.wind.stop();
     this.rush.stop();
+    this.rain.stop();
     if (this.prop) {
       try {
         this.prop.osc.stop();

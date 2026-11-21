@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { Ctx, Enemies } from "./enemies";
 import { M } from "./manifest";
 import { newFrame, rng } from "./rail";
-import { BOX, TRENCH, type Drop, type StageEvent } from "./stages";
+import { BOX, TRENCH, type Drop, type GateMode, type StageEvent } from "./stages";
 
 /**
  * Things on the rail that aren't enemies: shield rings, item drops, trench girders, laser gates
@@ -66,7 +66,14 @@ interface Gate {
   s: number;
   beams: GateBeam[];
   crossed: boolean;
+  /** How far the beams reach: half the width, bottom and top. */
+  halfW: number;
+  y0: number;
+  y1: number;
 }
+
+/** What frames a gate out in space: crystal pylons (the nebula) or a metal frame. */
+export type GateFrame = "crystal" | "metal";
 
 const GOLD = new THREE.Color("#ffd166");
 const CYAN = new THREE.Color("#22d3ee");
@@ -93,6 +100,8 @@ export class Hazards {
 
   onRing: () => void = () => {};
   onPickup: (kind: Drop) => void = () => {};
+  /** Set per mission by the engine. */
+  gateFrame: GateFrame = "metal";
 
   constructor(
     private readonly ctx: Ctx,
@@ -105,10 +114,10 @@ export class Hazards {
         this.ring(ev.at, ev.x, ev.y);
         break;
       case "girder":
-        this.girder(ev.at, ev.x, ev.y, ev.vertical);
+        this.girder(ev.at, ev.x, ev.y, ev.vertical, ev.open);
         break;
       case "gate":
-        this.gate(ev.at, ev.mode, ev.seed);
+        this.gate(ev.at, ev.mode, ev.seed, ev.open);
         break;
       case "tower":
         this.tower(ev.at, ev.x, ev.y, ev.turrets);
@@ -145,12 +154,14 @@ export class Hazards {
     return obj;
   }
 
-  private girder(s: number, x: number, y: number, vertical: boolean) {
-    const W = TRENCH.halfWidth * 2 + 1;
-    const H = TRENCH.wallTop - TRENCH.floor + 1;
+  private girder(s: number, x: number, y: number, vertical: boolean, open: boolean) {
+    // In the trench it spans wall to wall (or floor to wall top); out in space it is a drifting spar.
+    const W = open ? BOX.x * 2 + 12 : TRENCH.halfWidth * 2 + 1;
+    const H = open ? BOX.y * 2 + 12 : TRENCH.wallTop - TRENCH.floor + 1;
+    const bottom = open ? -H / 2 : TRENCH.floor - 0.5;
     if (vertical) {
-      // A pillar from the floor to the top of the walls (the proto is a unit cube).
-      this.prop(M.structureClosed, s, x, TRENCH.floor - 0.5, undefined, tmpA.set(2.4, H, 2.4).clone());
+      // (The proto is a unit cube standing on its base.)
+      this.prop(M.structureClosed, s, x, bottom, undefined, tmpA.set(2.4, H, 2.4).clone());
       this.barriers.push({ s, rects: [{ x, y: 0, hw: 1.2 + 0.9, hh: 20 }], crossed: false });
     } else {
       this.prop(M.structureClosed, s, 0, y - 1.1, undefined, tmpA.set(W, 2.2, 2.4).clone());
@@ -158,13 +169,36 @@ export class Hazards {
     }
   }
 
-  private gate(s: number, mode: "rows" | "cols" | "cross" | "blink", seed: number) {
+  private gate(s: number, mode: GateMode, seed: number, open: boolean) {
     const r = rng(seed * 97);
     const beams: GateBeam[] = [];
-    const H = TRENCH.wallTop - TRENCH.floor;
-    // Two frames against the walls.
-    for (const side of [-1, 1]) {
-      this.prop(M.laserGate, s, side * (TRENCH.halfWidth - 1.6), TRENCH.floor, tmpQ.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (side * Math.PI) / 2).clone(), tmpA.set(H / 4.62, H / 4.62, H / 4.62).clone());
+    let halfW = TRENCH.halfWidth - 1.6;
+    let y0 = TRENCH.floor;
+    let y1 = TRENCH.wallTop;
+    if (!open) {
+      // Two frames against the trench walls.
+      const H = TRENCH.wallTop - TRENCH.floor;
+      for (const side of [-1, 1]) {
+        this.prop(M.laserGate, s, side * (TRENCH.halfWidth - 1.6), TRENCH.floor, tmpQ.setFromAxisAngle(Y_AXIS, (side * Math.PI) / 2).clone(), tmpA.set(H / 4.62, H / 4.62, H / 4.62).clone());
+      }
+    } else {
+      halfW = BOX.x + 3.6;
+      y0 = -BOX.y - 3;
+      y1 = BOX.y + 3;
+      if (this.gateFrame === "crystal") {
+        // Four crystals the beams run between (unit-sized protos, centred).
+        for (const side of [-1, 1]) {
+          this.prop(side < 0 ? M.crystalA : M.crystalB, s, side * (halfW + 2.4), 0, undefined, tmpA.setScalar(7).clone());
+          this.prop(side < 0 ? M.crystalB : M.crystalA, s, 0, side * (y1 + 2), undefined, tmpA.setScalar(5).clone());
+        }
+      } else {
+        // A square metal frame (unit cubes standing on their base).
+        const H = y1 - y0 + 4;
+        for (const side of [-1, 1]) {
+          this.prop(M.structureClosed, s, side * (halfW + 1.2), y0 - 2, undefined, tmpA.set(2.2, H, 2.2).clone());
+          this.prop(M.structureClosed, s, 0, side > 0 ? y1 : y0 - 2, undefined, tmpA.set(halfW * 2 + 4.6, 2, 2.2).clone());
+        }
+      }
     }
     const rows = [-3.2, 0, 3.2];
     const cols = [-6, -2, 2, 6];
@@ -184,7 +218,7 @@ export class Hazards {
       for (const y of [-3.5, -1.2, 1.2, 3.5]) beams.push({ vertical: false, at: y, amp: 0, speed: 0, phase: 0, period: 2.8, offset: 0 });
       for (const x of [-6, -2, 2, 6]) beams.push({ vertical: true, at: x, amp: 0, speed: 0, phase: 0, period: 2.8, offset: 0 });
     }
-    this.gates.push({ s, beams, crossed: false });
+    this.gates.push({ s, beams, crossed: false, halfW, y0, y1 });
   }
 
   private tower(s: number, x: number, y: number, turrets: number) {
@@ -308,13 +342,13 @@ export class Hazards {
     for (const g of this.gates) {
       if (g.s < s - 30) continue;
       ctx.rail.frame(g.s, f);
-      const W = TRENCH.halfWidth - 1.6;
+      const W = g.halfW;
       for (const b of g.beams) {
         const st = this.beamOn(b, time);
         const p = this.beamPos(b, time);
         if (b.vertical) {
-          tmpA.copy(f.pos).addScaledVector(f.right, p).addScaledVector(f.up, TRENCH.floor);
-          tmpB.copy(f.pos).addScaledVector(f.right, p).addScaledVector(f.up, TRENCH.wallTop);
+          tmpA.copy(f.pos).addScaledVector(f.right, p).addScaledVector(f.up, g.y0);
+          tmpB.copy(f.pos).addScaledVector(f.right, p).addScaledVector(f.up, g.y1);
         } else {
           tmpA.copy(f.pos).addScaledVector(f.right, -W).addScaledVector(f.up, p);
           tmpB.copy(f.pos).addScaledVector(f.right, W).addScaledVector(f.up, p);
@@ -352,6 +386,45 @@ export class Hazards {
   /** Is a laser gate close ahead? (for the warning blip) */
   gateAhead(range: number) {
     return this.gates.some((g) => !g.crossed && g.s - this.ctx.s > 0 && g.s - this.ctx.s < range);
+  }
+
+  /**
+   * Would a ship crossing at rail-local (x, y) hit a girder, a tower or a lit gate beam within `range`
+   * metres ahead? `margin` widens every obstacle. (The test autopilot steers by this.)
+   */
+  blocked(x: number, y: number, range: number, margin: number) {
+    const { ctx } = this;
+    for (const b of this.barriers) {
+      const ahead = b.s - ctx.s;
+      if (b.crossed || ahead <= 0 || ahead > range) continue;
+      for (const r of b.rects) if (Math.abs(x - r.x) < r.hw + 0.7 + margin && Math.abs(y - r.y) < r.hh + 0.35 + margin) return true;
+    }
+    for (const g of this.gates) {
+      const ahead = g.s - ctx.s;
+      if (g.crossed || ahead <= 0 || ahead > range) continue;
+      // Where the beams will be when the ship gets there (a little early and late as well).
+      const eta = ahead / Math.max(1, ctx.speed);
+      for (const dt of [-0.15, 0, 0.15]) {
+        const time = ctx.time + eta + dt;
+        for (const beam of g.beams) {
+          if (!this.beamOn(beam, time).on) continue;
+          const d = Math.abs((beam.vertical ? x : y) - this.beamPos(beam, time));
+          if (d < BEAM_HALF + (beam.vertical ? 0.8 : 0.4) + margin) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /** The next shield ring within `range` metres ahead, if any. */
+  ringAhead(range: number) {
+    let best: Ring | null = null;
+    for (const r of this.rings) {
+      const ahead = r.s - this.ctx.s;
+      if (r.taken || ahead < 4 || ahead > range) continue;
+      if (!best || r.s < best.s) best = r;
+    }
+    return best;
   }
 
   private release(obj: THREE.Object3D | null, key: string) {

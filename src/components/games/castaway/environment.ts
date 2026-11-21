@@ -98,6 +98,29 @@ export function skyAt(t: number, out: SkyState): SkyState {
   return out;
 }
 
+const tintC = new THREE.Color();
+const greyC = new THREE.Color();
+
+/**
+ * An island's own air over the day/night palette (`look`), and the weather on top: `gloom` (0..1)
+ * greys and dims everything (rain, a blizzard), `fogK` pulls the fog in.
+ */
+export function tintSky(sky: SkyState, look: { tint: string; fog: number; light: number }, gloom: number, fogK: number) {
+  tintC.set(look.tint);
+  for (const c of [sky.top, sky.horizon, sky.hemiSky, sky.clouds]) {
+    c.multiply(tintC);
+    if (gloom > 0) {
+      const g = ((c.r + c.g + c.b) / 3) * 0.8;
+      c.lerp(greyC.setRGB(g, g, g * 1.06), gloom * 0.7);
+    }
+  }
+  sky.lightIntensity *= look.light * (1 - 0.4 * gloom);
+  sky.hemiIntensity *= 1 - 0.15 * gloom;
+  sky.fogNear *= look.fog * fogK;
+  sky.fogFar *= look.fog * fogK;
+  return sky;
+}
+
 export function makeSkyState(): SkyState {
   return {
     top: new THREE.Color(),
@@ -350,6 +373,14 @@ export class Water {
     this.mesh.renderOrder = 2;
   }
 
+  /** The sea's colours by day (each island has its own). */
+  colors = { deep: "#0b4a72", mid: "#1b8bb0", shallow: "#4fd6c8" };
+
+  /** The island's ground heights, for the shallows and the foam. */
+  setGround(ground: THREE.Texture) {
+    this.mesh.material.uniforms.uGround.value = ground;
+  }
+
   /** Day/night water colours. */
   setSky(sky: SkyState, pond = false) {
     const u = this.mesh.material.uniforms;
@@ -359,9 +390,9 @@ export class Water {
     (u.uSunDir.value as THREE.Vector3).copy(sky.lightDir);
     (u.uSunColor.value as THREE.Color).copy(sky.light);
     u.uSpec.value = 0.4 + sky.lightIntensity * 0.5;
-    (u.uDeep.value as THREE.Color).set(pond ? "#1d4f45" : "#0b4a72").lerp(ca.set("#04101e"), night * 0.85);
-    (u.uMid.value as THREE.Color).set(pond ? "#2f7a62" : "#1b8bb0").lerp(ca.set("#0a2238"), night * 0.85);
-    (u.uShallow.value as THREE.Color).set(pond ? "#5fae8a" : "#4fd6c8").lerp(ca.set("#1a4450"), night * 0.8);
+    (u.uDeep.value as THREE.Color).set(pond ? "#1d4f45" : this.colors.deep).lerp(ca.set("#04101e"), night * 0.85);
+    (u.uMid.value as THREE.Color).set(pond ? "#2f7a62" : this.colors.mid).lerp(ca.set("#0a2238"), night * 0.85);
+    (u.uShallow.value as THREE.Color).set(pond ? "#5fae8a" : this.colors.shallow).lerp(ca.set("#1a4450"), night * 0.8);
     (u.uFoam.value as THREE.Color).set("#f5fbff").lerp(ca.set("#6f86a6"), night * 0.7);
   }
 

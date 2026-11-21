@@ -6,6 +6,7 @@ export class Sfx {
   private readonly surf = new NoiseLoop({ type: "lowpass", freq: 520, q: 0.5 });
   private readonly wind = new NoiseLoop({ type: "bandpass", freq: 420, q: 0.9 });
   private readonly fire = new NoiseLoop({ type: "bandpass", freq: 1500, q: 0.6 });
+  private readonly rain = new NoiseLoop({ type: "highpass", freq: 2600, q: 0.4 });
   private crackleT = 0;
   private stepSide = 0;
 
@@ -16,12 +17,13 @@ export class Sfx {
     return true;
   }
 
-  /** Ambience: surf by the sea, wind at night, fire crackle near flames. */
-  ambience(dt: number, time: number, { sea, night, fire }: { sea: number; night: number; fire: number }) {
+  /** Ambience: surf by the sea, wind at night and in a blizzard, rain, fire crackle near flames. */
+  ambience(dt: number, time: number, { sea, night, fire, rain = 0, gale = 0 }: { sea: number; night: number; fire: number; rain?: number; gale?: number }) {
     if (!audio.ctx) return;
     const swell = 0.5 + 0.5 * Math.sin(time * 0.7) * Math.sin(time * 0.23 + 1);
     this.surf.set(0.05 + sea * (0.1 + swell * 0.16), 380 + swell * 420);
-    this.wind.set(night * (0.035 + 0.03 * Math.sin(time * 0.31)), 360 + 140 * Math.sin(time * 0.17));
+    this.wind.set(Math.max(night, gale * 2.6) * (0.035 + 0.03 * Math.sin(time * 0.31)), 360 + 140 * Math.sin(time * 0.17) + gale * 160);
+    this.rain.set(rain * 0.085, 2400 + 300 * Math.sin(time * 0.4));
     this.fire.set(fire * 0.06, 1300 + Math.random() * 400);
     if (fire > 0.05) {
       this.crackleT -= dt;
@@ -36,6 +38,7 @@ export class Sfx {
     this.surf.stop();
     this.wind.stop();
     this.fire.stop();
+    this.rain.stop();
   }
 
   step(sand: boolean, water: boolean) {
@@ -184,13 +187,18 @@ export class Sfx {
     if (!this.gate(`growl-${kind}`, 600)) return;
     if (kind === "crab") {
       for (let i = 0; i < 4; i++) audio.noise(0.025, { volume: 0.14, freq: 3800, type: "bandpass", q: 6, delay: i * 0.06 });
+    } else if (kind === "boar") {
+      // A snort and a squeal.
+      for (let i = 0; i < 2; i++) audio.noise(0.09, { volume: 0.16, freq: 420, type: "bandpass", q: 3, delay: i * 0.13 });
+      audio.tone(360, 0.22, { type: "sawtooth", volume: 0.05, slide: 240, delay: 0.26 });
     } else if (kind === "ghost") {
       audio.tone(520, 1.0, { type: "sine", volume: 0.06, slide: -180, attack: 0.25 });
       audio.tone(780, 0.9, { type: "sine", volume: 0.03, slide: -260, attack: 0.3 });
     } else {
-      const f = kind === "brute" ? 70 : 110;
+      const low = kind === "brute" || kind === "bear" || kind === "captain";
+      const f = kind === "captain" ? 55 : low ? 70 : 110;
       audio.tone(f, 0.7, { type: "sawtooth", volume: 0.09, slide: -30, attack: 0.08 });
-      audio.noise(0.6, { volume: 0.12, freq: kind === "brute" ? 300 : 500, type: "bandpass", q: 1, slide: -150 });
+      audio.noise(0.6, { volume: 0.12, freq: low ? 300 : 500, type: "bandpass", q: 1, slide: -150 });
     }
   }
 

@@ -19,7 +19,8 @@ export interface Ctx {
   s: number;
   speed: number;
   time: number;
-  stage: number;
+  /** The mission's difficulty (0 to about 2.6): fire rates, shot speed, boss health. */
+  tier: number;
   player: THREE.Vector3;
   px: number;
   py: number;
@@ -115,6 +116,10 @@ export interface Enemy {
   /** Mine / dive state. */
   armed: boolean;
   target: THREE.Vector2;
+  /** A sentry: aims a line at the ship, locks it, then fires one heavy shot down it. */
+  sniper: boolean;
+  /** Model scale (ships that reuse a model at another size). */
+  scale: number;
 }
 
 interface ShipDef {
@@ -135,7 +140,15 @@ export const SHIPS: Record<ShipType, ShipDef> = {
   gunship: { key: M.speederD, length: 4.8, hp: 9, score: 450, radius: 3.0, fire: 1.5, burst: 3, collide: 20 },
   cargo: { key: M.cargoA, length: 8.5, hp: 12, score: 600, radius: 4.2, fire: 0, burst: 0, collide: 24 },
   miner: { key: M.miner, length: 8.5, hp: 14, score: 700, radius: 4.2, fire: 2.6, burst: 5, collide: 24 },
+  // Swarm drone, ace pilot (a dart flown at 1.25x size) and minelayer (a hauler): they reuse models loaded above.
+  wasp: { key: M.drone, length: 0, hp: 1, score: 80, radius: 1.6, fire: 5, burst: 1, collide: 12 },
+  ace: { key: M.speederB, length: 3.4, hp: 6, score: 400, radius: 2.5, fire: 1.3, burst: 3, collide: 16 },
+  layer: { key: M.cargoA, length: 8.5, hp: 12, score: 600, radius: 4.2, fire: 1.3, burst: 0, collide: 24 },
 };
+
+/** Seconds a sentry tracks the ship, then holds its aim, before it fires. */
+const SNIPER_AIM = 1.3;
+const SNIPER_LOCK = 0.42;
 
 export const ROCK_KEYS = [M.meteor, M.meteorDetailed, M.rockA, M.rockB] as const;
 export const CRYSTAL_KEYS = [M.crystalA, M.crystalB] as const;
@@ -145,6 +158,8 @@ const RED = new THREE.Color("#ff3b5c");
 const ORANGE = new THREE.Color("#ff9a3c");
 const CYAN = new THREE.Color("#22d3ee");
 const GREEN = new THREE.Color("#5eead4");
+const YELLOW = new THREE.Color("#ffd166");
+const MAGENTA = new THREE.Color("#ff4fd8");
 const WHITE = new THREE.Color("#ffffff");
 const FLASH = new THREE.Color(3, 3, 3);
 const ROCK_COLOR = new THREE.Color("#8a6a55");
@@ -153,6 +168,9 @@ const f = newFrame();
 const tmpV = new THREE.Vector3();
 const tmpV2 = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
+const tmpQ2 = new THREE.Quaternion();
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const tmpE = new THREE.Euler(0, 0, 0, "YXZ");
 const tmpM = new THREE.Matrix4();
 const tmpS = new THREE.Vector3();
@@ -210,6 +228,8 @@ export function blankEnemy(kind: EnemyKind): Enemy {
     glowSize: 0,
     armed: false,
     target: new THREE.Vector2(),
+    sniper: false,
+    scale: 1,
   };
 }
 
@@ -316,10 +336,43 @@ export class Enemies {
           e.index = i;
           e.count = ev.count;
           e.fireT = 0.4 + Math.random() * def.fire * 0.7;
+          if (ev.type === "wasp") {
+            e.scale = 0.85;
+            e.glow = YELLOW;
+            e.glowSize = 0.9;
+          } else if (ev.type === "ace") {
+            e.scale = 1.25;
+            e.glow = RED;
+            e.glowSize = 1.5;
+          } else if (ev.type === "layer") {
+            e.hold = 9;
+            e.fireT = 1.2;
+            e.glow = YELLOW;
+            e.glowSize = 3;
+          }
           this.initPattern(e);
           this.attach(e, def.key);
+          e.obj?.scale.setScalar(e.scale);
           this.add(e);
         }
+        break;
+      }
+      case "sentry": {
+        const e = blankEnemy("turret");
+        e.sniper = true;
+        e.s = ev.at;
+        e.x = ev.x;
+        e.y = ev.y;
+        e.hp = e.maxHp = 5;
+        e.score = 300;
+        e.radius = 2.4;
+        e.collide = 18;
+        e.scale = 4.6;
+        e.fireT = 0.3;
+        e.glow = MAGENTA;
+        e.glowSize = 1.6;
+        this.attach(e, M.dish);
+        this.add(e);
         break;
       }
       case "cargo": {
@@ -481,6 +534,24 @@ export class Enemies {
     return e;
   }
 
+  /** A mine left at rail position (s, x, y) by a minelayer (it doesn't count towards the medal). */
+  private dropMine(s: number, x: number, y: number) {
+    const e = blankEnemy("mine");
+    e.s = s;
+    e.x = clamp(x, -BOX.x, BOX.x);
+    e.y = clamp(y, -BOX.y, BOX.y);
+    e.hp = e.maxHp = 1;
+    e.score = 40;
+    e.radius = 1.7;
+    e.collide = 14;
+    e.glow = RED;
+    e.glowSize = 1.4;
+    e.hold = Math.random() * 6;
+    e.noHit = true;
+    this.attach(e, M.drone);
+    this.add(e);
+  }
+
   private initPattern(e: Enemy) {
     const n = e.count;
     const mid = (n - 1) / 2;
@@ -514,6 +585,15 @@ export class Enemies {
       case "orbit":
         e.t = 0;
         e.hold = 9;
+        break;
+      case "snake":
+        // One after another down the same weaving path.
+        e.t = -i * 0.26;
+        break;
+      case "strafe":
+        e.t = -i * 0.6;
+        e.x0 += n > 1 ? (i - mid) * 5 : 0;
+        e.hold = 8 + i;
         break;
       default:
         break;
@@ -587,15 +667,16 @@ export class Enemies {
       case "hover": {
         const enter = 2.6;
         const exitAt = enter + e.hold;
-        const target = e.ship === "cargo" || e.ship === "miner" ? 75 : 62;
+        const target = e.ship === "layer" ? 104 : e.ship === "cargo" || e.ship === "miner" ? 75 : 62;
         if (t < enter) e.d = 210 - (210 - target) * smooth(t / enter);
         else if (t < exitAt) e.d = target + Math.sin(t * 0.7 + i) * 6;
         else {
           e.d += 45 * dt * Math.min(1, (t - exitAt) * 1.5);
           e.y += 10 * dt;
         }
-        const w = e.ship === "cargo" ? 0.35 : 0.8;
-        e.x = e.x0 + Math.sin(t * w + i * 1.7) * (e.ship === "cargo" ? 5 : 4.5);
+        const slow = e.ship === "cargo" || e.ship === "layer";
+        const w = slow ? 0.35 : 0.8;
+        e.x = e.x0 + Math.sin(t * w + i * 1.7) * (slow ? 5 : 4.5);
         e.y = (t < exitAt ? e.y0 : e.y) + (t < exitAt ? Math.cos(t * w * 1.4 + i) * 2.4 : 0);
         e.yaw = Math.PI;
         break;
@@ -646,6 +727,29 @@ export class Enemies {
         e.yaw = Math.PI;
         break;
       }
+      case "snake": {
+        // Weaves in from far ahead and straight past the ship.
+        e.d = 230 - 46 * t;
+        e.x = e.x0 + e.side * Math.sin(t * 1.5) * 6;
+        e.y = e.y0 + Math.sin(t * 2.3) * 2.2;
+        e.yaw = Math.PI;
+        break;
+      }
+      case "strafe": {
+        // Holds its distance and never stops sliding from side to side.
+        const enter = 2.2;
+        const exitAt = enter + e.hold;
+        if (t < enter) e.d = 210 - (210 - 58) * smooth(t / enter);
+        else if (t < exitAt) e.d = 58 + Math.sin(t * 0.9 + i) * 8;
+        else {
+          e.d += 50 * dt * Math.min(1, (t - exitAt) * 1.5);
+          e.y += 11 * dt;
+        }
+        e.x = clamp(e.x0 + Math.sin(t * 1.9 + i * 2.1) * 6.5, -BOX.x - 2, BOX.x + 2);
+        if (t < exitAt) e.y = e.y0 + Math.cos(t * 1.3 + i) * 2.6;
+        e.yaw = Math.PI;
+        break;
+      }
       default:
         if (e.kind === "boulder") {
           // Boss projectiles: close in, steering towards where the player was.
@@ -689,7 +793,7 @@ export class Enemies {
     if (e.inst) return;
     if (!obj) return;
     obj.position.copy(e.pos);
-    if (e.kind === "satellite" || e.ship === "cargo" || e.ship === "miner") obj.visible = e.s > this.ctx.s - 1.5;
+    if (e.kind === "satellite" || e.ship === "cargo" || e.ship === "miner" || e.ship === "layer" || e.sniper) obj.visible = e.s > this.ctx.s - 1.5;
     if (e.kind === "ship") {
       const vx = dt > 0 ? (e.x - e.prevX) / dt : 0;
       const vy = dt > 0 ? (e.y - e.prevY) / dt : 0;
@@ -697,6 +801,10 @@ export class Enemies {
       e.bank = damp(e.bank, clamp(vx * 0.05 * dir, -0.9, 0.9), 6, dt);
       tmpE.set(clamp(vy * 0.03, -0.4, 0.4) * dir, e.yaw, -e.bank * (e.ship === "cargo" ? 0.3 : 1));
       obj.quaternion.copy(f.quat).multiply(tmpQ.setFromEuler(tmpE));
+    } else if (e.sniper) {
+      // A dish turned to face the oncoming ship.
+      obj.quaternion.copy(f.quat).multiply(tmpQ.setFromAxisAngle(Y_AXIS, Math.PI)).multiply(tmpQ2.setFromAxisAngle(X_AXIS, -Math.PI / 2));
+      obj.scale.setScalar(e.scale);
     } else if (e.kind === "turret") {
       obj.quaternion.copy(f.quat);
       // Hanging turrets are upside down.
@@ -720,6 +828,22 @@ export class Enemies {
   private updateFire(e: Enemy, dt: number) {
     const { ctx } = this;
     const ahead = e.s - ctx.s;
+    if (e.sniper) {
+      this.updateSniper(e, dt, ahead);
+      return;
+    }
+    if (e.ship === "layer") {
+      // Mines go out behind it while it holds station ahead of the ship.
+      if (e.t > 2.6 && e.t < 2.6 + e.hold && ahead > 50) {
+        e.fireT -= dt;
+        if (e.fireT <= 0) {
+          e.fireT = 1.3;
+          this.dropMine(e.s - 6, e.x, e.y - 1);
+          ctx.sfx.enemyShot();
+        }
+      }
+      return;
+    }
     let rate = 0;
     let burst = 1;
     if (e.kind === "ship" && e.ship) {
@@ -741,17 +865,44 @@ export class Enemies {
       return;
     }
     if (!inRange) return;
-    const difficulty = 1 + ctx.stage * 0.18;
+    const difficulty = 1 + ctx.tier * 0.18;
     e.fireT -= dt * difficulty;
     if (e.fireT <= 0) {
       e.fireT = rate * (0.8 + Math.random() * 0.5);
-      if (ctx.bolts() < 10 + ctx.stage * 4) e.charge = 0.5;
+      if (ctx.bolts() < 10 + ctx.tier * 4) e.charge = 0.5;
+    }
+  }
+
+  /** Sentry: tracks the ship with a thin line, holds it still for a moment (the line turns solid), then fires down it. */
+  private updateSniper(e: Enemy, dt: number, ahead: number) {
+    const { ctx } = this;
+    if (ahead < 28 || ahead > 190) {
+      e.charge = 0;
+      return;
+    }
+    if (e.charge <= 0) {
+      e.fireT -= dt * (1 + ctx.tier * 0.1);
+      if (e.fireT <= 0) e.charge = SNIPER_AIM;
+      return;
+    }
+    e.charge -= dt;
+    const locked = e.charge < SNIPER_LOCK;
+    if (!locked) e.target.set(ctx.px, ctx.py);
+    // The aim point rides along with the ship: a spot in its flight box, not a fixed place in space.
+    ctx.rail.local(ctx.s, e.target.x, e.target.y, tmpV2, f);
+    ctx.beams.add(e.pos, tmpV2, locked ? 0.34 : 0.13, locked ? RED : MAGENTA, locked ? (Math.sin(ctx.time * 50) > 0 ? 1.5 : 0.7) : 0.55);
+    if (e.charge <= 0) {
+      e.charge = 0;
+      e.fireT = 2.4;
+      ctx.fire(e.pos, { dir: tmpV.subVectors(tmpV2, e.pos), speed: 135, damage: 20, size: 1.8, color: MAGENTA });
+      ctx.sfx.enemyShot();
+      ctx.sfx.ping();
     }
   }
 
   private shoot(e: Enemy, burst: number) {
     const { ctx } = this;
-    const speed = 50 + ctx.stage * 6;
+    const speed = 50 + ctx.tier * 6;
     if (e.ship === "miner") {
       // Fan of bolts.
       for (let k = 0; k < burst; k++) ctx.fire(e.pos, { speed: speed * 0.85, spread: (k - (burst - 1) / 2) * 0.12, lead: false });
@@ -779,7 +930,7 @@ export class Enemies {
           inst.add(tmpM, e.flash > 0 ? FLASH : e.kind === "meteor" ? ROCK_COLOR : undefined);
         }
       }
-      if (e.charge > 0 && !e.boss) {
+      if (e.charge > 0 && !e.boss && !e.sniper) {
         const k = e.pattern === "dive" ? 0.6 + Math.sin(ctx.time * 30) * 0.4 : 1 - e.charge / 0.5;
         ctx.glows.add(e.pos, RED, 2 + k * 3.5, 0.5 + k * 1.2);
       }
@@ -845,7 +996,7 @@ export class Enemies {
   kill(e: Enemy, byPlayer: boolean) {
     const { ctx } = this;
     if (!e.alive) return;
-    const big = e.kind === "satellite" || e.ship === "cargo" || e.ship === "miner" || e.ship === "gunship" || e.kind === "crystal";
+    const big = e.kind === "satellite" || e.ship === "cargo" || e.ship === "miner" || e.ship === "layer" || e.ship === "gunship" || e.kind === "crystal" || e.sniper;
     const size = e.kind === "rock" || e.kind === "meteor" ? e.size * 0.9 : big ? 6 : e.boss ? 5 : 3.2;
     ctx.explode(e.pos, size, e.kind === "crystal" ? GREEN : e.kind === "rock" ? ROCK_COLOR : undefined);
     if (e.kind === "rock" || e.kind === "meteor" || e.kind === "crystal") {
@@ -896,7 +1047,12 @@ export class RockField {
   private readonly fr = newFrame();
   readonly group = new THREE.Group();
 
-  constructor(protos: Map<string, Proto>, keys: readonly string[]) {
+  /** `salt`: a second field (the crystal reef) gets its own layout instead of sitting on the first. */
+  constructor(
+    protos: Map<string, Proto>,
+    keys: readonly string[],
+    private readonly salt = 0,
+  ) {
     for (const k of keys) {
       const proto = protos.get(k);
       if (!proto) continue;
@@ -912,7 +1068,8 @@ export class RockField {
     for (const i of this.inst) i.begin();
     const step = 9;
     for (let slot = Math.floor(s0 / step); slot * step < s1; slot++) {
-      for (let k = 0; k < 3; k++) {
+      for (let n = 0; n < 3; n++) {
+        const k = n + this.salt;
         const h = hash(slot, k);
         if (h > 0.42 * density) continue;
         const s = slot * step + hash(slot, k + 10) * step;

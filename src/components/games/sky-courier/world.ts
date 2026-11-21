@@ -1,13 +1,14 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Proto } from "../shared/assets";
-import { ISLANDS, ISLETS, type IslandDef } from "./data";
+import { rng, type Flora, type IslandDef, type IsletDef, type PeakDef, type RegionDef, type Rng } from "./data";
 import { AERO, CASTLE, NATURE, PARCEL, PROP, ROCKS, TOWN, WATERFALL } from "./manifest";
 
 /**
- * Builds the archipelago from library models: floating rocks, villages, castles, mills and the
- * hub station. Static scenery is merged per island and material (few draw calls). Every island
- * also gets a column heightfield (top / bottom per 2 m cell) for cheap, robust collisions.
+ * Builds one region of the sky from library models: floating rocks with villages, castles, mills and
+ * the hub station, loose islets and the rock pillars of the canyons. Static scenery is merged per
+ * island and material (few draw calls). Everything solid also goes into a column heightfield (top /
+ * bottom per 2 m cell) for cheap, robust collisions.
  */
 
 const CELL = 2;
@@ -15,18 +16,8 @@ const EMPTY_TOP = -1e9;
 const EMPTY_BOTTOM = 1e9;
 /** Fantasy Town Kit unit → metres. */
 const U = 4.6;
-
-export type Rng = () => number;
-export function rng(seed: number): Rng {
-  let s = seed >>> 0 || 1;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/** How far a rock pillar reaches below the top of the cloud sea. */
+const PEAK_ROOT = 45;
 
 // --- Heightfield --------------------------------------------------------------------------------------
 
@@ -220,6 +211,31 @@ const SHARED_KITS = new Set(["fantasy-town-kit", "castle-kit", "nature-kit", "mo
 
 export class MaterialBank {
   private readonly bank = new Map<string, THREE.Material>();
+  private readonly base = new Map<THREE.Material, { color: THREE.Color; emissive: THREE.Color; intensity: number }>();
+
+  /**
+   * Recolours the islands for a region: the rock and grass textures are multiplied by a colour, and
+   * `frost` whitens the grass (snow on the high peaks). The same materials are shared by every island.
+   */
+  tint(rock: string, grass: string, frost: number) {
+    for (const [id, m] of this.bank) {
+      const std = m as THREE.MeshStandardMaterial;
+      if (!std.isMeshStandardMaterial) continue;
+      const isGrass = /\|(Grass|Aero_Terrain_Mat)\|/.test(id);
+      const isRock = /\|Rock01\|/.test(id);
+      if (!isGrass && !isRock) continue;
+      let base = this.base.get(m);
+      if (!base) this.base.set(m, (base = { color: std.color.clone(), emissive: std.emissive.clone(), intensity: std.emissiveIntensity }));
+      std.color.copy(base.color).multiply(new THREE.Color(isGrass ? grass : rock));
+      if (isGrass && frost > 0) {
+        std.emissive.set("#b9c8dc");
+        std.emissiveIntensity = frost;
+      } else {
+        std.emissive.copy(base.emissive);
+        std.emissiveIntensity = base.intensity;
+      }
+    }
+  }
 
   /** Makes every model of a kit use one material per name, so merged scenery collapses to few draws. */
   unify(key: string, root: THREE.Object3D) {
@@ -281,15 +297,22 @@ const pv = new THREE.Vector3();
 
 export class World {
   readonly group = new THREE.Group();
+  /** The region's stations first (same order as its island list), then islets and rock pillars. */
   readonly islands: Island[] = [];
   readonly spinners: Spinner[] = [];
   readonly waterfalls: THREE.Object3D[] = [];
+  /** Where lamps, lanterns and station hoops are: they glow at night. `warm` = lantern light. */
+  readonly lights: { pos: THREE.Vector3; size: number; warm: boolean }[] = [];
   private waterMaterial: THREE.Material | null = null;
 
-  constructor(private readonly protos: Map<string, Proto>) {
+  constructor(
+    private readonly protos: Map<string, Proto>,
+    readonly region: RegionDef,
+  ) {
     this.group.name = "world";
-    ISLANDS.forEach((def) => this.islands.push(this.buildIsland(def)));
-    ISLETS.forEach((s, i) => this.islands.push(this.buildIslet(s, i)));
+    region.islands.forEach((def) => this.islands.push(this.buildIsland(def)));
+    region.islets.forEach((s, i) => this.islands.push(this.buildIslet(s, i)));
+    region.peaks.forEach((p) => this.islands.push(this.buildPeak(p)));
     for (const isl of this.islands) this.group.add(isl.group);
   }
 
@@ -325,10 +348,11 @@ export class World {
   }
 
   dispose() {
+    this.group.removeFromParent();
     this.group.traverse((o) => {
       const mesh = o as THREE.Mesh;
       // Merged geometry is ours; clones share the prototypes' geometry (disposed with the protos).
-      if (mesh.isMesh && mesh.userData.merged !== false && !mesh.userData.clone) mesh.geometry.dispose();
+      if (mesh.isMesh && !mesh.userData.clone) mesh.geometry.dispose();
     });
   }
 
@@ -385,8 +409,9 @@ export class World {
     isl.minY = minY;
     isl.radius = this.measureRadius(hf, def.x, def.z, def.y);
 
-    const deco = new Decorator(this, isl, builder, rng(def.id * 7919 + 13));
-    deco.pad();
+    const hub = this.region.islands[0];
+    const deco = new Decorator(this, isl, builder, rng(this.region.id * 104729 + def.id * 7919 + 13), this.region.flora);
+    deco.pad(hub.x, hub.z);
     switch (def.kind) {
       case "hub":
         deco.hub();
@@ -415,16 +440,59 @@ export class World {
     deco.filler();
 
     builder.build(group);
-    group.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh && !o.userData.clone) o.userData.merged = true;
-    });
     let maxY = EMPTY_TOP;
     for (let k = 0; k < hf.top.length; k++) if (hf.top[k] > maxY) maxY = hf.top[k];
     isl.maxY = maxY;
     return isl;
   }
 
-  private buildIslet(s: (typeof ISLETS)[number], i: number): Island {
+  /** A rock pillar: the bare-rock island stretched tall, its foot under the clouds. */
+  private buildPeak(p: PeakDef): Island {
+    const proto = this.protos.get(ROCKS.d);
+    const group = new THREE.Group();
+    const half = p.r * 1.5 + 6;
+    const hf = new Heightfield(p.x - half, p.z - half, p.x + half, p.z + half);
+    const isl: Island = {
+      def: null,
+      name: "peak",
+      x: p.x,
+      z: p.z,
+      top: p.h,
+      maxY: p.h,
+      minY: -PEAK_ROOT,
+      radius: p.r * 1.3,
+      pad: new THREE.Vector3(p.x, p.h, p.z),
+      hoopY: p.h,
+      hf,
+      group,
+    };
+    if (!proto) return isl;
+    const builder = new StaticBuilder();
+    const wide = (p.r * 2) / Math.max(proto.size.x, proto.size.z);
+    const tall = (p.h + PEAK_ROOT) / proto.size.y;
+    q.setFromAxisAngle(yAxis, p.yaw);
+    m4.compose(sv.set(p.x, -PEAK_ROOT, p.z), q, pv.set(wide, tall, wide));
+    proto.object.updateMatrixWorld(true);
+    proto.object.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || /collider/i.test(mesh.name)) return;
+      const matrix = new THREE.Matrix4().multiplyMatrices(m4, mesh.matrixWorld);
+      hf.rasterize(mesh.geometry, matrix);
+      for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) builder.add(mesh.geometry, mat, matrix, true, true);
+    });
+    // Solid all the way down: nothing flies under a pillar.
+    let maxY = EMPTY_TOP;
+    for (let k = 0; k < hf.top.length; k++) {
+      if (hf.top[k] <= EMPTY_TOP) continue;
+      hf.bottom[k] = -PEAK_ROOT;
+      if (hf.top[k] > maxY) maxY = hf.top[k];
+    }
+    isl.maxY = maxY > EMPTY_TOP ? maxY : p.h;
+    builder.build(group);
+    return isl;
+  }
+
+  private buildIslet(s: IsletDef, i: number): Island {
     const key = ROCKS[s.model];
     const proto = this.protos.get(key);
     const group = new THREE.Group();
@@ -469,7 +537,7 @@ export class World {
     }
     // A tree or two on the bigger rocks.
     if (s.model !== "d" && s.size >= 20) {
-      const deco = new Decorator(this, isl, builder, rng(500 + i * 31));
+      const deco = new Decorator(this, isl, builder, rng(this.region.id * 977 + 500 + i * 31), this.region.flora);
       deco.scatterTrees(s.size >= 24 ? 2 : 1);
     }
     builder.build(group);
@@ -550,6 +618,69 @@ export class World {
 
 // --- Decoration -----------------------------------------------------------------------------------------------
 
+/** Trees per region: model, base size, extra size, chance (the chances of a row add up to 1). */
+const TREES: Record<Flora, [string, number, number, number][]> = {
+  meadow: [
+    [NATURE.oak, 7, 3, 0.3],
+    [NATURE.tree, 6, 2.5, 0.2],
+    [TOWN.treeRound, 3.6, 1.2, 0.25],
+    [NATURE.pine, 6, 3, 0.1],
+    [NATURE.fall, 7, 3, 0.15],
+  ],
+  autumn: [
+    [NATURE.fall, 7, 3, 0.35],
+    [NATURE.oakFall, 7, 3, 0.35],
+    [TOWN.treeCrooked, 3.8, 1, 0.15],
+    [TOWN.treeRound, 3.6, 1.2, 0.15],
+  ],
+  dry: [
+    [TOWN.treeCrooked, 3.8, 1.4, 0.55],
+    [NATURE.rockTall, 5, 4, 0.3],
+    [NATURE.oakFall, 6, 2, 0.15],
+  ],
+  pine: [
+    [NATURE.pine, 6.5, 3.5, 0.75],
+    [NATURE.rockTall, 5, 3, 0.15],
+    [NATURE.tree, 6, 2, 0.1],
+  ],
+  night: [
+    [NATURE.pine, 6, 3, 0.35],
+    [NATURE.oak, 7, 3, 0.25],
+    [TOWN.treeRound, 3.6, 1.2, 0.25],
+    [TOWN.treeCrooked, 3.8, 1, 0.15],
+  ],
+};
+
+/** Small things on the grass per region: [model, base size, extra size, chance]. */
+const FILLER: Record<Flora, [string, number, number, number][]> = {
+  meadow: [
+    [NATURE.flowerRed, 5, 3, 0.2],
+    [NATURE.flowerYellow, 5, 3, 0.2],
+    [NATURE.bush, 4, 2, 0.3],
+    [NATURE.rock, 4, 3, 0.15],
+    [NATURE.pumpkin, 3.5, 0, 0.15],
+  ],
+  autumn: [
+    [NATURE.pumpkin, 3.5, 1, 0.35],
+    [NATURE.bush, 4, 2, 0.3],
+    [NATURE.flowerYellow, 5, 3, 0.2],
+    [NATURE.rock, 4, 3, 0.15],
+  ],
+  dry: [
+    [NATURE.rock, 4, 4, 0.6],
+    [NATURE.bush, 3.5, 1.5, 0.4],
+  ],
+  pine: [
+    [NATURE.rock, 4, 4, 0.55],
+    [NATURE.bush, 4, 2, 0.45],
+  ],
+  night: [
+    [NATURE.flowerRed, 5, 3, 0.3],
+    [NATURE.bush, 4, 2, 0.4],
+    [NATURE.rock, 4, 3, 0.3],
+  ],
+};
+
 class Decorator {
   private readonly occupied: Occupied[] = [];
   private readonly cx: number;
@@ -561,10 +692,16 @@ class Decorator {
     private readonly isl: Island,
     private readonly builder: StaticBuilder,
     private readonly rand: Rng,
+    private readonly flora: Flora,
   ) {
     this.cx = isl.x;
     this.cz = isl.z;
     this.R = isl.radius;
+  }
+
+  /** Remembers a lamp for the night glow. */
+  private light(x: number, y: number, z: number, size: number, warm: boolean) {
+    this.world.lights.push({ pos: new THREE.Vector3(x, y, z), size, warm });
   }
 
   private pick<T>(list: readonly T[]) {
@@ -647,10 +784,10 @@ class Decorator {
 
   // --- Pieces ---------------------------------------------------------------------------------------------------
 
-  pad() {
+  pad(hubX: number, hubZ: number) {
     const isl = this.isl;
-    // Face the hub (or, for the hub, the open sky to the south-east).
-    const toward = isl.def?.kind === "hub" ? Math.atan2(0.75, -0.66) : Math.atan2(-isl.x, -isl.z);
+    // Face the region's hub (or, for the hub, the open sky to the south-east).
+    const toward = isl.def?.kind === "hub" ? Math.atan2(0.75, -0.66) : Math.atan2(hubX - isl.x, hubZ - isl.z);
     let best: { x: number; z: number; y: number } | null = null;
     for (let t = 0; t < 24 && !best; t++) {
       const a = toward + (t % 2 ? 1 : -1) * Math.ceil(t / 2) * 0.32;
@@ -676,6 +813,7 @@ class Decorator {
       const hs = 22 / hoop.size.x;
       isl.hoopY = padTop + 15;
       this.put(AERO.ringGold, best.x, isl.hoopY, best.z, 0.3, hs, { solid: false, cast: false });
+      this.light(best.x, isl.hoopY + 1.5, best.z, 30, false);
     }
     // Lamps either side.
     const side = Math.atan2(best.x - this.cx, best.z - this.cz) + Math.PI / 2;
@@ -683,7 +821,10 @@ class Decorator {
       const lx = best.x + Math.sin(side) * 12 * s;
       const lz = best.z + Math.cos(side) * 12 * s;
       const g = this.isl.hf.groundAt(lx, lz);
-      if (g > isl.top - 4) this.put(AERO.lamp, lx, g - 0.3, lz, side, 1.1);
+      if (g > isl.top - 4) {
+        this.put(AERO.lamp, lx, g - 0.3, lz, side, 1.1);
+        this.light(lx, g + 8, lz, 13, false);
+      }
     }
     // A few parcels waiting on the pad's edge.
     const pk = this.world.proto(PARCEL);
@@ -724,6 +865,8 @@ class Decorator {
     }
     const roof = floors > 1 || this.rand() < 0.5 ? TOWN.roofHigh : TOWN.roof;
     this.put(roof, x, y + floors * U, z, yaw, U);
+    // A lit window on the side facing the island's middle.
+    this.light(x + Math.sin(yaw) * U * 0.6, y + U * 0.55, z + Math.cos(yaw) * U * 0.6, 7, true);
     this.claim(x, z, U * 0.85);
   }
 
@@ -741,18 +884,24 @@ class Decorator {
     this.put(CASTLE.roof, x, h, z, 0, s);
     const apex = h + (roof?.size.y ?? 1) * s;
     if (flag) this.put(this.rand() < 0.5 ? CASTLE.flag : CASTLE.pennant, x, apex - 0.15 * s, z, this.rand() * 6, s * 0.8);
+    this.light(x, h - s * 0.2, z, s * 1.6, true);
     this.claim(x, z, s * 0.55);
     return h;
   }
 
+  /** A tree of the region's kind: [model, base size, extra size] by chance. */
   tree(x: number, z: number, y: number) {
-    const r = this.rand();
-    if (r < 0.25) this.put(NATURE.oak, x, y - 0.2, z, this.rand() * 6, 7 + this.rand() * 3);
-    else if (r < 0.45) this.put(NATURE.fall, x, y - 0.2, z, this.rand() * 6, 7 + this.rand() * 3);
-    else if (r < 0.6) this.put(NATURE.pine, x, y - 0.2, z, this.rand() * 6, 6 + this.rand() * 3);
-    else if (r < 0.75) this.put(TOWN.treeRound, x, y - 0.2, z, this.rand() * 6, 3.6 + this.rand() * 1.2);
-    else if (r < 0.88) this.put(NATURE.oakFall, x, y - 0.2, z, this.rand() * 6, 7 + this.rand() * 3);
-    else this.put(TOWN.treeCrooked, x, y - 0.2, z, this.rand() * 6, 3.8 + this.rand());
+    const kinds = TREES[this.flora];
+    let r = this.rand();
+    let pick = kinds[kinds.length - 1];
+    for (const k of kinds) {
+      if (r < k[3]) {
+        pick = k;
+        break;
+      }
+      r -= k[3];
+    }
+    this.put(pick[0], x, y - 0.2, z, this.rand() * 6, pick[1] + this.rand() * pick[2]);
     this.claim(x, z, 3.2);
   }
 
@@ -777,6 +926,7 @@ class Decorator {
       const s = this.spot(1.2, minF, maxF, 30, 3);
       if (!s) continue;
       this.put(TOWN.lantern, s.x, s.y - 0.1, s.z, this.rand() * 6, 3.6);
+      this.light(s.x, s.y + 4.6, s.z, 9, true);
       this.claim(s.x, s.z, 1.5);
     }
   }
@@ -793,14 +943,21 @@ class Decorator {
   /** Small things on the grass: flowers, bushes, rocks (not solid). */
   filler() {
     const n = Math.round(this.R / 3);
+    const kinds = FILLER[this.flora];
     for (let i = 0; i < n; i++) {
       const s = this.spot(1, 0.05, 0.86, 12, 3);
       if (!s) continue;
-      const r = this.rand();
-      if (r < 0.35) this.put(this.rand() < 0.5 ? NATURE.flowerRed : NATURE.flowerYellow, s.x, s.y - 0.05, s.z, this.rand() * 6, 5 + this.rand() * 3, { solid: false, cast: false });
-      else if (r < 0.7) this.put(NATURE.bush, s.x, s.y - 0.2, s.z, this.rand() * 6, 4 + this.rand() * 2, { solid: false });
-      else if (r < 0.85) this.put(NATURE.rock, s.x, s.y - 0.3, s.z, this.rand() * 6, 4 + this.rand() * 3, { solid: false });
-      else this.put(NATURE.pumpkin, s.x, s.y - 0.05, s.z, this.rand() * 6, 3.5, { solid: false });
+      let r = this.rand();
+      let pick = kinds[kinds.length - 1];
+      for (const k of kinds) {
+        if (r < k[3]) {
+          pick = k;
+          break;
+        }
+        r -= k[3];
+      }
+      const flower = pick[0] === NATURE.flowerRed || pick[0] === NATURE.flowerYellow;
+      this.put(pick[0], s.x, s.y - (flower ? 0.05 : 0.2), s.z, this.rand() * 6, pick[1] + this.rand() * pick[2], { solid: false, cast: !flower });
       this.claim(s.x, s.z, 1);
     }
   }
@@ -819,6 +976,8 @@ class Decorator {
       const s = 54 / station.size.y;
       const g = this.groundUnder(sx, sz, 10).lo;
       this.put(AERO.station, sx, g - 0.5, sz, a + Math.PI, s);
+      this.light(sx, g + 50, sz, 44, false);
+      this.light(sx, g + 22, sz, 30, false);
       this.claim(sx, sz, 22);
     }
     // Decks either side.
@@ -844,6 +1003,7 @@ class Decorator {
       const g = this.groundUnder(x, z, 2);
       if (g.lo < isl.top - 3) continue;
       this.put(AERO.lamp, x, g.lo - 0.3, z, la, 1.1);
+      this.light(x, g.lo + 8, z, 13, false);
       this.claim(x, z, 3);
     }
     for (let i = 0; i < 2; i++) {
@@ -995,7 +1155,8 @@ class Decorator {
     const z = this.cz + Math.cos(out) * this.R * 0.45;
     const g = this.groundUnder(x, z, 4);
     const top = this.tower(x, z, g.lo - 0.3, 5, 6.2, false);
-    void top;
+    // The lamp room.
+    this.light(x, top + 3, z, 60, true);
     this.houses(3, 0.2, 0.85);
     this.scatterTrees(4, 0.3, 0.85);
     this.lanterns(3, 0.1, 0.7);

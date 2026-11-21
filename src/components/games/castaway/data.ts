@@ -51,8 +51,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   fishCooked: { name: "Grilled fish", model: ITEM.fish, tint: "#8a5a32" },
   bigFish: { name: "Raw tuna", model: ITEM.bigFish },
   bigFishCooked: { name: "Grilled tuna", model: ITEM.bigFish, tint: "#8a5a32" },
-  meat: { name: "Crab meat", model: ITEM.meat },
-  meatCooked: { name: "Crab steak", model: ITEM.meatCooked },
+  meat: { name: "Raw meat", model: ITEM.meat },
+  meatCooked: { name: "Roast meat", model: ITEM.meatCooked },
   axe: { name: "Stone axe", model: HELD.axe },
   axeIron: { name: "Iron axe", model: HELD.axeIron },
   pick: { name: "Stone pickaxe", model: HELD.pick },
@@ -174,6 +174,8 @@ export interface Recipe {
   hint: string;
   /** Extra unlock condition: another recipe crafted first. */
   after?: RecipeId;
+  /** Only on islands where a ship can be signalled. */
+  shipOnly?: boolean;
   /** Icon model. */
   icon: string;
 }
@@ -197,8 +199,8 @@ export const RECIPES: Recipe[] = [
   { id: "fence", tab: "defense", name: "Fence", desc: "Blocks creatures until they break it.", cost: { wood: 4, fiber: 1 }, build: "fence", hint: "Find wood and fibre", icon: BUILD.fence },
   { id: "gate", tab: "defense", name: "Gate", desc: "A fence you can walk through. Creatures can't.", cost: { wood: 5, fiber: 2 }, build: "gate", hint: "Build a fence first", after: "fence", icon: BUILD.gate },
   { id: "wall", tab: "defense", name: "Palisade", desc: "A sturdy wall. Takes ages to break.", cost: { planks: 3, stone: 2 }, build: "wall", bench: true, hint: "Build a workbench", after: "workbench", icon: BUILD.wall },
-  { id: "signal", tab: "escape", name: "Signal fire", desc: "Light it at night. If it burns until dawn, a ship will come.", cost: { wood: 20, stone: 10, planks: 4 }, build: "signal", bench: true, hint: "Build a workbench", after: "workbench", icon: BUILD.campfire },
-  { id: "raft", tab: "escape", name: "Raft", desc: "Build it on the shore. Your way out to the ship.", cost: { planks: 14, wood: 8, fiber: 10, cloth: 3 }, build: "raft", bench: true, hint: "Build a workbench", after: "workbench", icon: BUILD.raftDeck },
+  { id: "signal", tab: "escape", name: "Signal fire", desc: "Light it at dusk. If it burns until dawn, a ship will come.", cost: { wood: 20, stone: 10, planks: 4 }, build: "signal", bench: true, shipOnly: true, hint: "Build a workbench", after: "workbench", icon: BUILD.campfire },
+  { id: "raft", tab: "escape", name: "Raft", desc: "Build it on the shore. Your way off the island.", cost: { planks: 14, wood: 8, fiber: 10, cloth: 3 }, build: "raft", bench: true, hint: "Build a workbench", after: "workbench", icon: BUILD.raftDeck },
 ];
 
 export const RECIPE = Object.fromEntries(RECIPES.map((r) => [r.id, r])) as Record<RecipeId, Recipe>;
@@ -212,10 +214,18 @@ export const TABS: { id: Tab; name: string }[] = [
 
 // --- Creatures -------------------------------------------------------------------------------------
 
-export type CreatureKind = "crab" | "drowned" | "brute" | "ghost";
+export type CreatureKind = "crab" | "drowned" | "brute" | "ghost" | "boar" | "bear" | "captain";
+
+export const CREATURE_KINDS: CreatureKind[] = ["crab", "drowned", "brute", "ghost", "boar", "bear", "captain"];
 
 export interface CreatureDef {
   name: string;
+  /** A four-legged animal (its own clips). */
+  animal?: boolean;
+  /** Lives on the island by day: wanders, charges when you come within `aggro`, gives up past `leash`. */
+  wild?: { aggro: number; leash: number };
+  /** Goes for a burning signal fire. */
+  boss?: boolean;
   hp: number;
   speed: number;
   damage: number;
@@ -238,7 +248,43 @@ export interface CreatureDef {
 }
 
 export const CREATURES: Record<CreatureKind, CreatureDef> = {
-  crab: { name: "Reef crab", hp: 26, speed: 3.3, damage: 7, wallDamage: 7, reach: 1.25, windup: 0.42, cooldown: 1.1, radius: 0.55, height: 0.9, fear: 1, drops: [{ item: "meat", chance: 0.7, count: 1 }] },
+  crab: { name: "Reef crab", animal: true, hp: 26, speed: 3.3, damage: 7, wallDamage: 7, reach: 1.25, windup: 0.42, cooldown: 1.1, radius: 0.55, height: 0.9, fear: 1, drops: [{ item: "meat", chance: 0.7, count: 1 }] },
+  boar: { name: "Wild boar", animal: true, wild: { aggro: 7, leash: 17 }, hp: 46, speed: 3.7, damage: 9, wallDamage: 8, reach: 1.4, windup: 0.5, cooldown: 1.4, radius: 0.6, height: 1.05, fear: 1, drops: [{ item: "meat", chance: 1, count: 2 }] },
+  bear: {
+    name: "White bear",
+    animal: true,
+    wild: { aggro: 9, leash: 22 },
+    hp: 150,
+    speed: 3.1,
+    damage: 19,
+    wallDamage: 30,
+    reach: 1.8,
+    windup: 0.75,
+    cooldown: 1.6,
+    radius: 0.8,
+    height: 1.55,
+    fear: 1,
+    drops: [{ item: "meat", chance: 1, count: 3 }],
+  },
+  captain: {
+    name: "Drowned Captain",
+    boss: true,
+    hp: 380,
+    speed: 2.35,
+    damage: 27,
+    wallDamage: 60,
+    reach: 2.1,
+    windup: 0.85,
+    cooldown: 1.5,
+    radius: 0.8,
+    height: 2.5,
+    fear: 0,
+    stomps: true,
+    drops: [
+      { item: "scrap", chance: 1, count: 3 },
+      { item: "cloth", chance: 1, count: 2 },
+    ],
+  },
   drowned: {
     name: "Drowned sailor",
     hp: 60,
@@ -276,20 +322,6 @@ export const CREATURES: Record<CreatureKind, CreatureDef> = {
   },
   ghost: { name: "Sea ghost", hp: 40, speed: 3.0, damage: 10, wallDamage: 0, reach: 1.4, windup: 0.5, cooldown: 1.2, radius: 0.45, height: 1.6, fear: 1.6, phase: true, drops: [{ item: "cloth", chance: 0.5, count: 1 }] },
 };
-
-/** Who comes out of the sea on a given night (1-based). */
-export function raidPlan(night: number): CreatureKind[] {
-  const out: CreatureKind[] = [];
-  const crabs = Math.min(9, 3 + night);
-  const drowned = night >= 2 ? Math.min(8, 1 + Math.floor(night * 0.9)) : 0;
-  const brutes = night >= 3 ? Math.min(4, Math.floor((night - 1) / 2)) : 0;
-  const ghosts = night >= 4 ? Math.min(5, night - 2) : 0;
-  for (let i = 0; i < crabs; i++) out.push("crab");
-  for (let i = 0; i < drowned; i++) out.push("drowned");
-  for (let i = 0; i < brutes; i++) out.push("brute");
-  for (let i = 0; i < ghosts; i++) out.push("ghost");
-  return out;
-}
 
 // --- Survival tuning -------------------------------------------------------------------------------
 
@@ -329,37 +361,15 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "angler", name: "Angler", desc: "Spear five fish." },
   { id: "iron", name: "Iron age", desc: "Craft an iron tool." },
   { id: "fortress", name: "Fortress", desc: "Have ten walls standing." },
-  { id: "hunter", name: "Crab cracker", desc: "Defeat 25 night creatures." },
+  { id: "hunter", name: "Crab cracker", desc: "Defeat 25 creatures on one island." },
   { id: "brute", name: "Giant slayer", desc: "Defeat a bloated brute." },
-  { id: "week", name: "One week in", desc: "See the dawn of day 7." },
-  { id: "notes", name: "Message in a bottle", desc: "Find every bottle note." },
-  { id: "rescued", name: "Rescued", desc: "Escape the island." },
-  { id: "swift", name: "Swift escape", desc: "Escape before day 6." },
+  { id: "week", name: "One week in", desc: "See the dawn of day 7 on one island." },
+  { id: "notes", name: "Message in a bottle", desc: "Find every bottle note on an island." },
+  { id: "sailor", name: "Island hopper", desc: "Sail away from your first island." },
+  { id: "swift", name: "Swift escape", desc: "Leave an island by its par day." },
+  { id: "boar", name: "Bacon", desc: "Bring down a wild boar." },
+  { id: "bear", name: "Bear trouble", desc: "Defeat a white bear." },
+  { id: "treasure", name: "X marks the spot", desc: "Dig up the buried chest." },
+  { id: "captain", name: "Captain's end", desc: "Defeat the Drowned Captain." },
+  { id: "rescued", name: "Rescued", desc: "Signal a ship from Beacon Rock and go home." },
 ];
-
-/** Notes in bottles washed up on the beach: lore plus tips. */
-export const NOTES = [
-  "Day ?? — The crabs come out when the sun goes down. They hate the fire. Keep it fed.",
-  "If you read this: the bubbling water is full of fish. A sharp spear is all you need.",
-  "The big grey ones don't care about fire. They stamp it out. Build walls around your flame.",
-  "Ships pass this island. One night of smoke and flame on the shore and they'll see you.",
-  "The white ones drift through fences like fog. Only light keeps them back.",
-];
-
-// --- Objectives (the journal's to-do list) ---------------------------------------------------------
-
-export const OBJECTIVES = [
-  "Search the shipwreck's crates",
-  "Pick up driftwood, pebbles and bush fibre",
-  "Craft a stone axe (C)",
-  "Chop down a tree",
-  "Build a campfire before nightfall",
-  "Survive the night by the fire",
-  "Craft a spear and catch a fish",
-  "Build a workbench",
-  "Wall in your camp (4 walls)",
-  "Build the signal fire",
-  "Build a raft on the shore",
-  "Light the signal fire at night and keep it burning",
-  "A ship! Board the raft",
-] as const;

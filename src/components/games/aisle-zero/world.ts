@@ -1,9 +1,51 @@
 import * as THREE from "three";
+import { findCart, ITEM_DEFS, type ItemDef, type NightDef } from "./content";
+import {
+  AISLES,
+  barricadeBox,
+  BACK_Z,
+  BOARDS,
+  BREAKER_IDS,
+  BREAKERS,
+  CEIL,
+  COLD_RACKS,
+  DESKS,
+  DOOR_IDS,
+  DOORS,
+  doorCenter,
+  FLOOR_SPOTS,
+  HW,
+  LM,
+  LOCKERS,
+  PAIRS,
+  PART_X,
+  seeded,
+  SEGS,
+  SENSOR_R,
+  SENSOR_SPOTS,
+  SLOTS,
+  STANDS,
+  STOCK_RACK_N,
+  STOCK_RACK_Z0,
+  STOCK_RACKS,
+  TALL_BOARDS,
+  WAYPOINTS,
+  XI,
+  ZI,
+  zoneOf,
+  type BreakerId,
+  type DoorId,
+  type Slot,
+  type Zone,
+} from "./layout";
 
 /**
- * Aisle Zero's abandoned supermarket. Everything here is built in code with generated textures: layout,
- * collision boxes, navigation grid, lights, shelving with thousands of instanced products, props and
- * pickups. Light intensities are in the old (pre-r155) units, multiplied by LIGHT — see engine.ts.
+ * Aisle Zero's abandoned supermarket. Everything here is built in code with generated textures: the shop
+ * floor, the three back rooms and their shutters, collision boxes, the navigation grid, lights, shelving
+ * with thousands of instanced products, props and everything that can be picked up. The store is built
+ * once; applyNight() then sets it up for a night (which items are out, which doors are down, the power,
+ * sensors, barricades, coins, batteries, keys and fuses). Light intensities are in the old (pre-r155)
+ * units, multiplied by LIGHT — see engine.ts. The floor plan's numbers are in layout.ts.
  */
 
 const PI = Math.PI;
@@ -13,16 +55,13 @@ export const LIGHT = Math.PI;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T>(a: readonly T[]): T => a[(Math.random() * a.length) | 0];
 
-export const XI = 35.7;
-export const ZI = 47.7;
-export const CEIL = 3.4;
 const X0 = -36;
 const Z0 = -48;
 const CS = 0.5;
 export const GW = 144;
 export const GH = 192;
 
-export type BoxKind = "shelf" | "wall" | "door" | "table" | "counter" | "freezer" | "cart" | "machine" | "locker" | "crate";
+export type BoxKind = "shelf" | "wall" | "door" | "gate" | "barricade" | "table" | "counter" | "freezer" | "cart" | "machine" | "locker" | "crate";
 export interface Box {
   x0: number;
   x1: number;
@@ -31,58 +70,60 @@ export interface Box {
   kind: BoxKind;
 }
 
-/* ---------------- layout ---------------- */
-const PAIRS: number[] = [];
-for (let i = 0; i < 9; i++) PAIRS.push(-20.8 + 5.2 * i); // double-sided shelf runs (x centres)
-const SEGS = [
-  { z0: -22, n: 10 },
-  { z0: -4, n: 10 },
-  { z0: 14, n: 6 },
-]; // modules of 1.3 m along z; cross aisles between
-const LM = 1.3;
-const HW = 0.6; // module length, half-width of a double run
-const BOARDS = [0.2, 0.6, 1.0, 1.4]; // shelf board heights
-const AISLE_NAMES = ["COOKING OILS", "SPICES", "RICE & FLOUR", "SNACKS", "BEVERAGES", "SALT & SUGAR", "CLEANING", "SWEETS & HONEY", "BABY & PET", "FROZEN"];
-export const AISLES = AISLE_NAMES.map((en, i) => ({ n: i + 1, x: i === 0 ? -25 : i === 9 ? 25 : (PAIRS[i - 1] + PAIRS[i]) / 2, en }));
-export const SPAWN = { x: 0, z: 44, yaw: 0 };
-export const PAY_POINT = { x: 0, z: 31 };
-export const CREATURE_START: [number, number] = [0, -40];
-
-const shelfFace = (pairIdx: number, side: number) => PAIRS[pairIdx] + side * 0.55; // x where items sit on a shelf face
-
-export interface ItemDef {
-  id: string;
-  kind: "bottle" | "bag" | "salt" | "jar" | "carton" | "loaf" | "flat" | "can";
-  label: string;
-  x: number;
-  z: number;
-  y: number;
-  color: number;
-  bg: string;
-  name: string;
-  where: string;
-}
-
-export const ITEM_DEFS: ItemDef[] = [
-  { id: "oil", kind: "bottle", label: "OIL", x: shelfFace(0, -1), z: 17, y: BOARDS[1], color: 0x7dff9a, bg: "#7a8a2a", name: "Cooking oil", where: "Aisle 1 · Cooking Oils" },
-  { id: "rice", kind: "bag", label: "RICE", x: shelfFace(1, 1), z: 0.2, y: BOARDS[1], color: 0xffe9a0, bg: "#b8a46a", name: "Rice bag", where: "Aisle 3 · Rice & Flour" },
-  { id: "salt", kind: "salt", label: "SALT", x: shelfFace(5, -1), z: -15.5, y: BOARDS[2], color: 0xffffff, bg: "#cfd4d8", name: "Salt", where: "Aisle 6 · Salt & Sugar" },
-  { id: "honey", kind: "jar", label: "HONEY", x: shelfFace(7, -1), z: 3.4, y: BOARDS[1], color: 0xffc23a, bg: "#c8861c", name: "Honey", where: "Aisle 8 · Sweets & Honey" },
-  { id: "milk", kind: "carton", label: "MILK", x: 33.1, z: -11, y: 1.05, color: 0xcfe8ff, bg: "#dfe6ee", name: "Milk packet", where: "Freezer wall (east)" },
-  { id: "bread", kind: "loaf", label: "BREAD", x: -30.2, z: 6, y: 1.05, color: 0xffb870, bg: "#a8743a", name: "Bread", where: "Bakery corner (west)" },
-  { id: "biscuit", kind: "flat", label: "BISCUITS", x: -22.55, z: -38.1, y: 0.915, color: 0xff9ad0, bg: "#b04a6a", name: "Biscuits", where: "Stock room (west rack)" },
-  { id: "tin", kind: "can", label: "TINS", x: 22.55, z: -38.1, y: 0.915, color: 0xff7a5a, bg: "#b8402a", name: "Tinned food", where: "Stock room (east rack)" },
-];
-
+/** A shopping-list item on its shelf. */
 export interface Item {
   def: ItemDef;
+  slot: Slot;
   group: THREE.Group;
   mesh: THREE.Mesh;
   sp: THREE.Sprite;
   beam: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>;
+  /** On tonight's list. */
+  active: boolean;
+  got: boolean;
+  t: number;
+}
+
+export type PickupKind = "coin" | "battery" | "key" | "fuse" | "bonus";
+/** Anything else that can be picked up: coins and batteries lie on the floor, keys, fuses and the bonus item sit on shelves. */
+export interface Pickup {
+  kind: PickupKind;
+  group: THREE.Group;
+  x: number;
+  z: number;
+  /** Shelf pickups: the side they are reached from. */
+  slot: Slot | null;
+  /** Keys: the door they open. */
+  door: DoorId | null;
+  name: string;
+  where: string;
+  active: boolean;
   got: boolean;
   t: number;
   baseY: number;
+}
+
+export interface Door {
+  id: DoorId;
+  /** Shutter down. */
+  shut: boolean;
+  /** 0 down … 1 rolled up. */
+  t: number;
+  rule: NightDef["doors"][DoorId];
+  panel: THREE.Mesh;
+  lamp: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
+  height: number;
+}
+
+export interface Sensor {
+  x: number;
+  z: number;
+  active: boolean;
+  /** Seconds until it is armed again. */
+  cool: number;
+  group: THREE.Group;
+  ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  lamp: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
 }
 
 export interface Hide {
@@ -96,11 +137,18 @@ interface Panel {
   x: number;
   z: number;
   phase: number;
+  /** Fixed 0–1: the panel is dead on nights whose `dim` is above it. */
+  roll: number;
   broken: boolean;
   flick: number;
   base: number;
   v: number;
+  /** Light colour of the room it hangs in. */
+  tint: [number, number, number];
 }
+
+const ZONE_TINT: Record<Zone, [number, number, number]> = { store: [0.8, 0.9, 0.72], stock: [0.82, 0.84, 0.7], cold: [0.5, 0.8, 1.0], office: [1.0, 0.82, 0.56] };
+const ZONE_LIGHT: Record<Zone, number> = { store: 0xdbe6cf, stock: 0xd8dcc0, cold: 0x9fd4ff, office: 0xffd9a0 };
 
 /** One instance: position, rotation, scale, optional colour and atlas cell. */
 interface Inst {
@@ -487,8 +535,8 @@ function segHitsBox(ax: number, az: number, bx2: number, bz: number, b: Box, pad
   }
   return true;
 }
-/** Low things (counters, tables, carts, crates) don't block sight unless a padding is asked for. */
-const LOW: Partial<Record<BoxKind, boolean>> = { table: true, counter: true, cart: true, crate: true };
+/** Low things (counters, tables, parked carts) don't block sight unless a padding is asked for. */
+const LOW: Partial<Record<BoxKind, boolean>> = { table: true, counter: true, cart: true };
 const NB = [
   [1, 0],
   [-1, 0],
@@ -504,17 +552,34 @@ export type Vec2 = [number, number];
 
 export class StoreWorld {
   readonly root = new THREE.Group();
+  /** Everything solid right now: the store itself plus tonight's closed shutters and barricades. */
   boxes: Box[] = [];
+  private fixed: Box[] = [];
   items: Item[] = [];
+  pickups: Pickup[] = [];
+  doors!: Record<DoorId, Door>;
+  sensors: Sensor[] = [];
   hides: Hide[] = [];
-  waypoints: Vec2[] = [];
   blocked = new Uint8Array(GW * GH);
+  /** Connected walkable areas: cells with the same number can reach each other. */
+  private region = new Int16Array(GW * GH);
+  /** Goes up whenever a shutter opens or the night changes: walkers then plan their routes again. */
+  navVersion = 0;
   /** Seconds left of a power cut (every ceiling light nearly dark). */
   blackout = 0;
+  /** The mains: off on blackout nights until the breaker is thrown. */
+  power = true;
+  /** Tonight's breaker box (null: none works). */
+  breaker: BreakerId | null = null;
+  /** Share of dead ceiling lights tonight. */
+  private dim = 0.3;
   private readonly panels: Panel[] = [];
   private panelMesh!: THREE.InstancedMesh;
   private pool: THREE.PointLight[] = [];
   private freezerLights: THREE.PointLight[] = [];
+  private freezerGlow: THREE.MeshBasicMaterial | null = null;
+  private screens: THREE.MeshBasicMaterial | null = null;
+  private vendGlass: THREE.MeshBasicMaterial | null = null;
   private vendLight: THREE.PointLight | null = null;
   private exitLight!: THREE.PointLight;
   private exitSignMesh!: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
@@ -522,12 +587,23 @@ export class StoreWorld {
   private payLamp: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial> | null = null;
   door: { hinge: THREE.Group; open: boolean; t: number } | null = null;
   private exitBlock!: Omit<Box, "kind">;
-  private dist: Int16Array | null = null;
+  private breakerLamps = {} as Record<BreakerId, THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>>;
+  private breakerLevers = {} as Record<BreakerId, THREE.Mesh>;
+  private barricades: { group: THREE.Group; box: Box | null }[] = [];
   private queue: Int32Array | null = null;
+  /** Scratch for updateLights: [distance², panel index] of the six nearest panels. */
+  private readonly near = new Float64Array(12);
   private cartFrameGeo: THREE.BufferGeometry | null = null;
   private cartBasketGeo: THREE.BufferGeometry | null = null;
+  private gridTex: THREE.Texture | null = null;
   private gridMat: THREE.MeshStandardMaterial | null = null;
   private readonly metal = new THREE.MeshStandardMaterial({ color: 0xb4b8ba, metalness: 0.85, roughness: 0.38, envMapIntensity: 0.9 });
+  /** The player's own cart: its paint comes from the staff shop. */
+  private readonly cartPaint = {
+    frame: new THREE.MeshStandardMaterial({ color: 0xb4b8ba, metalness: 0.85, roughness: 0.38, envMapIntensity: 0.9 }),
+    basket: null as THREE.MeshStandardMaterial | null,
+    grip: new THREE.MeshStandardMaterial({ color: 0x8a1a12, roughness: 0.6 }),
+  };
   envTexture: THREE.Texture | null = null;
 
   private addBox(x0: number, x1: number, z0: number, z1: number, kind: BoxKind) {
@@ -558,18 +634,33 @@ export class StoreWorld {
       { geo: new THREE.PlaneGeometry(0.56, 0.34), x: 0, y: 0.5, z: -0.43 },
       { geo: new THREE.PlaneGeometry(0.58, 0.34), x: 0, y: 0.5, z: 0.43, ry: PI },
     ]);
-    const gt = gridAlpha();
+    const gt = (this.gridTex = gridAlpha());
     gt.repeat.set(6, 6);
     this.gridMat = new THREE.MeshStandardMaterial({ color: 0xc4c8ca, metalness: 0.8, roughness: 0.4, alphaMap: gt, alphaTest: 0.5, side: THREE.DoubleSide, map: gt });
   }
+  /** The player's cart, in its own paint (see paintCart). */
   makeCart() {
     this.cartGeos();
+    const paint = this.cartPaint;
+    paint.basket ??= this.gridMat!.clone();
     const g = new THREE.Group();
-    const f = new THREE.Mesh(this.cartFrameGeo!, this.metal);
-    const b = new THREE.Mesh(this.cartBasketGeo!, this.gridMat!);
+    const f = new THREE.Mesh(this.cartFrameGeo!, paint.frame);
+    const b = new THREE.Mesh(this.cartBasketGeo!, paint.basket);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.023, 0.023, 0.5, 12).rotateZ(PI / 2), paint.grip);
+    grip.position.set(0, 0.84, 0.5);
     f.castShadow = b.castShadow = true;
-    g.add(f, b);
+    g.add(f, b, grip);
     return g;
+  }
+  /** Paints the player's cart with one of the shop's finishes. */
+  paintCart(id: string) {
+    const look = findCart(id);
+    const { frame, basket, grip } = this.cartPaint;
+    frame.color.setHex(look.frame);
+    frame.emissive.setHex(look.frame).multiplyScalar(look.glow);
+    basket?.color.setHex(look.basket);
+    basket?.emissive.setHex(look.basket).multiplyScalar(look.glow * 0.6);
+    grip.color.setHex(look.grip);
   }
 
   /* ---------------- build ---------------- */
@@ -722,6 +813,75 @@ export class StoreWorld {
         l.position.set(x, CEIL - 0.35, -26);
         root.add(l);
       });
+      // the back is three rooms: cold storage (west), the stock room, the staff office (east)
+      const gap = [DOORS.cold.z0, DOORS.cold.z1];
+      [-PART_X, PART_X].forEach((x) => {
+        (
+          [
+            [-HZ, gap[0]],
+            [gap[1], BACK_Z],
+          ] as const
+        ).forEach(([a, b]) => {
+          const len = b - a;
+          const mat = wm.clone();
+          mat.map = wt.clone();
+          mat.map.needsUpdate = true;
+          mat.map.repeat.set(len / 4, 1);
+          const m = new THREE.Mesh(bx(0.3, CEIL, len), mat);
+          m.position.set(x, CEIL / 2, (a + b) / 2);
+          m.castShadow = m.receiveShadow = true;
+          root.add(m);
+          this.addBox(x - 0.15, x + 0.15, a, b, "wall");
+        });
+        const l = new THREE.Mesh(bx(0.3, 0.7, gap[1] - gap[0]), dark);
+        l.position.set(x, CEIL - 0.35, (gap[0] + gap[1]) / 2);
+        root.add(l);
+      });
+      wm.map?.dispose();
+      wm.dispose();
+    }
+
+    /* ---------- roller shutters on the four back doorways ---------- */
+    {
+      const c = cv(256, 256);
+      const g = ctx2d(c);
+      for (let y = 0; y < 256; y += 16) {
+        const gr = g.createLinearGradient(0, y, 0, y + 16);
+        gr.addColorStop(0, "#c8cdcc");
+        gr.addColorStop(1, "#6a7170");
+        g.fillStyle = gr;
+        g.fillRect(0, y, 256, 15);
+        g.fillStyle = "#30353488";
+        g.fillRect(0, y + 15, 256, 1);
+      }
+      noise(g, 256, 256, 1600, 0.4, true);
+      stains(g, 256, 256, 6, 40, "50,30,10");
+      const slats = tex(c, 1, 2);
+      const tints: Record<DoorId, number> = { stockW: 0x8f9896, stockE: 0x8f9896, cold: 0xcfe2ee, office: 0x9a7f5a };
+      const labels: Record<DoorId, string> = { stockW: "STOCK ROOM", stockE: "STOCK ROOM", cold: "COLD STORAGE", office: "STAFF ONLY" };
+      const height = CEIL - 0.7;
+      const doors = {} as Record<DoorId, Door>;
+      for (const id of DOOR_IDS) {
+        const d = DOORS[id];
+        const [cx, cz] = doorCenter(d);
+        const along = d.nz ? d.x1 - d.x0 : d.z1 - d.z0;
+        const panel = new THREE.Mesh(d.nz ? bx(along, height, 0.1) : bx(0.1, height, along), new THREE.MeshStandardMaterial({ map: slats, color: tints[id], metalness: 0.55, roughness: 0.5 }));
+        panel.position.set(cx, height / 2, cz);
+        panel.castShadow = panel.receiveShadow = true;
+        root.add(panel);
+        const sign = new THREE.Mesh(
+          new THREE.PlaneGeometry(2.2, 0.42),
+          new THREE.MeshBasicMaterial({ map: signTex([{ t: labels[id], font: "bold 40px Arial", y: 0.54 }], 384, 72, "#141a18", "#cfd8b0"), color: 0xb0b0b0 }),
+        );
+        sign.position.set(cx + d.nx * 0.17, CEIL - 0.35, cz + d.nz * 0.17);
+        sign.rotation.y = Math.atan2(d.nx, d.nz);
+        root.add(sign);
+        const lamp = new THREE.Mesh(bx(d.nz ? 0.22 : 0.06, 0.12, d.nz ? 0.06 : 0.22), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+        lamp.position.set(cx + d.nx * 0.18 + (d.nz ? along / 2 - 0.3 : 0), CEIL - 0.82, cz + d.nz * 0.18 + (d.nx ? along / 2 - 0.3 : 0));
+        root.add(lamp);
+        doors[id] = { id, shut: false, t: 1, rule: "open", panel, lamp, height };
+      }
+      this.doors = doors;
     }
 
     /* ---------- shelving ---------- */
@@ -737,9 +897,9 @@ export class StoreWorld {
       const i = (Math.random() * 64) | 0;
       return { cu: (i % 8) / 8, cv: (7 - ((i / 8) | 0)) / 8 };
     };
-    const product = (px: number, side: number, z: number, board: number) => {
+    const product = (px: number, side: number, z: number, boardY: number) => {
       const r = Math.random();
-      const base = BOARDS[board] + 0.015;
+      const base = boardY + 0.015;
       if (r < 0.6) {
         const w = rnd(0.12, 0.3);
         const h = rnd(0.16, 0.36);
@@ -763,7 +923,7 @@ export class StoreWorld {
       structList.push({ x: px, y: 0.06, z: zc, sx: HW * 2, sy: 0.12, sz: len, c: 0x2a2e2f }); // kick plate
       structList.push({ x: px, y: H + 0.02, z: zc, sx: HW * 2, sy: 0.04, sz: len, c: 0x555b5c }); // top cap
       for (let i = 0; i <= n; i++) structList.push({ x: px, y: H / 2, z: z0 + i * LM, sx: HW * 2, sy: H, sz: 0.05, c: 0x5c6264 });
-      const boards = tall ? [0.2, 0.9, 1.6, 2.3] : BOARDS;
+      const boards = tall ? TALL_BOARDS : BOARDS;
       [-1, 1].forEach((side) => {
         boards.forEach((by) => {
           structList.push({ x: px + side * 0.31, y: by, z: zc, sx: 0.52, sy: 0.03, sz: len, c: 0x72797b });
@@ -779,7 +939,7 @@ export class StoreWorld {
               z += rnd(0.2, 0.6);
               continue;
             }
-            const w = product(px, side, z + 0.08, tall ? 0 : bi);
+            const w = product(px, side, z + 0.08, boards[bi]);
             z += w + rnd(0.005, 0.03);
           }
         }
@@ -807,8 +967,9 @@ export class StoreWorld {
       this.addBox(px - HW - 0.02, px + HW + 0.02, z0 - (opts.noCaps ? 0.05 : 0.7), z0 + len + (opts.noCaps ? 0.05 : 0.7), "shelf");
     };
     PAIRS.forEach((px) => SEGS.forEach((s) => shelfRun(px, s.z0, s.n)));
-    // stock room: taller pallet racking
-    [-30, -22, 22, 30].forEach((px) => shelfRun(px, -45.5, 12, { tall: true, noCaps: true }));
+    // back rooms: taller pallet racking (two long racks in cold storage, two short ones in the stock room)
+    COLD_RACKS.forEach((px) => shelfRun(px, -45.5, 12, { tall: true, noCaps: true }));
+    STOCK_RACKS.forEach((px) => shelfRun(px, STOCK_RACK_Z0, STOCK_RACK_N, { tall: true, noCaps: true }));
     const prodMat = new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.75, metalness: 0.02, envMapIntensity: 0.3 });
     // each instance shows its own cell of the 8×8 label atlas
     prodMat.onBeforeCompile = (sh) => {
@@ -878,13 +1039,17 @@ export class StoreWorld {
       }
       root.add(instanced(bx(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.4, roughness: 0.5 }), bodies, { cast: true }));
       root.add(instanced(bx(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x0c1012, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.42 }), doors));
-      root.add(instanced(bx(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffffff }), glow));
+      this.freezerGlow = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      root.add(instanced(bx(1, 1, 1), this.freezerGlow, glow));
       this.addBox(HX - 1.0, HX, -22.9, 22.9, "freezer");
-      const stand = new THREE.Mesh(bx(0.7, 1.0, 0.7), new THREE.MeshStandardMaterial({ color: 0x3d4140, roughness: 0.5, metalness: 0.3 }));
-      stand.position.set(33.1, 0.5, -11);
-      stand.castShadow = true;
-      root.add(stand);
-      this.addC(33.1, -11, 0.45, 0.45, "table");
+      const standMat = new THREE.MeshStandardMaterial({ color: 0x3d4140, roughness: 0.5, metalness: 0.3 });
+      STANDS.forEach(([x, z]) => {
+        const stand = new THREE.Mesh(bx(0.7, 1.0, 0.7), standMat);
+        stand.position.set(x, 0.5, z);
+        stand.castShadow = true;
+        root.add(stand);
+        this.addC(x, z, 0.45, 0.45, "table");
+      });
       const fl = new THREE.PointLight(0x9fd0e8, 0.8 * LIGHT, 9, 1);
       fl.position.set(HX - 2, 2, -6);
       root.add(fl);
@@ -899,7 +1064,7 @@ export class StoreWorld {
       const counterM = new THREE.MeshStandardMaterial({ color: 0x3d4140, roughness: 0.45, metalness: 0.3, envMapIntensity: 0.5 });
       const belt = new THREE.MeshStandardMaterial({ color: 0x111313, roughness: 0.9 });
       const reg = new THREE.MeshStandardMaterial({ color: 0x1d2222, roughness: 0.5 });
-      const scr = new THREE.MeshBasicMaterial({ color: 0x1c4a3a });
+      const scr = (this.screens = new THREE.MeshBasicMaterial({ color: 0x1c4a3a }));
       const lanes = [-21, -14, -7, 0, 7, 14, 21];
       lanes.forEach((x, i) => {
         const g = new THREE.Group();
@@ -948,7 +1113,7 @@ export class StoreWorld {
       vend.position.set(HX - 0.6, 0.95, 36);
       vend.castShadow = true;
       root.add(vend);
-      const vg = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 1.1), new THREE.MeshBasicMaterial({ color: 0xbfe8ff }));
+      const vg = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 1.1), (this.vendGlass = new THREE.MeshBasicMaterial({ color: 0xbfe8ff })));
       vg.position.set(HX - 1.01, 1.15, 36);
       vg.rotation.y = -PI / 2;
       root.add(vg);
@@ -971,18 +1136,7 @@ export class StoreWorld {
       const side = new THREE.MeshStandardMaterial({ color: 0x3e4c4a, roughness: 0.6, metalness: 0.4 });
       const front = new THREE.MeshStandardMaterial({ map: lt, roughness: 0.55, metalness: 0.45 });
       const mats = [side, side, side, side, front, side];
-      const spots = [
-        [-35.3, -14, 1, 0],
-        [-35.3, 14, 1, 0],
-        [-35.3, 26, 1, 0],
-        [35.3, 40, -1, 0],
-        [-35.3, -31, 1, 0],
-        [-35.3, -41, 1, 0],
-        [35.3, -31, -1, 0],
-        [35.3, -41, -1, 0],
-        [-10, -47.3, 0, 1],
-        [10, -47.3, 0, 1],
-      ];
+      const spots = LOCKERS;
       const hideSign = new THREE.MeshBasicMaterial({ map: signTex([{ t: "HIDE", font: "bold 64px Arial", y: 0.52 }], 256, 112, "#06180c", "#46d39a"), transparent: true, opacity: 0.7 });
       const lockerGeo = bx(0.5, 2.0, 0.75);
       spots.forEach(([x, z, ox, oz]) => {
@@ -1029,7 +1183,6 @@ export class StoreWorld {
           [-17, -43, 3],
           [17, -42, 2],
           [-34, -35, 2],
-          [33.5, -35.5, 3],
         ] as const
       ).forEach(([x, z, h]) => {
         pals.push({ x, y: 0.08, z, sx: 1.2, sy: 0.16, sz: 1.2 });
@@ -1038,6 +1191,110 @@ export class StoreWorld {
       });
       root.add(instanced(bx(1, 1, 1), palM, pals, { cast: true }));
       root.add(instanced(bx(1, 1, 1), cardMat, cards, { cast: true }));
+
+      // barricades: a row of stacked cartons that closes an aisle on delivery nights
+      const stackGeo = bx(1.25, 0.84, 1.0);
+      for (let i = 0; i < 6; i++) {
+        const group = new THREE.Group();
+        for (let k = 0; k < 3; k++)
+          for (let j = 0; j < 2; j++) {
+            const m = new THREE.Mesh(stackGeo, cardMat);
+            m.position.set((k - 1) * 1.36 + rnd(-0.03, 0.03), 0.42 + j * 0.85, rnd(-0.04, 0.04));
+            m.rotation.y = rnd(-0.05, 0.05);
+            m.castShadow = m.receiveShadow = true;
+            group.add(m);
+          }
+        group.visible = false;
+        root.add(group);
+        this.barricades.push({ group, box: null });
+      }
+    }
+
+    /* ---------- staff office (east back room): desks, filing cabinets, a safe ---------- */
+    {
+      const wood = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.7 });
+      const paper = new THREE.MeshStandardMaterial({ color: 0xcfc8b0, roughness: 0.9 });
+      const tops: Inst[] = [];
+      const legs: Inst[] = [];
+      const sheets: Inst[] = [];
+      DESKS.forEach(([x, z]) => {
+        tops.push({ x, y: 0.74, z, sx: 1.8, sy: 0.06, sz: 0.9 });
+        legs.push({ x: x - 0.8, y: 0.36, z, sx: 0.08, sy: 0.72, sz: 0.8 }, { x: x + 0.8, y: 0.36, z, sx: 0.08, sy: 0.72, sz: 0.8 }, { x: x + 0.45, y: 0.45, z, sx: 0.5, sy: 0.5, sz: 0.7 });
+        for (let k = 0; k < 3; k++) sheets.push({ x: x + rnd(-0.7, 0.1), y: 0.775, z: z + rnd(-0.25, 0.25), sx: 0.21, sy: 0.006, sz: 0.3, ry: rnd(0, 3) });
+        this.addC(x, z, 0.9, 0.45, "table");
+      });
+      const cabinets: Inst[] = [];
+      for (let k = 0; k < 7; k++) cabinets.push({ x: 20 + k * 0.95, y: 0.7, z: BACK_Z - 0.5, sx: 0.9, sy: 1.4, sz: 0.6, c: k % 3 === 1 ? 0x55605c : 0x6f7775 });
+      this.addBox(19.5, 26.2, BACK_Z - 0.85, BACK_Z - 0.15, "machine");
+      // the safe, in the far corner
+      cabinets.push({ x: 34.6, y: 0.55, z: -46.6, sx: 1.1, sy: 1.1, sz: 1.1, c: 0x2c3230 });
+      this.addC(34.6, -46.6, 0.6, 0.6, "machine");
+      root.add(instanced(bx(1, 1, 1), wood, tops, { cast: true }));
+      root.add(instanced(bx(1, 1, 1), wood, legs, { cast: true }));
+      root.add(instanced(bx(1, 1, 1), paper, sheets));
+      root.add(instanced(bx(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.5 }), cabinets, { cast: true }));
+      const board = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.2, 1.3),
+        new THREE.MeshBasicMaterial({
+          map: signTex(
+            [
+              { t: "NIGHT SHIFT ROTA", font: "bold 34px Arial", y: 0.26 },
+              { t: "NOBODY SIGNED OUT", font: "bold 26px Arial", y: 0.66 },
+            ],
+            512,
+            208,
+            "#2a2418",
+            "#cfc8b0",
+            "#5a4632",
+          ),
+          color: 0x8a8a8a,
+        }),
+      );
+      board.position.set(29, 1.75, -HZ + 0.06);
+      root.add(board);
+    }
+
+    /* ---------- breaker boxes (one of them is live on a blackout night) ---------- */
+    {
+      const boxMat = new THREE.MeshStandardMaterial({ color: 0x59605e, roughness: 0.55, metalness: 0.5 });
+      const leverMat = new THREE.MeshStandardMaterial({ color: 0xb02018, roughness: 0.5 });
+      for (const id of BREAKER_IDS) {
+        const b = BREAKERS[id];
+        const g = new THREE.Group();
+        const body = new THREE.Mesh(bx(0.7, 0.9, 0.16), boxMat);
+        const lever = new THREE.Mesh(bx(0.08, 0.34, 0.08), leverMat);
+        lever.position.set(0.16, -0.1, 0.12);
+        const lamp = new THREE.Mesh(bx(0.12, 0.12, 0.04), new THREE.MeshBasicMaterial({ color: 0x202020 }));
+        lamp.position.set(-0.16, 0.22, 0.09);
+        g.add(body, lever, lamp);
+        g.position.set(b.x, 1.35, b.z);
+        g.rotation.y = Math.atan2(b.nx, b.nz);
+        root.add(g);
+        this.breakerLamps[id] = lamp;
+        this.breakerLevers[id] = lever;
+      }
+    }
+
+    /* ---------- theft sensors: a post with a red lamp and the ring it watches ---------- */
+    {
+      const postGeo = new THREE.CylinderGeometry(0.035, 0.05, 1.15, 8);
+      const postMat = new THREE.MeshStandardMaterial({ color: 0x2a2e2f, roughness: 0.6, metalness: 0.4 });
+      const lampGeo = new THREE.SphereGeometry(0.075, 10, 8);
+      const ringGeo = new THREE.RingGeometry(SENSOR_R - 0.09, SENSOR_R, 48);
+      for (let i = 0; i < 8; i++) {
+        const group = new THREE.Group();
+        const post = new THREE.Mesh(postGeo, postMat);
+        post.position.y = 0.575;
+        const lamp = new THREE.Mesh(lampGeo, new THREE.MeshBasicMaterial({ color: 0xff2a1a }));
+        lamp.position.y = 1.2;
+        const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff2a1a, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+        ring.rotation.x = -PI / 2;
+        ring.position.y = 0.03;
+        group.add(post, lamp, ring);
+        group.visible = false;
+        root.add(group);
+        this.sensors.push({ x: 0, z: 0, active: false, cool: 0, group, ring, lamp });
+      }
     }
 
     /* ---------- emergency exit door (back wall) ---------- */
@@ -1058,7 +1315,6 @@ export class StoreWorld {
       outside.position.set(0, 1.15, -HZ + 0.02);
       root.add(outside);
       this.door = { hinge, open: false, t: 0 };
-      this.addBox(-1.1, 1.1, -HZ - 0.2, -HZ + 0.5, "door");
       this.exitBlock = { x0: -1.1, x1: 1.1, z0: -HZ - 0.2, z1: -HZ + 0.5 };
       this.exitTex = [exitSign(false), exitSign(true)];
       const es = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.4), new THREE.MeshBasicMaterial({ map: this.exitTex[0] }));
@@ -1105,23 +1361,24 @@ export class StoreWorld {
         const x = 64 + (Math.random() - 0.5) * 90;
         const y = 64 + (Math.random() - 0.5) * 90;
         const r = 2 + Math.random() * 14;
-        g.fillStyle = `rgba(60,5,5,${0.3 + Math.random() * 0.5})`;
+        g.fillStyle = `rgba(16,14,10,${0.25 + Math.random() * 0.45})`;
         g.beginPath();
         g.arc(x, y, r, 0, 7);
         g.fill();
       }
       for (let i = 0; i < 5; i++) {
-        g.strokeStyle = "rgba(50,4,4,.6)";
+        g.strokeStyle = "rgba(12,11,8,.5)";
         g.lineWidth = 3 + Math.random() * 5;
         g.beginPath();
         g.moveTo(64, 64);
         g.lineTo(64 + (Math.random() - 0.5) * 130, 64 + (Math.random() - 0.5) * 130);
         g.stroke();
       }
-      const bloodMat = new THREE.MeshStandardMaterial({ map: tex(c), transparent: true, depthWrite: false, roughness: 0.25, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2 });
-      const bloodGeo = new THREE.PlaneGeometry(2.4, 2.4);
+      // old spills and drag marks (dark, oily: no blood)
+      const spillMat = new THREE.MeshStandardMaterial({ map: tex(c), transparent: true, depthWrite: false, roughness: 0.25, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2 });
+      const spillGeo = new THREE.PlaneGeometry(2.4, 2.4);
       for (let i = 0; i < 24; i++) {
-        const d = new THREE.Mesh(bloodGeo, bloodMat);
+        const d = new THREE.Mesh(spillGeo, spillMat);
         d.rotation.x = -PI / 2;
         d.rotation.z = rnd(0, 6.28);
         const a = pick(AISLES);
@@ -1145,7 +1402,7 @@ export class StoreWorld {
     const msg = (text: string, x: number, y: number, z: number, ry: number, w: number) => {
       const c = cv(512, 128);
       const g = ctx2d(c);
-      g.fillStyle = "rgba(110,8,8,.92)";
+      g.fillStyle = "rgba(96,14,10,.9)";
       g.font = 'bold 56px "Segoe Script","Brush Script MT",cursive';
       g.textAlign = "center";
       g.fillText(text, 256, 74);
@@ -1176,7 +1433,10 @@ export class StoreWorld {
     for (let z = 25; z <= 45; z += 5) for (let x = -30; x <= 30; x += 6) pts.push([x, z]);
     for (let z = -44; z <= -28; z += 5.3) for (let x = -34; x <= 34; x += 6.8) pts.push([x, z]);
     for (let z = -20; z <= 20; z += 6) [-31, 30].forEach((x) => pts.push([x, z]));
-    pts.forEach(([x, z]) => this.panels.push({ x, z, phase: Math.random() * 100, broken: Math.random() < 0.38, flick: 0, base: 0.8 + Math.random() * 0.2, v: 1 }));
+    pts.forEach(([x, z]) => {
+      const roll = Math.random();
+      this.panels.push({ x, z, phase: Math.random() * 100, roll, broken: roll < this.dim, flick: 0, base: 0.8 + Math.random() * 0.2, v: 1, tint: ZONE_TINT[zoneOf(x, z)] });
+    });
     root.add(instanced(bx(0.34, 0.07, 1.3), new THREE.MeshStandardMaterial({ color: 0x8a8f90, roughness: 0.5 }), pts.map(([x, z]) => ({ x, y: CEIL - 0.035, z }))));
     this.panelMesh = instanced(
       bx(0.22, 0.02, 1.15),
@@ -1204,7 +1464,9 @@ export class StoreWorld {
       g.fillRect(0, 0, 64, 64);
       return tex(c);
     })();
+    const beamGeo = new THREE.CylinderGeometry(0.05, 0.05, 3.3, 8, 1, true);
     this.items = ITEM_DEFS.map((def) => {
+      const slot: Slot = SLOTS[def.slot];
       const lt = labelTex(def.label, def.bg);
       const mt = new THREE.MeshStandardMaterial({ map: lt, roughness: 0.55, emissive: new THREE.Color(def.color).multiplyScalar(0.18), emissiveMap: lt });
       const geo: THREE.BoxGeometry | THREE.CylinderGeometry =
@@ -1234,55 +1496,225 @@ export class StoreWorld {
       sp.position.y = hgt / 2;
       g.add(sp);
       const beam = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.05, 0.05, 3.3, 8, 1, true),
+        beamGeo,
         new THREE.MeshBasicMaterial({ color: def.color, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
       );
-      beam.position.y = 1.65;
+      beam.position.y = 1.65 - slot.y;
       g.add(beam);
-      g.position.set(def.x, def.y, def.z);
+      g.position.set(slot.x, slot.y, slot.z);
       g.rotation.y = def.kind === "bag" ? 0.2 : 0;
+      g.visible = false;
       root.add(g);
-      return { def, group: g, mesh, sp, beam, got: false, t: Math.random() * 6, baseY: def.y };
+      return { def, slot, group: g, mesh, sp, beam, active: false, got: false, t: Math.random() * 6 };
     });
 
-    /* ---------- navigation + patrol waypoints ---------- */
-    this.finalizeNav();
-    this.waypoints = [];
-    const wp = (x: number, z: number) => {
-      const [i, j] = this.toCell(x, z);
-      if (!this.blocked[j * GW + i]) this.waypoints.push([x, z]);
-    };
-    AISLES.forEach((a) => [-13.5, -6.5, 1, 11.5, 18, -22.6].forEach((z) => wp(a.x, z)));
-    (
-      [
-        [-24, 38],
-        [-12, 38],
-        [0, 38],
-        [12, 38],
-        [24, 38],
-        [-30, 0],
-        [-30, -12],
-        [-30, 16],
-        [30, -14],
-        [30, 6],
-        [-20, -32],
-        [20, -32],
-        [0, -36],
-        [-6, -44],
-        [6, -44],
-        [-26, -42],
-        [26, -44],
-        [-14, -27.5],
-        [14, -27.5],
-      ] as const
-    ).forEach(([x, z]) => wp(x, z));
+    /* ---------- coins, batteries, keys, fuses and the bonus item (pools: a night puts out what it needs) ---------- */
+    {
+      const halo = (color: number, size: number, opacity = 0.5) => {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false }));
+        sp.scale.set(size, size, 1);
+        return sp;
+      };
+      const pillar = (color: number) => {
+        const m = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+        m.name = "beam";
+        return m;
+      };
+      const add = (kind: PickupKind, group: THREE.Group) => {
+        group.visible = false;
+        root.add(group);
+        this.pickups.push({ kind, group, x: 0, z: 0, slot: null, door: null, name: "", where: "", active: false, got: false, t: Math.random() * 6, baseY: 0 });
+      };
+      const coinGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.016, 18).rotateX(PI / 2);
+      const coinMat = new THREE.MeshStandardMaterial({ color: 0xe8b83a, metalness: 0.9, roughness: 0.3, emissive: 0x4a3200 });
+      for (let i = 0; i < 14; i++) {
+        const g = new THREE.Group();
+        g.add(new THREE.Mesh(coinGeo, coinMat), halo(0xffc840, 0.7, 0.35));
+        add("coin", g);
+      }
+      const cellGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.2, 14);
+      const cellMat = new THREE.MeshStandardMaterial({ color: 0x2f7a3a, metalness: 0.4, roughness: 0.4, emissive: 0x0f4a18 });
+      const capGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.03, 10);
+      for (let i = 0; i < 5; i++) {
+        const g = new THREE.Group();
+        const body = new THREE.Mesh(cellGeo, cellMat);
+        const cap = new THREE.Mesh(capGeo, this.metal);
+        body.rotation.z = cap.rotation.z = 0.5;
+        cap.position.set(-Math.sin(0.5) * 0.115, Math.cos(0.5) * 0.115, 0);
+        g.add(body, cap, halo(0x6aff7a, 1.0, 0.45));
+        add("battery", g);
+      }
+      const cardGeo = bx(0.2, 0.012, 0.13);
+      for (const color of [0x6ad0ff, 0xffb040]) {
+        const g = new THREE.Group();
+        const card = new THREE.Mesh(cardGeo, new THREE.MeshStandardMaterial({ color, roughness: 0.4, emissive: new THREE.Color(color).multiplyScalar(0.35) }));
+        card.position.y = 0.05;
+        card.rotation.z = 0.25;
+        const p = pillar(color);
+        g.add(card, halo(color, 1.5), p);
+        add("key", g);
+      }
+      const fuseGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.14, 12).rotateZ(PI / 2);
+      const fuseMat = new THREE.MeshStandardMaterial({ color: 0xd8d0b8, roughness: 0.3, emissive: 0x6a4a10 });
+      for (let i = 0; i < 3; i++) {
+        const g = new THREE.Group();
+        const f = new THREE.Mesh(fuseGeo, fuseMat);
+        f.position.y = 0.04;
+        g.add(f, halo(0xffb040, 1.4), pillar(0xffb040));
+        add("fuse", g);
+      }
+      {
+        const g = new THREE.Group();
+        const b = new THREE.Mesh(bx(0.24, 0.1, 0.16), new THREE.MeshStandardMaterial({ color: 0xd8b24a, metalness: 0.7, roughness: 0.35, emissive: 0x5a3c08 }));
+        b.position.y = 0.05;
+        g.add(b, halo(0xffd870, 1.3, 0.4));
+        add("bonus", g);
+      }
+    }
+
+    /* ---------- navigation ---------- */
+    this.fixed = this.boxes;
+    this.rebuildBoxes();
   }
 
-  resetItems() {
-    this.items.forEach((it) => {
-      it.got = false;
-      it.group.visible = true;
+  /* ---------------- a night's set-up ---------------- */
+
+  /** Solid things right now = the store + shutters that are down + barricades + the exit until it opens. */
+  private rebuildBoxes() {
+    const boxes = this.fixed.slice();
+    for (const id of DOOR_IDS) if (this.doors[id].shut) boxes.push({ ...DOORS[id], kind: "gate" });
+    for (const b of this.barricades) if (b.box) boxes.push(b.box);
+    if (!this.door?.open) boxes.push({ ...this.exitBlock, kind: "door" });
+    this.boxes = boxes;
+    this.finalizeNav();
+    this.navVersion++;
+  }
+
+  /** Puts the store in the state a night starts in. */
+  applyNight(night: NightDef, index: number) {
+    const rand = seeded(index + 1);
+    // lights and power
+    this.dim = night.dim;
+    this.panels.forEach((p) => {
+      p.broken = p.roll < night.dim;
+      p.flick = 0;
     });
+    this.blackout = 0;
+    this.breaker = night.power?.breaker ?? null;
+    this.setPower(!night.power);
+    // doors
+    for (const id of DOOR_IDS) {
+      const d = this.doors[id];
+      d.rule = night.doors[id];
+      d.shut = d.rule !== "open";
+      d.t = d.shut ? 0 : 1;
+      this.poseDoor(d);
+    }
+    if (this.door) {
+      this.door.open = false;
+      this.door.t = 0;
+      this.door.hinge.rotation.y = 0;
+    }
+    this.exitSignMesh.material.map = this.exitTex![0];
+    this.exitSignMesh.material.needsUpdate = true;
+    this.exitLight.color.setHex(0xff2020);
+    // barricades
+    this.barricades.forEach((b, i) => {
+      const spot = night.barricades?.[i];
+      b.group.visible = !!spot;
+      b.box = null;
+      if (!spot) return;
+      const at = barricadeBox(spot);
+      b.group.position.set(at.x, 0, at.z);
+      b.box = { x0: at.x0, x1: at.x1, z0: at.z0, z1: at.z1, kind: "barricade" };
+    });
+    this.rebuildBoxes();
+    // sensors
+    this.sensors.forEach((s, i) => {
+      const id = night.sensors?.[i];
+      s.active = !!id;
+      s.cool = 0;
+      s.group.visible = s.active;
+      if (!id) return;
+      [s.x, s.z] = SENSOR_SPOTS[id];
+      s.group.position.set(s.x, 0, s.z);
+    });
+    // the list
+    this.items.forEach((it) => {
+      it.active = (night.items as string[]).includes(it.def.id);
+      it.got = false;
+      it.group.visible = it.active;
+    });
+    // everything else that can be picked up
+    this.pickups.forEach((p) => {
+      p.active = p.got = false;
+      p.group.visible = false;
+      p.slot = null;
+      p.door = null;
+    });
+    const take = (kind: PickupKind) => this.pickups.find((p) => p.kind === kind && !p.active);
+    const onShelf = (kind: PickupKind, slot: Slot, name: string, door: DoorId | null = null) => {
+      const p = take(kind);
+      if (!p) return;
+      Object.assign(p, { active: true, slot, door, name, where: slot.where, x: slot.x, z: slot.z, baseY: slot.y });
+      p.group.position.set(slot.x, slot.y, slot.z);
+      p.group.rotation.y = Math.atan2(slot.nx, slot.nz);
+      const beam = p.group.getObjectByName("beam");
+      if (beam) beam.position.y = 1.65 - slot.y;
+      p.group.visible = true;
+    };
+    for (const id of DOOR_IDS) {
+      const slot = night.keys?.[id];
+      if (slot && night.doors[id] === "key") onShelf("key", SLOTS[slot], id === "cold" ? "Cold-room keycard" : id === "office" ? "Office key" : "Stock room key", id);
+    }
+    night.power?.fuses?.forEach((slot) => onShelf("fuse", SLOTS[slot], "Fuse"));
+    if (night.goal.kind === "bonus") onShelf("bonus", SLOTS[night.goal.slot], night.goal.name);
+    // coins and batteries lie on open floor in the rooms that can be reached before the alarm
+    const opens = (id: DoorId) => night.doors[id] !== "shut" && night.doors[id] !== "pay";
+    const stockOpens = opens("stockW") || opens("stockE");
+    const beforeAlarm = (zone: Zone) => zone === "store" || (stockOpens && (zone === "stock" || opens(zone)));
+    const spots = FLOOR_SPOTS.filter(([x, z]) => beforeAlarm(zoneOf(x, z)) && !this.isBlocked(x, z));
+    const onFloor = (kind: PickupKind, y: number, name: string) => {
+      const p = take(kind);
+      if (!p || !spots.length) return;
+      const [x, z] = spots.splice(Math.floor(rand() * spots.length), 1)[0];
+      Object.assign(p, { active: true, name, where: "", x, z, baseY: y });
+      p.group.position.set(x, y, z);
+      p.group.visible = true;
+    };
+    for (let i = 0; i < night.batteries; i++) onFloor("battery", 0.16, "Battery");
+    for (let i = 0; i < night.coins; i++) onFloor("coin", 0.28, "Coin");
+  }
+
+  /** Mains on / off: ceiling lights, freezers, the vending machine, the register screens and lamp. */
+  setPower(on: boolean) {
+    this.power = on;
+    this.freezerGlow?.color.setScalar(on ? 1 : 0.06);
+    this.screens?.color.setHex(on ? 0x1c4a3a : 0x040807);
+    this.vendGlass?.color.setHex(on ? 0xbfe8ff : 0x10181c);
+    this.payLamp?.material.color.setHex(on ? 0xffffff : 0x2a2a2a);
+    for (const id of BREAKER_IDS) {
+      const live = id === this.breaker;
+      this.breakerLamps[id].material.color.setHex(live ? (on ? 0x30ff50 : 0xff3030) : 0x202020);
+      this.breakerLevers[id].position.y = live && !on ? -0.1 : 0.1;
+    }
+  }
+
+  private poseDoor(d: Door) {
+    const s = 1 - d.t * 0.93;
+    d.panel.scale.y = s;
+    d.panel.position.y = d.height - (d.height * s) / 2;
+    d.lamp.material.color.setHex(d.shut ? 0xff3030 : 0x30ff50);
+  }
+
+  /** Rolls a shutter up for good. */
+  openGate(id: DoorId) {
+    const d = this.doors[id];
+    if (!d.shut) return false;
+    d.shut = false;
+    d.lamp.material.color.setHex(0x30ff50);
+    this.rebuildBoxes();
+    return true;
   }
 
   /* ---------------- per-frame ---------------- */
@@ -1301,75 +1733,92 @@ export class StoreWorld {
         p.flick -= dt;
         v = Math.random() < 0.5 ? 0.08 : 0.9;
       } else if (Math.random() < dt * 0.04) p.flick = 0.1 + Math.random() * 0.5;
-      if (this.blackout > 0) v *= 0.02;
+      if (this.blackout > 0 || !this.power) v *= 0.02;
       p.v = v;
-      _c.setRGB(0.8 * v, 0.9 * v, 0.72 * v);
+      _c.setRGB(p.tint[0] * v, p.tint[1] * v, p.tint[2] * v);
       this.panelMesh.setColorAt(i, _c);
     }
     this.panelMesh.instanceColor!.needsUpdate = true;
-    const best: [number, number][] = [];
+    // the nearest panels carry the real lights (no allocation: a small insertion sort into `near`)
+    const near = this.near;
+    const n = this.pool.length;
+    for (let k = 0; k < n; k++) near[k * 2] = Infinity;
     for (let i = 0; i < ps.length; i++) {
       const d = (ps[i].x - px) ** 2 + (ps[i].z - pz) ** 2;
-      if (best.length < 6) {
-        best.push([d, i]);
-        best.sort((a, b) => a[0] - b[0]);
-      } else if (d < best[5][0]) {
-        best[5] = [d, i];
-        best.sort((a, b) => a[0] - b[0]);
+      if (d >= near[(n - 1) * 2]) continue;
+      let k = n - 1;
+      while (k > 0 && near[(k - 1) * 2] > d) {
+        near[k * 2] = near[(k - 1) * 2];
+        near[k * 2 + 1] = near[(k - 1) * 2 + 1];
+        k--;
       }
+      near[k * 2] = d;
+      near[k * 2 + 1] = i;
     }
-    for (let i = 0; i < this.pool.length; i++) {
-      const p = ps[best[i][1]];
-      this.pool[i].position.set(p.x, CEIL - 0.4, p.z);
-      this.pool[i].intensity = p.v * 2.0 * LIGHT;
+    for (let i = 0; i < n; i++) {
+      const p = ps[near[i * 2 + 1]];
+      const light = this.pool[i];
+      light.position.set(p.x, CEIL - 0.4, p.z);
+      light.intensity = p.v * 2.0 * LIGHT;
+      light.color.setHex(ZONE_LIGHT[zoneOf(p.x, p.z)]);
     }
   }
 
   tick(dt: number, t: number) {
-    this.items.forEach((it) => {
-      if (it.got) return;
+    for (const it of this.items) {
+      if (!it.active || it.got) continue;
       it.t += dt;
-      it.group.position.y = it.baseY + Math.sin(it.t * 1.6) * 0.012;
+      it.group.position.y = it.slot.y + Math.sin(it.t * 1.6) * 0.012;
       (it.sp.material as THREE.SpriteMaterial).opacity = 0.5 + Math.sin(it.t * 2.5) * 0.18;
       it.beam.material.opacity = 0.17 + Math.sin(it.t * 1.7) * 0.05;
-    });
+    }
+    for (const p of this.pickups) {
+      if (!p.active || p.got) continue;
+      p.t += dt;
+      p.group.position.y = p.baseY + Math.sin(p.t * 1.9) * (p.slot ? 0.012 : 0.05);
+      if (p.kind === "coin") p.group.rotation.y = p.t * 2.2;
+    }
+    for (const id of DOOR_IDS) {
+      const g = this.doors[id];
+      const target = g.shut ? 0 : 1;
+      if (g.t === target) continue;
+      g.t = target ? Math.min(1, g.t + dt / 1.6) : 0;
+      this.poseDoor(g);
+    }
+    for (const s of this.sensors) {
+      if (!s.active) continue;
+      s.cool = Math.max(0, s.cool - dt);
+      const tripped = s.cool > 0;
+      const blink = tripped ? (Math.sin(t * 22) > 0 ? 1 : 0.15) : 0.55 + Math.sin(t * 3.1 + s.x) * 0.25;
+      s.ring.material.opacity = (tripped ? 0.75 : 0.42) * blink;
+      s.lamp.material.color.setRGB(blink, tripped ? 0.3 * blink : 0.08 * blink, 0.05 * blink);
+    }
     const d = this.door;
     if (d) {
       if (d.open && d.t < 1) d.t = Math.min(1, d.t + dt / 1.3);
       if (!d.open && d.t > 0) d.t = 0;
       d.hinge.rotation.y = -d.t * 1.95;
     }
-    this.freezerLights.forEach((l, i) => (l.intensity = (0.6 + Math.sin(t * 7 + i) * 0.05 * (Math.random() < 0.02 ? 6 : 1)) * LIGHT));
-    if (this.vendLight) this.vendLight.intensity = (0.7 + (Math.random() < 0.03 ? -0.5 : 0)) * LIGHT;
+    const on = this.power ? 1 : 0;
+    this.freezerLights.forEach((l, i) => (l.intensity = on * (0.6 + Math.sin(t * 7 + i) * 0.05 * (Math.random() < 0.02 ? 6 : 1)) * LIGHT));
+    if (this.vendLight) this.vendLight.intensity = on * (0.7 + (Math.random() < 0.03 ? -0.5 : 0)) * LIGHT;
   }
 
+  /** The emergency exit swings open (the alarm has gone off). */
   openDoor() {
     if (!this.door || this.door.open) return;
     this.door.open = true;
-    const i = this.boxes.findIndex((b) => b.kind === "door");
-    if (i >= 0) this.boxes.splice(i, 1);
+    this.rebuildBoxes();
     this.exitSignMesh.material.map = this.exitTex![1];
     this.exitSignMesh.material.needsUpdate = true;
     this.exitLight.color.setHex(0x30ff50);
     if (this.payLamp) this.payLamp.material.color.setHex(0x333333);
   }
 
-  closeDoor() {
-    if (this.door) {
-      this.door.open = false;
-      this.door.t = 0;
-      this.door.hinge.rotation.y = 0;
-    }
-    if (!this.boxes.some((b) => b.kind === "door")) this.boxes.push({ ...this.exitBlock, kind: "door" });
-    this.exitSignMesh.material.map = this.exitTex![0];
-    this.exitSignMesh.material.needsUpdate = true;
-    this.exitLight.color.setHex(0xff2020);
-    if (this.payLamp) this.payLamp.material.color.setHex(0xffffff);
-  }
-
   /* ---------------- navigation grid ---------------- */
   private finalizeNav() {
-    this.blocked = new Uint8Array(GW * GH);
+    const blocked = this.blocked;
+    const boxes = this.boxes;
     for (let j = 0; j < GH; j++)
       for (let i = 0; i < GW; i++) {
         const cx = X0 + (i + 0.5) * CS;
@@ -1377,15 +1826,50 @@ export class StoreWorld {
         let b = 0;
         if (cx < -XI + 0.8 || cx > XI - 0.8 || cz < -ZI + 0.8 || cz > ZI - 0.8) b = 1;
         if (!b)
-          for (const box of this.boxes) {
-            if (box.kind === "door") continue;
+          for (let k = 0; k < boxes.length; k++) {
+            const box = boxes[k];
             if (cx > box.x0 - 0.55 && cx < box.x1 + 0.55 && cz > box.z0 - 0.55 && cz < box.z1 + 0.55) {
               b = 1;
               break;
             }
           }
-        this.blocked[j * GW + i] = b;
+        blocked[j * GW + i] = b;
       }
+    // label the connected walkable areas (a closed shutter cuts a room off)
+    const region = this.region;
+    const queue = (this.queue ??= new Int32Array(GW * GH));
+    region.fill(0);
+    let label = 0;
+    for (let s = 0; s < GW * GH; s++) {
+      if (blocked[s] || region[s]) continue;
+      label++;
+      let qh = 0;
+      let qt = 0;
+      queue[qt++] = s;
+      region[s] = label;
+      while (qh < qt) {
+        const c = queue[qh++];
+        const ci = c % GW;
+        const cj = (c / GW) | 0;
+        for (let k = 0; k < 4; k++) {
+          const a = ci + NB[k][0];
+          const b = cj + NB[k][1];
+          if (a < 0 || b < 0 || a >= GW || b >= GH) continue;
+          const n = b * GW + a;
+          if (blocked[n] || region[n]) continue;
+          region[n] = label;
+          queue[qt++] = n;
+        }
+      }
+    }
+  }
+
+  /** True when a walker can get from one point to the other (each snapped to the nearest free cell). */
+  connected(ax: number, az: number, bx2: number, bz: number) {
+    const a = this.nearestFree(...this.toCell(ax, az));
+    const b = this.nearestFree(...this.toCell(bx2, bz));
+    const ra = this.region[a[1] * GW + a[0]];
+    return ra !== 0 && ra === this.region[b[1] * GW + b[0]];
   }
 
   /* ---------------- collision / line of sight ---------------- */
@@ -1448,14 +1932,13 @@ export class StoreWorld {
         }
     return [i, j];
   }
-  /** Breadth-first distance field to (tx, tz) over the navigation grid. */
-  buildField(tx: number, tz: number) {
-    if (!this.dist || !this.queue) {
-      this.dist = new Int16Array(GW * GH);
-      this.queue = new Int32Array(GW * GH);
-    }
-    const dist = this.dist;
-    const queue = this.queue;
+  /** A walker's own distance field (the Wendigo and the hooded woman each keep one). */
+  makeField() {
+    return new Int16Array(GW * GH).fill(-1);
+  }
+  /** Breadth-first distance field to (tx, tz) over the navigation grid, written into `dist`. */
+  buildField(dist: Int16Array, tx: number, tz: number) {
+    const queue = (this.queue ??= new Int32Array(GW * GH));
     const blocked = this.blocked;
     let [ti, tj] = this.toCell(tx, tz);
     [ti, tj] = this.nearestFree(ti, tj);
@@ -1481,10 +1964,11 @@ export class StoreWorld {
       }
     }
   }
-  nextStep(x: number, z: number): Vec2 | null {
-    const dist = this.dist;
-    if (!dist) return null;
-    const [ci, cj] = this.toCell(x, z);
+  /** The next cell towards the field's target, or null when there is no way (a closed shutter between). */
+  nextStep(dist: Int16Array, x: number, z: number): Vec2 | null {
+    let [ci, cj] = this.toCell(x, z);
+    // standing in a blocked cell (pressed against a shelf): step from the nearest free one
+    if (this.blocked[cj * GW + ci]) [ci, cj] = this.nearestFree(ci, cj);
     const cur = dist[cj * GW + ci];
     let best: Vec2 | null = null;
     let bd = cur < 0 ? 1e9 : cur;
@@ -1500,21 +1984,22 @@ export class StoreWorld {
     }
     return best ? this.cellCenter(best[0], best[1]) : null;
   }
-  randomFree(nx?: number, nz?: number, radius = 10): Vec2 {
+  /** A free spot within `radius` of (nx, nz) that can be walked to from there. */
+  randomFree(nx: number, nz: number, radius = 10): Vec2 {
+    const [oi, oj] = this.nearestFree(...this.toCell(nx, nz));
+    const home = this.region[oj * GW + oi];
     for (let k = 0; k < 120; k++) {
-      let x: number;
-      let z: number;
-      if (nx !== undefined && nz !== undefined) {
-        x = nx + (Math.random() - 0.5) * 2 * radius;
-        z = nz + (Math.random() - 0.5) * 2 * radius;
-      } else {
-        x = -XI + 2 + Math.random() * (2 * XI - 4);
-        z = -ZI + 2 + Math.random() * (2 * ZI - 4);
-      }
+      const x = nx + (Math.random() - 0.5) * 2 * radius;
+      const z = nz + (Math.random() - 0.5) * 2 * radius;
+      if (Math.abs(x) > XI - 1 || Math.abs(z) > ZI - 1) continue;
       const [i, j] = this.toCell(x, z);
-      if (!this.blocked[j * GW + i]) return this.cellCenter(i, j);
+      if (!this.blocked[j * GW + i] && this.region[j * GW + i] === home) return this.cellCenter(i, j);
     }
-    return [0, 10];
+    return this.cellCenter(oi, oj);
+  }
+  /** Patrol points that can be walked to from (x, z) tonight. */
+  waypointsFrom(x: number, z: number): Vec2[] {
+    return WAYPOINTS.filter(([wx, wz]) => !this.isBlocked(wx, wz) && this.connected(x, z, wx, wz));
   }
 
   dispose() {
@@ -1522,7 +2007,11 @@ export class StoreWorld {
     this.exitTex?.forEach((t) => t.dispose());
     this.cartFrameGeo?.dispose();
     this.cartBasketGeo?.dispose();
+    this.gridTex?.dispose();
     this.gridMat?.dispose();
     this.metal.dispose();
+    this.cartPaint.frame.dispose();
+    this.cartPaint.basket?.dispose();
+    this.cartPaint.grip.dispose();
   }
 }

@@ -16,6 +16,7 @@ const CYAN = new THREE.Color("#22d3ee");
 const MAGENTA = new THREE.Color("#ff4fd8");
 const WHITE = new THREE.Color("#ffffff");
 const GOLD = new THREE.Color("#ffd166");
+const TEAL = new THREE.Color("#5eead4");
 
 const f = newFrame();
 const tmpV = new THREE.Vector3();
@@ -65,6 +66,8 @@ export abstract class Boss {
   protected hullRadius = 9;
   /** Every boss is built at this scale (sizes, offsets and hit radii). */
   protected readonly k = 1.5;
+  /** Weak points get tougher with the mission's difficulty. */
+  protected readonly hpK: number;
   /** World position of the boss centre. */
   readonly center = new THREE.Vector3();
 
@@ -72,7 +75,29 @@ export abstract class Boss {
     protected readonly ctx: Ctx,
     protected readonly enemies: Enemies,
   ) {
+    this.hpK = 0.85 + ctx.tier * 0.2;
     ctx.root.add(this.group);
+  }
+
+  /** Health left in these parts, 0..1. */
+  protected frac(parts: Enemy[]) {
+    let hp = 0;
+    let max = 0;
+    for (const p of parts) {
+      max += p.maxHp;
+      if (p.alive) hp += Math.max(0, p.hp);
+    }
+    return max > 0 ? hp / max : 0;
+  }
+
+  /**
+   * True where an attack that is under way (or telegraphed) will hit: rail-local (x, y) in the ship's
+   * flight box. The test autopilot steers by it; players read the same thing from the telegraphs.
+   */
+  unsafe(x: number, y: number) {
+    void x;
+    void y;
+    return false;
   }
 
   protected part(o: PartOpts): Enemy {
@@ -80,7 +105,7 @@ export abstract class Boss {
     const e = blankEnemy("part");
     e.boss = true;
     e.noHit = true;
-    e.hp = e.maxHp = o.hp ?? 9999;
+    e.hp = e.maxHp = o.weak ? Math.round((o.hp ?? 40) * this.hpK) : (o.hp ?? 9999);
     // Everything is invulnerable while the boss flies in.
     e.armored = this.state === "enter" || (o.armored ?? !o.weak);
     e.lockable = !!o.weak;
@@ -124,7 +149,7 @@ export abstract class Boss {
   protected expose(e: Enemy, glow: THREE.Color, hp: number) {
     e.armored = false;
     e.lockable = true;
-    e.hp = e.maxHp = hp;
+    e.hp = e.maxHp = Math.round(hp * this.hpK);
     e.glow = glow;
     e.score = 2000;
     if (e.obj && !this.glowing.has(e)) {
@@ -343,8 +368,13 @@ class TitanDrill extends Boss {
   }
 
   hp() {
-    if (this.phase === 1) return 0.5 + (this.pods.reduce((a, p) => a + Math.max(0, p.alive ? p.hp : 0), 0) / 120) * 0.5;
-    return (Math.max(0, this.core.alive ? this.core.hp : 0) / 110) * 0.5;
+    return this.phase === 1 ? 0.5 + this.frac(this.pods) * 0.5 : this.frac([this.core]) * 0.5;
+  }
+
+  unsafe(x: number, y: number) {
+    // The ram strikes a box around where the ship was.
+    if ((this.state === "ram-aim" && this.stateT > 0.6) || (this.state === "ram" && this.stateT < 0.6)) return Math.abs(x - this.ram.x) < 6.2 && Math.abs(y - this.ram.y) < 4.6;
+    return false;
   }
 
   protected behave(dt: number) {
@@ -396,7 +426,7 @@ class TitanDrill extends Boss {
       case "spread":
         if (this.stateT > this.volley * 0.28 && this.volley < 3) {
           this.volley++;
-          for (const src of this.sources()) this.fan(src, this.phase === 2 ? 7 : 5, 0.11, 46 + ctx.stage * 4);
+          for (const src of this.sources()) this.fan(src, this.phase === 2 ? 7 : 5, 0.11, 46 + ctx.tier * 4);
         }
         if (this.stateT > 1.2) this.setState("idle");
         break;
@@ -508,8 +538,13 @@ class OrbitalWarden extends Boss {
   }
 
   hp() {
-    if (this.phase === 1) return 0.5 + (this.dishes.reduce((a, p) => a + (p.alive ? Math.max(0, p.hp) : 0), 0) / 130) * 0.5;
-    return ((this.core.alive ? Math.max(0, this.core.hp) : 0) / 120) * 0.5;
+    return this.phase === 1 ? 0.5 + this.frac(this.dishes) * 0.5 : this.frac([this.core]) * 0.5;
+  }
+
+  unsafe(x: number, y: number) {
+    // The beam sweeps along one line (wide margin: it leaves the dishes at an angle).
+    if ((this.state === "beam-aim" && this.stateT > 0.5) || this.state === "beam") return this.vertical ? Math.abs(x - this.beamX) < 3.2 : Math.abs(y - this.beamY) < 3.2;
+    return false;
   }
 
   protected behave(dt: number) {
@@ -536,7 +571,7 @@ class OrbitalWarden extends Boss {
       const live = this.turrets.filter((t) => t.alive);
       if (live.length && ctx.bolts() < 18) {
         const t = live[Math.floor(Math.random() * live.length)];
-        ctx.fire(t.pos, { speed: 54 + ctx.stage * 4, lead: true, color: ORANGE });
+        ctx.fire(t.pos, { speed: 54 + ctx.tier * 4, lead: true, color: ORANGE });
         ctx.sfx.enemyShot();
       }
     }
@@ -651,8 +686,15 @@ class StationCore extends Boss {
   }
 
   hp() {
-    if (this.phase === 1) return 0.5 + (this.emitters.reduce((a, p) => a + (p.alive ? Math.max(0, p.hp) : 0), 0) / 180) * 0.5;
-    return ((this.core.alive ? Math.max(0, this.core.hp) : 0) / 140) * 0.5;
+    return this.phase === 1 ? 0.5 + this.frac(this.emitters) * 0.5 : this.frac([this.core]) * 0.5;
+  }
+
+  unsafe(x: number, y: number) {
+    // Every lit line of the laser fence, until it has passed.
+    const fence = this.fence;
+    if (!fence || fence.d < -3) return false;
+    for (const at of fence.lines) if (Math.abs((fence.vertical ? x : y) - at) < (fence.vertical ? 2.1 : 1.7)) return true;
+    return false;
   }
 
   protected behave(dt: number) {
@@ -775,8 +817,357 @@ class StationCore extends Boss {
   }
 }
 
+// --- Sector 3: Prism Queen ------------------------------------------------------------------------
+
+const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+class PrismQueen extends Boss {
+  readonly name = "Prism Queen";
+  private readonly ring = new THREE.Group();
+  private readonly shards: Enemy[];
+  private readonly heart: Enemy;
+  private cycle = 0;
+  private volley = 0;
+  private salvo = 0;
+  /** The sweeping light: a beam turning about the middle of the flight box (angle, direction, one arm or two). */
+  private light = { a: 0, dir: 1, arms: 1 };
+
+  constructor(ctx: Ctx, enemies: Enemies) {
+    super(ctx, enemies);
+    this.hullRadius = 8;
+    this.group.add(this.ring);
+    // Body: two crystal reefs, back to back.
+    this.part({ key: M.crystalA, size: 26, at: [0, -3, 8], armored: true, radius: 9 });
+    this.part({ key: M.crystalB, size: 18, at: [0, 5, 12], armored: true, radius: 6, rotZ: Math.PI });
+    this.shards = [0, 1, 2].map((i) => {
+      const a = (i / 3) * Math.PI * 2 + Math.PI / 2;
+      return this.part({ key: M.crystalB, size: 6.5, at: [Math.cos(a) * 12, Math.sin(a) * 9, -3], weak: true, hp: 50, glow: TEAL, radius: 3.4, parent: this.ring });
+    });
+    this.heart = this.part({ key: M.generator, size: 6, at: [0, 0, -8], armored: true, radius: 3.6, rotY: Math.PI });
+  }
+
+  hp() {
+    return this.phase === 1 ? 0.5 + this.frac(this.shards) * 0.5 : this.frac([this.heart]) * 0.5;
+  }
+
+  private lit() {
+    return this.state === "light" || (this.state === "light-aim" && this.stateT > 0.35);
+  }
+
+  unsafe(x: number, y: number) {
+    if (!this.lit()) return false;
+    const { a, dir, arms } = this.light;
+    const r = Math.hypot(x, y);
+    // The beams meet in the middle.
+    if (r < 2.2) return true;
+    const at = Math.atan2(y, x);
+    for (let i = 0; i < arms; i++) {
+      // How far ahead of this arm the point is, the way the arm turns.
+      const ahead = wrapAngle(at - (a + i * Math.PI)) * dir;
+      if (ahead > -0.4 && ahead < 1.0) return true;
+    }
+    return false;
+  }
+
+  protected behave(dt: number) {
+    const { ctx } = this;
+    const two = this.phase === 2;
+    this.ring.rotation.z += dt * (two ? 0.9 : 0.5);
+    this.x = damp(this.x, Math.sin(this.t * 0.5) * 4.5, 1.5, dt);
+    this.y = damp(this.y, Math.cos(this.t * 0.4) * 2 + 0.5, 1.5, dt);
+    this.d = damp(this.d, 70, 1.2, dt);
+    if (this.phase === 1 && this.shards.every((p) => !p.alive)) {
+      this.phase = 2;
+      this.expose(this.heart, MAGENTA, 130);
+      ctx.sfx.siren();
+      this.setState("idle");
+    }
+    if (this.phase === 2 && !this.heart.alive) {
+      this.die();
+      return;
+    }
+    switch (this.state) {
+      case "idle":
+        if (this.stateT > (two ? 1.0 : 1.4)) {
+          this.cycle++;
+          const pick = this.cycle % 3;
+          if (pick === 1) {
+            // Start well behind the ship, the way the beam will turn.
+            const dir = Math.random() < 0.5 ? -1 : 1;
+            this.light = { a: Math.atan2(ctx.py, ctx.px) - dir * 2.3, dir, arms: two ? 2 : 1 };
+            this.setState("light-aim");
+            ctx.sfx.bossCharge();
+          } else if (pick === 2) {
+            this.salvo = 0;
+            this.setState("rain");
+          } else {
+            this.volley = 0;
+            this.setState("spray");
+            ctx.sfx.bossCharge();
+          }
+        }
+        break;
+      case "spray": {
+        const src = this.sources();
+        if (this.stateT < 0.6) for (const s of src) ctx.glows.add(s, TEAL, 3 + this.stateT * 8, 0.6 + this.stateT);
+        if (this.stateT > 0.6 + this.volley * 0.34 && this.volley < (two ? 4 : 3)) {
+          this.volley++;
+          for (const s of src) this.fan(s, two ? 5 : 3, 0.1, 47 + ctx.tier * 4);
+        }
+        if (this.stateT > 2.2) this.setState("idle");
+        break;
+      }
+      case "rain":
+        // Crystal shards that home in: shoot them down.
+        if (this.stateT > 0.3 + this.salvo * 0.3 && this.salvo < (two ? 6 : 4)) {
+          const a = this.salvo * 2.4 + this.t;
+          tmpA.set(Math.cos(a) * 9, Math.sin(a) * 7, -4);
+          this.world(tmpA, tmpB);
+          this.missile(tmpB, { key: M.crystalA, size: 3.2, speed: 30, homing: 1.2, hp: 2, damage: 16, glow: TEAL });
+          ctx.sfx.bombLaunch();
+          this.salvo++;
+        }
+        if (this.stateT > 2.6) this.setState("idle");
+        break;
+      case "light-aim":
+        this.drawLight(0.16, Math.sin(this.stateT * 40) > 0 ? 1.1 : 0.3, false);
+        if (this.stateT > 1.15) {
+          this.setState("light");
+          ctx.sfx.beam();
+        }
+        break;
+      case "light": {
+        this.light.a += this.light.dir * (two ? 1.15 : 1.3) * dt;
+        if (this.drawLight(1.5, 1.6, true)) ctx.hurt(16, this.center);
+        ctx.shake(0.06);
+        if (this.stateT > (two ? 2.8 : 2.6)) this.setState("idle");
+        break;
+      }
+    }
+  }
+
+  /** Draws the beam arms in the ship's plane; returns true if a live arm touches the ship. */
+  private drawLight(width: number, alpha: number, live: boolean) {
+    const { ctx } = this;
+    let hit = false;
+    const src = this.phase === 2 && this.heart.alive ? this.heart.pos : this.center;
+    for (let i = 0; i < this.light.arms; i++) {
+      const a = this.light.a + i * Math.PI;
+      const ux = Math.cos(a);
+      const uy = Math.sin(a);
+      this.railPoint(1.5, 0, 0, tmpA);
+      this.railPoint(1.5, ux * 15, uy * 15, tmpB);
+      ctx.beams.add(tmpA, tmpB, width, live ? TEAL : RED, alpha);
+      if (live) {
+        ctx.beams.add(tmpA, tmpB, width * 0.35, WHITE, 1.2);
+        // A thin feed from the queen to the tip, so it reads as hers.
+        ctx.beams.add(src, tmpB, 0.3, TEAL, 0.5);
+        const t = Math.max(0, ctx.px * ux + ctx.py * uy);
+        if (Math.hypot(ctx.px - ux * t, ctx.py - uy * t) < 1.15) hit = true;
+      }
+    }
+    return hit;
+  }
+
+  private sources() {
+    const out: THREE.Vector3[] = [];
+    if (this.phase === 1) for (const p of this.shards) if (p.alive) out.push(p.pos);
+    if (this.phase === 2 && this.heart.alive) out.push(this.heart.pos);
+    return out;
+  }
+}
+
+// --- Sector 5: Nova Dreadnought -------------------------------------------------------------------
+
+const LANCE_AIM = 0.8;
+const LANCE_FIRE = 0.5;
+
+interface Lance {
+  x: number;
+  y: number;
+  t: number;
+  fired: boolean;
+}
+
+class Dreadnought extends Boss {
+  readonly name = "Nova Dreadnought";
+  private readonly guns: Enemy[];
+  private readonly reactors: Enemy[];
+  private readonly core: Enemy;
+  private cycle = 0;
+  private volley = 0;
+  private salvo = 0;
+  private gap = 0;
+  private rowY = 0;
+  private lances: Lance[] = [];
+
+  constructor(ctx: Ctx, enemies: Enemies) {
+    super(ctx, enemies);
+    this.hullRadius = 9;
+    // Hull: a hauler the size of a station, nose towards the ship, with two more as outriggers.
+    this.part({ key: M.cargoA, size: 50, at: [0, -5, 14], armored: true, radius: 11 });
+    this.part({ key: M.hangarGlass, size: 12, at: [0, 5, 13], armored: true, radius: 5 });
+    for (const side of [-1, 1]) this.part({ key: M.cargoB, size: 26, at: [side * 17, -2, 17], armored: true, radius: 6 });
+    this.guns = [
+      [-10, 1.5, -4],
+      [10, 1.5, -4],
+      [-5, -4.5, -8],
+      [5, -4.5, -8],
+    ].map(([x, y, z]) => this.part({ key: M.turretDouble, size: 5, at: [x, y, z], weak: true, hp: 42, glow: ORANGE, radius: 3, rotY: Math.PI }));
+    this.reactors = [-1, 1].map((side) => this.part({ key: M.generator, size: 6, at: [side * 8, 4, -2], armored: true, radius: 3.6, rotY: Math.PI }));
+    this.core = this.part({ key: M.generator, size: 7.5, at: [0, -0.5, -10], armored: true, radius: 4.2, rotY: Math.PI });
+  }
+
+  hp() {
+    if (this.phase === 1) return (2 + this.frac(this.guns)) / 3;
+    if (this.phase === 2) return (1 + this.frac(this.reactors)) / 3;
+    return this.frac([this.core]) / 3;
+  }
+
+  unsafe(x: number, y: number) {
+    for (const l of this.lances) if (Math.hypot(x - l.x, y - l.y) < 3.7) return true;
+    return false;
+  }
+
+  protected behave(dt: number) {
+    const { ctx } = this;
+    this.x = damp(this.x, Math.sin(this.t * 0.3) * 3.5, 1.2, dt);
+    this.y = damp(this.y, 1 + Math.sin(this.t * 0.45) * 1.5, 1.2, dt);
+    this.d = damp(this.d, 74, 1.2, dt);
+    if (this.phase === 1 && this.guns.every((p) => !p.alive)) {
+      this.phase = 2;
+      for (const r of this.reactors) this.expose(r, CYAN, 85);
+      ctx.sfx.siren();
+      this.setState("idle");
+    }
+    if (this.phase === 2 && this.reactors.every((p) => !p.alive)) {
+      this.phase = 3;
+      this.expose(this.core, MAGENTA, 170);
+      ctx.sfx.siren();
+      this.setState("idle");
+    }
+    if (this.phase === 3 && !this.core.alive) {
+      this.lances.length = 0;
+      this.die();
+      return;
+    }
+    this.updateLances(dt);
+    switch (this.state) {
+      case "idle":
+        if (this.stateT > [1.5, 1.2, 0.9][this.phase - 1]) {
+          this.cycle++;
+          const pick = this.cycle % 4;
+          this.volley = 0;
+          this.salvo = 0;
+          if (pick === 1) {
+            this.setState("broadside");
+            ctx.sfx.bossCharge();
+          } else if (pick === 2) this.setState("lance");
+          else if (pick === 3) this.setState("launch");
+          else this.setState("mines");
+        }
+        break;
+      case "broadside": {
+        // A wall of shots with one gap in it, at the ship's height. One wall per phase.
+        const src = this.sources();
+        if (this.stateT < 0.8) for (const s of src) ctx.glows.add(s, ORANGE, 3 + this.stateT * 7, 0.6 + this.stateT);
+        if (this.stateT > 0.8 + this.volley * 0.75 && this.volley < this.phase) {
+          this.volley++;
+          this.gap = Math.floor(Math.random() * 8);
+          this.rowY = clamp(ctx.py, -BOX.y + 1.5, BOX.y - 1.5);
+          const from = src.length ? src[this.volley % src.length] : this.center;
+          for (let i = 0; i < 9; i++) {
+            if (i === this.gap || i === this.gap + 1) continue;
+            for (const dy of [-1.4, 1.4]) {
+              this.railPoint(0, -8 + i * 2, this.rowY + dy, tmpA);
+              ctx.fire(from, { speed: 45 + ctx.tier * 3, dir: tmpA.sub(from).clone(), color: ORANGE, size: 1.3 });
+            }
+          }
+          ctx.sfx.bomb();
+        }
+        if (this.stateT > 1.2 + this.phase * 0.75) this.setState("idle");
+        break;
+      }
+      case "lance":
+        // A beam straight down the lane at where the ship is now — one after another.
+        if (this.stateT > this.salvo * 0.7 && this.salvo < this.phase + 1) {
+          this.salvo++;
+          this.lances.push({ x: ctx.px, y: ctx.py, t: 0, fired: false });
+          ctx.sfx.alert();
+        }
+        if (this.stateT > (this.phase + 1) * 0.7 + LANCE_AIM + LANCE_FIRE) this.setState("idle");
+        break;
+      case "launch":
+        if (this.stateT > 0.3 && this.stateT - dt <= 0.3) {
+          const side = Math.random() < 0.5 ? -1 : 1;
+          if (this.phase === 3) this.enemies.spawnEvent({ at: 0, kind: "wave", type: "ace", pattern: "strafe", count: 1, x: side * 4, y: 1, side });
+          else this.enemies.spawnEvent({ at: 0, kind: "wave", type: "dart", pattern: "swoop", count: 3, x: 0, y: 1, side });
+          ctx.sfx.bombLaunch();
+        }
+        if (this.stateT > 1.6) this.setState("idle");
+        break;
+      case "mines":
+        if (this.stateT > 0.2 && this.stateT - dt <= 0.2) {
+          const n = 3 + this.phase;
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2;
+            tmpA.set(Math.cos(a) * 8, Math.sin(a) * 6, -6);
+            this.world(tmpA, tmpB);
+            this.missile(tmpB, { key: M.drone, size: 2.6, speed: 27, homing: 0.9, hp: 1, damage: 14, glow: RED });
+          }
+          ctx.sfx.bombLaunch();
+        }
+        if (this.stateT > 1.5) this.setState("idle");
+        break;
+    }
+  }
+
+  private updateLances(dt: number) {
+    const { ctx } = this;
+    for (const l of this.lances) {
+      l.t += dt;
+      const live = l.t >= LANCE_AIM;
+      if (live && !l.fired) {
+        l.fired = true;
+        ctx.sfx.beam();
+        ctx.shake(0.4);
+      }
+      // The beam follows the lane in three straight pieces.
+      const far = Math.max(20, this.d - 8);
+      for (let i = 0; i < 3; i++) {
+        this.railPoint(-14 + ((far + 14) * i) / 3, l.x, l.y, tmpA);
+        this.railPoint(-14 + ((far + 14) * (i + 1)) / 3, l.x, l.y, tmpB);
+        if (live) {
+          ctx.beams.add(tmpA, tmpB, 3.6, MAGENTA, 1.5);
+          ctx.beams.add(tmpA, tmpB, 1.2, WHITE, 1.3);
+        } else ctx.beams.add(tmpA, tmpB, 0.3, RED, Math.sin(l.t * 44) > 0 ? 1.2 : 0.35);
+      }
+      // A ring in the ship's plane shows how wide it is.
+      ctx.rail.frame(ctx.s + 1.5, f);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        const b = ((i + 1) / 8) * Math.PI * 2;
+        tmpA.copy(f.pos).addScaledVector(f.right, l.x + Math.cos(a) * 2.3).addScaledVector(f.up, l.y + Math.sin(a) * 2.3);
+        tmpB.copy(f.pos).addScaledVector(f.right, l.x + Math.cos(b) * 2.3).addScaledVector(f.up, l.y + Math.sin(b) * 2.3);
+        ctx.beams.add(tmpA, tmpB, live ? 0.4 : 0.2, live ? MAGENTA : RED, live ? 1.4 : 0.8);
+      }
+      if (live && Math.hypot(ctx.px - l.x, ctx.py - l.y) < 2.3) ctx.hurt(22, this.center);
+    }
+    this.lances = this.lances.filter((l) => l.t < LANCE_AIM + LANCE_FIRE);
+  }
+
+  private sources() {
+    const out: THREE.Vector3[] = [];
+    const live = this.phase === 1 ? this.guns : this.phase === 2 ? this.reactors : [this.core];
+    for (const p of live) if (p.alive) out.push(p.pos);
+    return out;
+  }
+}
+
 export function createBoss(kind: BossKind, ctx: Ctx, enemies: Enemies): Boss {
   if (kind === "drill") return new TitanDrill(ctx, enemies);
   if (kind === "warden") return new OrbitalWarden(ctx, enemies);
+  if (kind === "queen") return new PrismQueen(ctx, enemies);
+  if (kind === "dreadnought") return new Dreadnought(ctx, enemies);
   return new StationCore(ctx, enemies);
 }
