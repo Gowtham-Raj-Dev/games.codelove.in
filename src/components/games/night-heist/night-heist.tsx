@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleHelp, Gamepad2, Home, Play, RotateCcw } from "lucide-react";
 import type { LoadProgress } from "../shared/assets";
-import { crazyAd, crazyGameplay, crazyHappy, crazyInit, crazyLoading, crazyWanted, inCrazyGames } from "../shared/crazygames";
+import { crazyAd, crazyBuild, crazyDevice, crazyGameplay, crazyHappy, crazyInit, crazyLoading, crazyWanted, inCrazyGames } from "../shared/crazygames";
 import { inPlayables, playablesSave } from "../shared/playables";
 import { BigButton, createRecords, createStore, GameRoot, HowToPlay, LoadingScreen, Modal, SoftButton, SystemButtons, useRecords, useShortcuts } from "../shared/ui";
 import { LEVELS } from "./campaign";
@@ -58,6 +58,11 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
 
   // Touch controls appear for touch screens (and as soon as someone touches).
   useEffect(() => {
+    // CrazyGames asks games not to guess from touch events: its own system info says what the device is.
+    if (crazyBuild) {
+      void crazyInit().then(() => setTouch((crazyDevice() ?? "desktop") !== "desktop"));
+      return;
+    }
     const coarse = window.matchMedia("(pointer: coarse)");
     const sync = () => setTouch((t) => t || coarse.matches);
     sync();
@@ -418,7 +423,12 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
       <LoadingScreen game={GAME} progress={progress} error={error} ready={phase !== "loading" && phase !== "error"} />
 
       {phase === "menu" && !shop && !editing && !help && !files && (
-        <MenuScreen save={save} onPlay={() => openCase(nextHeist(currentSave()))} onFiles={() => setFiles(true)} onShop={() => openShop()} onHelp={() => setHelp(true)} onControls={() => setEditing(true)} touch={touch} />
+        <MenuScreen save={save} onPlay={() => {
+          // A new player goes straight into the first heist (the walk-through explains it); everyone else sees the briefing.
+          const s = currentSave();
+          if (s.runs === 0 && nextHeist(s) === 0) start(0);
+          else openCase(nextHeist(s));
+        }} onFiles={() => setFiles(true)} onShop={() => openShop()} onHelp={() => setHelp(true)} onControls={() => setEditing(true)} touch={touch} />
       )}
       {phase === "menu" && !shop && !editing && !help && files && <CaseFiles save={save} district={district} onDistrict={setDistrict} onPick={openCase} onBack={() => setFiles(false)} onShop={() => openShop()} />}
       {phase === "menu" && shop && <Shop save={save} tab={shop.tab} selected={shop.selected} onTab={pickTab} onSelect={pickItem} onBuy={buy} onEquip={equip} onClose={closeShop} onLayout={onLayout} />}

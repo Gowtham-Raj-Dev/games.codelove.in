@@ -50,3 +50,4 @@ dist-playables/
 /public/games/*/shorts*.mp4
 /public/games/*/promo*.mp4
 dist-crazygames/
+crazygames-submission/

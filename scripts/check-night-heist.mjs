@@ -284,7 +284,26 @@ try {
       const { data } = await page.send("Page.captureScreenshot", { format: "png" });
       return Buffer.from(data, "base64");
     };
-    for (const f of at) {
+    // --video=dir [--frames=540] [--start=0.1] [--size=1920x1080]: one picture per solver step (30 per second of play, no speed-up)
+    // into dir/frame-00001.png … — the store's preview video is made from these with ffmpeg.
+    const VIDEO = args.find((a) => a.startsWith("--video="))?.slice(8);
+    if (VIDEO) {
+      fs.mkdirSync(VIDEO, { recursive: true });
+      const frames = Number(args.find((a) => a.startsWith("--frames="))?.slice(9) ?? 540);
+      const start = Number(args.find((a) => a.startsWith("--start="))?.slice(8) ?? 0.1);
+      const [vw, vh] = (args.find((a) => a.startsWith("--size="))?.slice(7) ?? "1920x1080").split("x").map(Number);
+      await desktop(vw, vh);
+      await sleep(2500);
+      const k0 = Math.floor((await page.evaluate("window.__route.length")) * start);
+      await page.evaluate(`${H}.play(window.__route.slice(0, ${k0}), false, true)`);
+      for (let i = 0; i < frames; i++) {
+        await page.evaluate(`${H}.play(window.__route.slice(${k0 + i}, ${k0 + i + 1}), false, true)`);
+        const { data } = await page.send("Page.captureScreenshot", { format: "jpeg", quality: 92 });
+        fs.writeFileSync(path.join(VIDEO, `frame-${String(i + 1).padStart(5, "0")}.jpg`), Buffer.from(data, "base64"));
+      }
+      console.log(`${frames} frames (${vw}×${vh}) in ${VIDEO}`);
+    }
+    for (const f of VIDEO ? [] : at) {
       await page.evaluate(`(() => { const n = Math.floor(window.__route.length * ${f}); ${H}.play(window.__route.slice(window.__done, n), false, true); window.__done = n; })()`);
       if (flag("--final")) {
         for (const [name, w, h, q] of [["cover", 1200, 630, 82], ["backdrop-wide-1920", 1920, 1080, 72], ["backdrop-wide-2560", 2560, 1440, 66], ["backdrop-tall-1170", 1170, 2532, 70]]) {
@@ -295,6 +314,11 @@ try {
       } else {
         fs.writeFileSync(path.join(CAPTURE, `shot-${from + 1}-${f}.png`), await grab(1200, 630));
         fs.writeFileSync(path.join(CAPTURE, `tall-${from + 1}-${f}.png`), await sharp(await grab(585, 1266)).png().toBuffer());
+        // --sizes=1920x1080,800x1200: pictures of exactly these sizes too (the store covers are made from them).
+        for (const size of (args.find((a) => a.startsWith("--sizes="))?.slice(8) ?? "").split(",").filter(Boolean)) {
+          const [w, h] = size.split("x").map(Number);
+          fs.writeFileSync(path.join(CAPTURE, `art-${w}x${h}-${from + 1}-${f}.png`), await grab(w, h));
+        }
         console.log(`captured heist ${from + 1} at ${f}`);
       }
     }

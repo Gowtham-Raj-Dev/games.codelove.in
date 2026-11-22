@@ -8,6 +8,7 @@ import { SITE } from "@/lib/site";
 import { themeVars } from "../themes";
 import { audio } from "./audio";
 import { useNativeApp } from "./native-app";
+import { crazyBuild } from "./crazygames";
 import { inPlayables, usePlayables } from "./playables";
 
 /**
@@ -205,7 +206,7 @@ export function useShortcuts({ onPause, onHelp }: { onPause?: () => void; onHelp
       const k = e.key.toLowerCase();
       if (k === "m") audio.toggleMusic();
       else if (k === "n") audio.toggleSfx();
-      else if (k === "f" && !inPlayables()) toggleFullscreen();
+      else if (k === "f" && !inPlayables() && !crazyBuild) toggleFullscreen();
       else if ((k === "h" || k === "?") && onHelp) onHelp();
       else if ((k === "escape" || k === "p") && onPause) onPause();
       else return;
@@ -334,8 +335,8 @@ export function SystemButtons({
         </IconButton>
       )}
       {onHelp && <CreditsButton small={small} iconClass={icon} />}
-      {!app && <FullscreenButton small={small} iconClass={icon} />}
-      <RotateButton small={small} iconClass={icon} />
+      {!app && !crazyBuild && <FullscreenButton small={small} iconClass={icon} />}
+      {!crazyBuild && <RotateButton small={small} iconClass={icon} />}
     </div>
   );
 }
@@ -558,7 +559,7 @@ function TouchControlsList({ game }: { game: GameEntry }) {
 function ButtonsList() {
   const native = useNativeApp();
   const youtube = usePlayables();
-  const app = native || youtube;
+  const app = native || youtube || crazyBuild;
   const { standalone } = useFullscreen();
   return (
     <>

@@ -29,6 +29,7 @@ interface CgSdk {
     happytime(): void;
   };
   ad: { requestAd(type: "midgame" | "rewarded", callbacks: CgAdCallbacks): void; hasAdblock?: () => Promise<boolean> };
+  user?: { systemInfo?: { device?: { type?: string } } };
 }
 
 declare const __CRAZYGAMES__: boolean | undefined;
@@ -82,6 +83,14 @@ export function crazyInit(): Promise<CgSdk | null> {
     document.head.appendChild(script);
   });
   return ready;
+}
+
+/** The stand-alone CrazyGames build: CrazyGames provides full screen itself, so the game has no full-screen / rotate buttons. */
+export const crazyBuild = typeof __CRAZYGAMES__ !== "undefined" && !!__CRAZYGAMES__;
+
+/** "desktop" | "tablet" | "mobile" from CrazyGames's own system info (it asks games not to guess from touch events). null: unknown. */
+export function crazyDevice(): string | null {
+  return sdkRef?.user?.systemInfo?.device?.type ?? null;
 }
 
 /** True inside CrazyGames once the SDK has started. */

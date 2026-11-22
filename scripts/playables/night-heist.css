@@ -32,3 +32,10 @@ body {
   overflow: hidden;
   background: #06070c;
 }
+
+body {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
