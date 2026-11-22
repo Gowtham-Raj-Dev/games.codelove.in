@@ -366,14 +366,16 @@ export function Briefing({ index, save, onStart, onBack, onShop, touch }: { inde
   return (
     <div className="absolute inset-0 overflow-y-auto">
       <div className="flex min-h-full items-end justify-end p-3 pt-[max(env(safe-area-inset-top),12px)] sm:items-center sm:p-6">
-        <div role="dialog" aria-label={`${caseNo(index)}: ${def.name}`} className="g-panel relative w-full max-w-md p-4 sm:p-6">
-          <span className="g-display absolute -top-3 right-5 rotate-3 border-2 border-[#b91c1c] bg-[#ecdfbf] px-2 py-0.5 text-xs text-[#b91c1c]">Confidential</span>
+        <div role="dialog" aria-label={`${caseNo(index)}: ${def.name}`} className="g-panel relative flex max-h-[calc(100dvh-24px)] w-full max-w-md flex-col p-4 sm:max-h-[calc(100dvh-48px)] sm:p-6">
+          <span className="g-display absolute -top-3 right-5 z-10 rotate-3 border-2 border-[#b91c1c] bg-[#ecdfbf] px-2 py-0.5 text-xs text-[#b91c1c]">Confidential</span>
+          {/* The case notes scroll; the buttons below them always stay in view. */}
+          <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
           <p className="g-muted text-xs font-bold tracking-[0.2em] uppercase">
             {caseNo(index)} · {district.name} · {def.place}
           </p>
           <h2 className="g-panel-title mt-1 text-3xl leading-tight sm:text-4xl">{def.name}</h2>
           <div className="mt-3 overflow-hidden rounded-[2px] ring-1 ring-black/40">
-            <MapSketch index={index} className="block max-h-[30vh] w-full land:max-h-[38vh]" />
+            <MapSketch index={index} className="block max-h-[24vh] w-full land:max-h-[38vh]" />
           </div>
           <p className="mt-3 text-sm leading-relaxed">{def.brief}</p>
           <ul className="mt-3 space-y-1.5 text-sm">
@@ -426,7 +428,8 @@ export function Briefing({ index, save, onStart, onBack, onShop, touch }: { inde
               <ShoppingBag className="size-3.5" /> Change
             </span>
           </button>
-          <div className="mt-3 space-y-2">
+          </div>
+          <div className="mt-3 shrink-0 space-y-2">
             <BigButton onClick={onStart} autoFocus icon={<Play className="size-5 fill-current" />}>
               <span data-nh-begin>Begin the heist</span>
             </BigButton>
@@ -604,6 +607,8 @@ export interface Outcome extends Result {
   /** Cash banked for this run. */
   paid: number;
   bank: number;
+  /** A rewarded ad was watched: the cash was paid a second time. */
+  doubled?: boolean;
 }
 
 const CAUGHT: Record<string, string> = {
@@ -615,7 +620,7 @@ const CAUGHT: Record<string, string> = {
   timer: "after the vault timer ran out",
 };
 
-export function ResultCard({ result, nextOpen, onNext, onRetry, onMenu, onShop }: { result: Outcome; nextOpen: boolean; onNext: () => void; onRetry: () => void; onMenu: () => void; onShop: () => void }) {
+export function ResultCard({ result, nextOpen, onNext, onRetry, onMenu, onShop, onDouble, busy }: { result: Outcome; nextOpen: boolean; onNext: () => void; onRetry: () => void; onMenu: () => void; onShop: () => void; onDouble?: () => void; busy?: boolean }) {
   const def = LEVELS[result.level];
   const last = result.level === TOTAL_HEISTS - 1;
   const districtDone = result.escaped && (result.level + 1) % HEISTS_PER_DISTRICT === 0;
@@ -659,6 +664,12 @@ export function ResultCard({ result, nextOpen, onNext, onRetry, onMenu, onShop }
           {result.best && result.escaped && <p className="g-display mt-2 text-center text-sm text-[#b91c1c]">New best for this heist</p>}
           {districtDone && <p className="g-display mt-2 text-center text-sm">{last ? "That was the last heist. The city is yours — go back for three stars everywhere." : `${districtOf(result.level).name} is cleaned out. ${DISTRICTS[districtIndex(result.level) + 1].name} is open.`}</p>}
           <div className="mt-4 space-y-2">
+            {onDouble && result.escaped && result.paid > 0 && !result.doubled && (
+              <SoftButton onClick={onDouble} icon={<Banknote className="size-4" />}>
+                {busy ? "Loading ad…" : `Watch an ad: double the cash (+${fmtMoney(result.paid)})`}
+              </SoftButton>
+            )}
+            {result.doubled && <p className="g-display text-center text-sm text-[#15803d]">Cash doubled — thanks!</p>}
             {canNext ? (
               <BigButton onClick={onNext} autoFocus icon={<ArrowRight className="size-5" />}>
                 <span data-nh-next>Next heist</span>

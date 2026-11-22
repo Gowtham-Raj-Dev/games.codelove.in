@@ -145,6 +145,11 @@ export class NightHeistGame {
     stencilZFail: THREE.KeepStencilOp,
     stencilZPass: THREE.KeepStencilOp,
   });
+  /** A wide soft glow on the ground under the level, so the building does not float in black. */
+  private readonly halo = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: this.glowTex, color: "#5d6fa8", transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+  );
   private readonly fade: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private fadeTarget = 1;
 
@@ -178,6 +183,9 @@ export class NightHeistGame {
   private menuT = 0;
   private hudCache = "";
   private alarmFlash = 0;
+  /** Camera shake (the alarm going off): 0..1, dies away by itself. */
+  private shake = 0;
+  private wasAlarm = false;
   private escaping = false;
 
   // Input
@@ -241,6 +249,9 @@ export class NightHeistGame {
       scene.add(l);
     }
     scene.add(this.gemLight);
+    this.halo.visible = false;
+    this.halo.renderOrder = -1;
+    scene.add(this.halo);
     scene.add(this.rings.group, this.sparkles.points);
 
     // Thief marker ring, throw reticle, objective chevron.
@@ -426,7 +437,12 @@ export class NightHeistGame {
     });
     // The district's light.
     const theme = view.theme;
-    (this.scene.background as THREE.Color).set(theme.bg);
+    // The night around the building is a deep tint of the district's sky, not black, with a soft glow under the level.
+    (this.scene.background as THREE.Color).set(theme.bg).lerp(this.skyColor.set(theme.sky), 0.2);
+    this.halo.material.color.set(theme.sky);
+    this.halo.position.set(view.center.x, -0.06, view.center.z);
+    this.halo.scale.setScalar(Math.max(level.grid.w, level.grid.h) * 2.6);
+    this.halo.visible = true;
     this.skyColor.set(theme.sky);
     this.hemi.color.copy(this.skyColor);
     this.hemi.groundColor.set(theme.ground);
@@ -864,6 +880,8 @@ export class NightHeistGame {
 
     // Alarm: the place goes red and pulses.
     const alarmPulse = sim.alarm ? 0.5 + 0.5 * Math.sin(now * 7) : 0;
+    if (sim.alarm && !this.wasAlarm && this.phase === "playing") this.shake = 0.55;
+    this.wasAlarm = sim.alarm;
     this.alarmFlash = damp(this.alarmFlash, sim.alarm ? 1 : 0, 3, dt || 0.016);
     const sky = this.skyColor;
     this.hemi.color.setRGB(sky.r + alarmPulse * 0.22 * this.alarmFlash, sky.g - this.alarmFlash * 0.1 * sky.g, sky.b - this.alarmFlash * 0.3 * sky.b);
@@ -986,11 +1004,14 @@ export class NightHeistGame {
     if (this.overview || browsing) {
       const vFov = THREE.MathUtils.degToRad(this.camera.fov);
       const needH = ((level.grid.h + 2) / (2 * Math.tan(vFov / 2))) * 0.92;
-      const needW = (level.grid.w + 2) / (2 * Math.tan(vFov / 2) * aspect);
-      dist = Math.max(needH, needW) * (this.phase === "briefing" ? 1.25 : 1.05);
+      // In the briefing the case file covers the right of the screen: fit the level into what is left and centre it there.
+      const width = this.canvas.clientWidth || 1;
+      const panel = this.phase === "briefing" && !this.portrait ? Math.min(0.5, 480 / width) : 0;
+      const needW = (level.grid.w + 2) / (2 * Math.tan(vFov / 2) * aspect * (1 - panel));
+      dist = Math.max(needH, needW) * (this.phase === "briefing" ? 1.2 : 1.05);
       pitch = THREE.MathUtils.degToRad(64);
       focus.copy(view.center);
-      if (this.phase === "briefing" && !this.portrait) focus.x -= dist * Math.tan(vFov / 2) * aspect * 0.38;
+      if (panel > 0) focus.x += dist * Math.tan(vFov / 2) * aspect * panel;
       if (this.phase === "briefing" && this.portrait) focus.z += dist * 0.18;
       if (this.phase === "menu") {
         focus.x += Math.sin(this.menuT * 0.12) * 2;
@@ -1023,6 +1044,13 @@ export class NightHeistGame {
     this.focus.y = damp(this.focus.y, this.showcase && this.phase !== "playing" ? 0.55 : 0, k, dt);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.focus.x, this.focus.y, this.focus.z);
+    if (this.shake > 0.001) {
+      const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const a = reduce ? 0 : this.shake * this.shake * 0.35;
+      this.camera.position.x += (Math.random() - 0.5) * a;
+      this.camera.position.z += (Math.random() - 0.5) * a;
+      this.shake = Math.max(0, this.shake - dt * 1.4);
+    }
   }
 
   private resize() {

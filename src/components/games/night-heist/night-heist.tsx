@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleHelp, Gamepad2, Home, Play, RotateCcw } from "lucide-react";
 import type { LoadProgress } from "../shared/assets";
+import { crazyAd, crazyGameplay, crazyHappy, crazyInit, crazyLoading, crazyWanted, inCrazyGames } from "../shared/crazygames";
 import { inPlayables, playablesSave } from "../shared/playables";
 import { BigButton, createRecords, createStore, GameRoot, HowToPlay, LoadingScreen, Modal, SoftButton, SystemButtons, useRecords, useShortcuts } from "../shared/ui";
 import { LEVELS } from "./campaign";
@@ -12,6 +13,7 @@ import { GAME } from "./manifest";
 import { Briefing, CaseFiles, HudOverlay, MenuScreen, ResultCard, Toasts, type Outcome, type Toast } from "./screens";
 import { cardsFor, Shop } from "./shop";
 import { ControlsEditor, TouchControls } from "./touch";
+import { Tutorial } from "./tutorial";
 
 /**
  * What is kept in this browser. It is read back through `readSave` every time, so whatever is stored —
@@ -49,6 +51,7 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
   const [runKey, setRunKey] = useState(0);
   const raw = useRecords(records);
   const save = useMemo(() => readSave(raw), [raw]);
+  const [adBusy, setAdBusy] = useState(false);
   const uiRef = useRef<Record<string, (...args: never[]) => void> | null>(null);
   const toastId = useRef(0);
   const toastTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
@@ -68,6 +71,19 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
       coarse.removeEventListener("change", sync);
     };
   }, []);
+
+  // CrazyGames: start the SDK (only when framed by CrazyGames) and tell it when loading is over.
+  useEffect(() => {
+    if (!crazyWanted()) return;
+    void crazyInit().then((sdk) => sdk && crazyLoading(true));
+  }, []);
+  useEffect(() => {
+    if (phase !== "loading") crazyLoading(false);
+  }, [phase]);
+  // Gameplay is "on" only while the player is in the action (not paused, in a menu, on a result or watching an ad).
+  useEffect(() => {
+    crazyGameplay(phase === "playing" && !adBusy && !help && !editing);
+  }, [phase, adBusy, help, editing]);
 
   const pushToast = useCallback((text: string, tone: Toast["tone"] = "info") => {
     const id = ++toastId.current;
@@ -118,6 +134,7 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
         }
         writeSave({ heists, runs: before.runs + 1, bank: before.bank + paid });
         setResult({ ...r, best, paid, bank: before.bank + paid });
+        if (r.escaped && r.stars === 3) crazyHappy();
       },
     });
     gameRef.current = game;
@@ -360,6 +377,32 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
     };
   }, []);
 
+  /** CrazyGames: an ad at the natural break between heists, then carry on. */
+  const afterBreak = (go: () => void) => {
+    if (!inCrazyGames() || adBusy) return go();
+    setAdBusy(true);
+    void crazyAd("midgame").then(() => {
+      setAdBusy(false);
+      go();
+    });
+  };
+
+  /** CrazyGames: a rewarded ad the player picked doubles the cash from this heist. */
+  const doubleHaul = () => {
+    if (!result || result.doubled || !result.escaped || result.paid <= 0 || adBusy) return;
+    const snapshot = result;
+    setAdBusy(true);
+    void crazyAd("rewarded").then((watched) => {
+      setAdBusy(false);
+      if (!watched) {
+        pushToast("No ad is available right now.", "bad");
+        return;
+      }
+      writeSave({ bank: currentSave().bank + snapshot.paid });
+      setResult({ ...snapshot, doubled: true, bank: snapshot.bank + snapshot.paid });
+    });
+  };
+
   const running = phase === "playing" || phase === "paused";
   const next = result ? result.level + 1 : 0;
   const nextOpen = !!result && next < LEVELS.length && isUnlocked(next, save);
@@ -368,6 +411,9 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
     <GameRoot game={GAME} className="bg-[#06070c]">
       <style>{STYLES}</style>
       <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full" aria-label="Night Heist game" />
+
+      {/* A soft vignette keeps the eye on the thief. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgba(2,3,8,0.55)_100%)]" />
 
       <LoadingScreen game={GAME} progress={progress} error={error} ready={phase !== "loading" && phase !== "error"} />
 
@@ -382,7 +428,8 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
       {(running || (phase === "menu" && editing)) && <HudOverlay store={hud} onPause={pauseOrResume} onMap={() => gameRef.current?.toggleOverview()} touch={touch || editing} />}
       {running && <Toasts toasts={toasts} />}
       {phase === "playing" && touch && <TouchControls game={gameRef} store={hud} />}
-      {phase === "playing" && !touch && save.runs < 2 && (
+      {phase === "playing" && selected === 0 && !save.heists["0"] && <Tutorial store={hud} touch={touch} runKey={runKey} />}
+      {phase === "playing" && !touch && save.runs < 2 && !(selected === 0 && !save.heists["0"]) && (
         <div key={`hint-${runKey}`} className="nh-anim pointer-events-none absolute inset-x-0 bottom-[max(env(safe-area-inset-bottom),72px)] flex animate-[nh-hint_8s_ease_forwards] justify-center px-4 opacity-0">
           <p className="g-hud g-display px-4 py-2 text-center text-sm">WASD move · Shift sneak · Space run · E use · click the floor to throw a coin · Q map</p>
         </div>
@@ -417,7 +464,7 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
       )}
       {editing && (phase === "menu" || phase === "paused") && <ControlsEditor store={hud} onClose={() => setEditing(false)} />}
 
-      {phase === "result" && result && !help && <ResultCard result={result} nextOpen={nextOpen} onNext={() => openCase(next)} onRetry={() => start(result.level)} onMenu={toFiles} onShop={() => openShop()} />}
+      {phase === "result" && result && !help && <ResultCard result={result} nextOpen={nextOpen} onNext={() => afterBreak(() => openCase(next))} onRetry={() => afterBreak(() => start(result.level))} onMenu={toFiles} onShop={() => openShop()} onDouble={inCrazyGames() ? doubleHaul : undefined} busy={adBusy} />}
 
       {help && <HowToPlay game={GAME} onClose={() => setHelp(false)} />}
     </GameRoot>
