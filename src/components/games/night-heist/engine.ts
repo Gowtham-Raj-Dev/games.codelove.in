@@ -1018,7 +1018,7 @@ export class NightHeistGame {
         focus.z += Math.cos(this.menuT * 0.1) * 1.2;
       }
     } else {
-      dist = (this.portrait ? 17 : 12.5) * this.zoom;
+      dist = (this.portrait ? 16 : 11.5) * this.zoom;
       pitch = THREE.MathUtils.degToRad(58);
       const t = sim.thief;
       focus.set(t.x + t.vx * 0.25, 0, t.z + t.vz * 0.25 + (this.portrait ? 0.6 : 0.3));

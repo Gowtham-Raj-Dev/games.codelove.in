@@ -87,13 +87,13 @@ export function NightHeist({ sizes }: { sizes: Record<string, number> }) {
 
   const pushToast = useCallback((text: string, tone: Toast["tone"] = "info") => {
     const id = ++toastId.current;
-    setToasts((list) => [...list.slice(-2), { id, text, tone }]);
+    setToasts((list) => [...list.slice(-1), { id, text, tone }]);
     const timer = setTimeout(
       () => {
         toastTimers.current.delete(timer);
         setToasts((list) => list.filter((t) => t.id !== id));
       },
-      tone === "bad" ? 4200 : 2800,
+      tone === "bad" ? 3800 : 2200,
     );
     toastTimers.current.add(timer);
   }, []);
