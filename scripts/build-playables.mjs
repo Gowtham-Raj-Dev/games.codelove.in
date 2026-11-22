@@ -59,13 +59,28 @@ const GAMES = {
   },
 };
 const STANDALONE = ["patti-veedu"];
-const ALL = [...Object.keys(GAMES), ...STANDALONE];
+
+/**
+ * TARGET=crazygames builds the same kind of stand-alone page for CrazyGames (npm run crazygames:build):
+ * no Next.js, no AdSense, no analytics, no Firebase — only CrazyGames's own SDK is loaded from outside.
+ */
+const CRAZY = process.env.TARGET === "crazygames";
+const CRAZY_GAMES = {
+  "night-heist": {
+    data: `export { GAME, MODELS as BASE_MODELS } from "${G}/night-heist/manifest";`,
+    pictures: () => [],
+  },
+};
+if (CRAZY) Object.keys(GAMES).forEach((k) => delete GAMES[k]);
+Object.assign(GAMES, CRAZY ? CRAZY_GAMES : {});
+const ALL = CRAZY ? Object.keys(CRAZY_GAMES) : [...Object.keys(GAMES), ...STANDALONE];
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const PUBLIC = path.join(ROOT, "public");
 const SRC = path.join(ROOT, "scripts", "playables");
-const OUT_ROOT = path.join(ROOT, "dist-playables");
-const SDK = "https://www.youtube.com/game_api/v1";
+const OUT_ROOT = path.join(ROOT, CRAZY ? "dist-crazygames" : "dist-playables");
+const SDK = CRAZY ? "https://sdk.crazygames.com/crazygames-sdk-v3.js" : "https://www.youtube.com/game_api/v1";
+const STORE = CRAZY ? "CrazyGames" : "YouTube Playables";
 /** YouTube's limits: initial bundle < 30 MiB (should be < 15), every file < 30 MiB, at most 8000 files. */
 const LIMITS = { initial: 30 * 1024 * 1024, file: 30 * 1024 * 1024, files: 8000 };
 
@@ -164,10 +179,11 @@ function finish(slug, out, initialOf) {
   const html = fs.readFileSync(path.join(out, "index.html"), "utf8");
   const outside = [...html.matchAll(/(?:src|href)="(https?:[^"]+)"/g)].map((m) => m[1]).filter((u) => u !== SDK);
   if (outside.length) fail(`index.html loads from outside the bundle: ${outside.join(", ")}`);
-  if (html.indexOf(`<script src="${SDK}">`) < 0 || html.indexOf(`<script src="${SDK}">`) > html.search(/<script(?! src="https:\/\/www\.youtube\.com)/)) fail("YouTube's SDK is not the first script of index.html");
+  const firstOther = html.search(new RegExp(`<script(?! src="${SDK.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&")}")`));
+  if (html.indexOf(`<script src="${SDK}">`) < 0 || html.indexOf(`<script src="${SDK}">`) > firstOther) fail(`${STORE}'s SDK is not the first script of index.html`);
 
   const zip = zipSync(Object.fromEntries(files.map((f) => [f.rel, [fs.readFileSync(path.join(out, f.rel)), { level: /\.(glb|pack|webp|woff2|jpg|png)$/.test(f.rel) ? 0 : 9 }]])));
-  const zipFile = path.join(OUT_ROOT, `${slug}-playables.zip`);
+  const zipFile = path.join(OUT_ROOT, `${slug}-${CRAZY ? "crazygames" : "playables"}.zip`);
   fs.writeFileSync(zipFile, zip);
   console.log(`  ${files.length} files, ${mb(total)} in all; first load (to the menu) ≈ ${mb(initial)}${initial > LIMITS.initial / 2 ? " (YouTube recommends < 15 MiB)" : ""}; largest file ${largest.rel} ${kb(largest.bytes)}`);
   console.log(`  zip: ${path.relative(ROOT, zipFile)} (${mb(zip.length)})`);
@@ -240,6 +256,7 @@ async function buildReact(slug) {
       "process.env.NEXT_PUBLIC_BASE_PATH": '"."',
       __MODEL_SIZES__: JSON.stringify(sizes),
       "import.meta.url": "__importMetaUrl",
+      __CRAZYGAMES__: JSON.stringify(CRAZY),
     },
   });
   const external = Object.keys(js.metafile.inputs).filter((f) => /(^|\/)node_modules\/(next|firebase|@firebase)\//.test(f));
@@ -259,7 +276,7 @@ async function buildReact(slug) {
   // 4. The page. YouTube's SDK must load before any game code.
   fs.writeFileSync(path.join(out, "index.html"), page(GAME.title, '<link rel="stylesheet" href="./game.css">', '<div id="game"></div>\n<script src="./game.js"></script>', early));
 
-  console.log(`${GAME.title} for YouTube Playables → ${path.relative(ROOT, out)}`);
+  console.log(`${GAME.title} for ${STORE} →${path.relative(ROOT, out)}`);
   finish(slug, out, (files) => {
     const byName = new Map(files.map((f) => [f.rel, f.bytes]));
     console.log(`  game.js ${kb(byName.get("game.js"))} · game.css ${kb(byName.get("game.css"))} · ${models.length} models ${mb(modelBytes)} · pictures ${mb(pictureBytes)}`);
@@ -418,7 +435,7 @@ function buildPatti() {
 
 // --- Run --------------------------------------------------------------------------------------------
 
-const arg = process.argv[2] ?? "skate-rush";
+const arg = process.argv[2] ?? (CRAZY ? "night-heist" : "skate-rush");
 const slugs = arg === "all" ? ALL : [arg];
 if (slugs.some((s) => !ALL.includes(s))) {
   console.error(`build-playables: no Playables setup for "${arg}" (have: ${ALL.join(", ")}, or "all")`);
@@ -439,3 +456,4 @@ for (const slug of slugs) {
   }
 }
 process.exit(failed ? 1 : 0);
+

@@ -31,6 +31,8 @@ interface CgSdk {
   ad: { requestAd(type: "midgame" | "rewarded", callbacks: CgAdCallbacks): void; hasAdblock?: () => Promise<boolean> };
 }
 
+declare const __CRAZYGAMES__: boolean | undefined;
+
 declare global {
   interface Window {
     CrazyGames?: { SDK: CgSdk };
@@ -42,6 +44,8 @@ const SRC = "https://sdk.crazygames.com/crazygames-sdk-v3.js";
 /** Framed by CrazyGames (or asked for by hand while testing). */
 function wanted(): boolean {
   if (typeof window === "undefined") return false;
+  // The stand-alone CrazyGames build (scripts/build-playables.mjs, TARGET=crazygames) always runs there.
+  if (typeof __CRAZYGAMES__ !== "undefined" && __CRAZYGAMES__) return true;
   if (new URLSearchParams(window.location.search).has("crazygames")) return true;
   if (window.self === window.top) return false;
   const hosts = [document.referrer, ...(window.location.ancestorOrigins ? Array.from(window.location.ancestorOrigins) : [])];
