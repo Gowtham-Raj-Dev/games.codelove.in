@@ -60,6 +60,7 @@ export const CODELOVE = {
     { name: "Video to Images", url: "https://videotoimages.codelove.in" },
     { name: "Free YouTube Automation", url: "https://utubeflow.codelove.in" },
     { name: "Free Java Games", url: "https://javaplay.codelove.in" },
+    { name: "Webly (Analytics & SEO)", url: "https://webly.codelove.in" },
   ],
   /** Guides on the main site about the games and the models they are built from (footer "Guides"). */
   guides: [
